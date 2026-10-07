@@ -17,3 +17,20 @@ deps = ["require_auth", "verify_hmac_signature", "extract_app_from_dsn", "verify
 # asserter is the luxarch:route-smoke block at the end of tests/conftest.py.
 [route_smoke]
 enabled = true
+
+# Cookie auth on SameSite=Lax with no CSRF token: no GET/HEAD may mutate state
+# (luxarch --playbook state-changing-get). The dashboard session is the one auth cookie.
+[csrf]
+enabled = true
+session_cookies = ["analytics_session"]
+
+# A request holding get_db must not open a second session owner (luxarch --playbook db-mutations §5d).
+[session]
+no_nesting = true
+
+# The app ships OpenTelemetry traces (app/core/telemetry.py) and Prometheus metrics (/metrics).
+# luxarch --playbook observability. Entity ids are this domain's: the app, event, user, session.
+[observability]
+enabled = true
+signals = ["traces", "metrics"]
+entity_id_params = ["app_id", "event_id", "user_id", "session_id"]
