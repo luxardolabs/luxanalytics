@@ -3,12 +3,15 @@ import logging
 import time
 import zlib
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from fastapi import HTTPException, Request, Response
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from redis.exceptions import RedisError
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import ClientDisconnect
+from starlette.types import ASGIApp, Message
 
 from app.core.config import settings
 from app.core.rate_limiter import AppRateLimiter, IPRateLimiter
@@ -20,7 +23,9 @@ logger = logging.getLogger(__name__)
 class LoggingMiddleware(BaseHTTPMiddleware):
     """Log all requests and capture raw body for HMAC verification."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # Skip body processing for non-API routes (form POSTs need the stream intact)
         if not request.url.path.startswith("/api/"):
             start_time = time.time()
@@ -97,13 +102,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                             },
                         )
                         body_for_processing = decompressed_body
-                    except zlib.error as e2:
-                        logger.error(
-                            "Raw deflate decompression also failed",
-                            extra={"error": str(e2)},
+                    except zlib.error:
+                        # A client error, answered as one: an HTTPException raised from a
+                        # middleware reaches no exception handler and becomes a 500.
+                        logger.warning(
+                            "Raw deflate decompression also failed", exc_info=True
                         )
-                        raise HTTPException(
-                            status_code=400, detail="Invalid compressed data"
+                        return JSONResponse(
+                            status_code=400,
+                            content={"error": "Invalid compressed data"},
                         )
             else:
                 # Use original body if not compressed
@@ -113,7 +120,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             request.state.processed_body = body_for_processing
 
             # Re-create request stream for downstream processing
-            async def receive():
+            async def receive() -> Message:
                 return {"type": "http.request", "body": body_for_processing}
 
             request._receive = receive
@@ -150,14 +157,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             response.headers["X-Process-Time"] = str(process_time)
             return response
 
-        except Exception as e:
+        except Exception:
             process_time = time.time() - start_time
-            logger.error(
+            logger.exception(
                 "Request failed",
                 extra={
                     "method": request.method,
                     "url": str(request.url),
-                    "error": str(e),
                     "process_time": round(process_time, 4),
                 },
             )
@@ -167,151 +173,173 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Redis-based distributed rate limiting with in-memory fallback."""
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
         self.ip_limiter = IPRateLimiter()
         self.app_limiter = AppRateLimiter()
         # Fallback in-memory storage for backwards compatibility
-        self.requests = defaultdict(list)
+        self.requests: defaultdict[str, list[datetime]] = defaultdict(list)
         self.lock = asyncio.Lock()
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # Skip rate limiting for health check and other system endpoints
         if request.url.path in ["/health", "/metrics", "/docs", "/openapi.json"]:
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
 
-        # Try Redis-based rate limiting first
+        # Decide FIRST, then run the request exactly once. The try covers only the limit
+        # check: wrapping call_next in it routed every exception the app raised into the
+        # Redis fallback, which swallowed it and ran the request a second time.
         try:
-            ip_allowed, ip_metadata = await self.ip_limiter.check_ip_limit(client_ip)
-
-            if not ip_allowed:
-                logger.warning(
-                    "Rate limit exceeded",
-                    extra={
-                        "client_ip": client_ip,
-                        "retry_after": ip_metadata.get("retry_after"),
-                    },
-                )
-                return JSONResponse(
-                    status_code=429,
-                    content={
-                        "error": "Rate limit exceeded",
-                        "retry_after": ip_metadata.get("retry_after", 60),
-                    },
-                    headers={
-                        "X-RateLimit-Limit": str(self.ip_limiter.requests_per_window),
-                        "X-RateLimit-Remaining": "0",
-                        "X-RateLimit-Reset": str(ip_metadata.get("reset", 0)),
-                        "Retry-After": str(ip_metadata.get("retry_after", 60)),
-                    },
-                )
-
-            # For API endpoints, also check app_id rate limit
-            if request.url.path.startswith("/api/"):
-                try:
-                    app_id = get_app_id_from_headers(dict(request.headers))
-                    if app_id:
-                        (
-                            app_allowed,
-                            app_metadata,
-                        ) = await self.app_limiter.check_app_limit(app_id)
-                        if not app_allowed:
-                            logger.warning(
-                                "App rate limit exceeded",
-                                extra={
-                                    "app_id": app_id,
-                                    "retry_after": app_metadata.get("retry_after"),
-                                },
-                            )
-                            return JSONResponse(
-                                status_code=429,
-                                content={
-                                    "error": "App rate limit exceeded",
-                                    "retry_after": app_metadata.get("retry_after", 60),
-                                },
-                                headers={
-                                    "X-RateLimit-Limit": str(
-                                        self.app_limiter.requests_per_window
-                                    ),
-                                    "X-RateLimit-Remaining": "0",
-                                    "X-RateLimit-Reset": str(
-                                        app_metadata.get("reset", 0)
-                                    ),
-                                    "Retry-After": str(
-                                        app_metadata.get("retry_after", 60)
-                                    ),
-                                },
-                            )
-                except Exception:
-                    pass  # Don't block if we can't determine app_id
-
-            # Process request and add rate limit headers
-            try:
-                response = await call_next(request)
-            except ClientDisconnect:
-                # Client disconnected during processing
-                logger.debug(
-                    "Client disconnected during request processing",
-                    extra={"client_ip": client_ip, "path": request.url.path},
-                )
-                return Response(status_code=499)
-
-            if ip_metadata.get("allowed"):
-                response.headers["X-RateLimit-Limit"] = str(
-                    self.ip_limiter.requests_per_window
-                )
-                response.headers["X-RateLimit-Remaining"] = str(
-                    ip_metadata.get("remaining", 0)
-                )
-                response.headers["X-RateLimit-Reset"] = str(ip_metadata.get("reset", 0))
-
-            return response
-
-        except Exception as e:
-            # Fall back to in-memory rate limiting if Redis fails
+            rejection, ip_metadata = await self._redis_decision(request, client_ip)
+        except Exception:
             logger.debug(
-                "Redis rate limiting failed, using in-memory fallback",
-                extra={"error": str(e)},
+                "Redis rate limiting failed, using in-memory fallback", exc_info=True
             )
+            rejection, ip_metadata = await self._memory_decision(client_ip), {}
 
-            now = datetime.now()
-            window_start = now - timedelta(seconds=settings.RATE_LIMIT_WINDOW)
+        if rejection is not None:
+            return rejection
 
-            async with self.lock:
-                # Clean old requests
-                self.requests[client_ip] = [
-                    req_time
-                    for req_time in self.requests[client_ip]
-                    if req_time > window_start
-                ]
+        try:
+            response = await call_next(request)
+        except ClientDisconnect:
+            # Client disconnected during processing
+            logger.debug(
+                "Client disconnected during request processing",
+                extra={"client_ip": client_ip, "path": request.url.path},
+            )
+            return Response(status_code=499)
 
-                # Check rate limit
-                if len(self.requests[client_ip]) >= settings.RATE_LIMIT_REQUESTS:
+        if ip_metadata.get("allowed"):
+            response.headers["X-RateLimit-Limit"] = str(
+                self.ip_limiter.requests_per_window
+            )
+            response.headers["X-RateLimit-Remaining"] = str(
+                ip_metadata.get("remaining", 0)
+            )
+            response.headers["X-RateLimit-Reset"] = str(ip_metadata.get("reset", 0))
+
+        return response
+
+    async def _redis_decision(
+        self, request: Request, client_ip: str
+    ) -> tuple[Response | None, dict[str, Any]]:
+        """The IP limit, then (for API routes) the app limit: a 429 response, or None to proceed."""
+        ip_allowed, ip_metadata = await self.ip_limiter.check_ip_limit(client_ip)
+
+        if not ip_allowed:
+            logger.warning(
+                "Rate limit exceeded",
+                extra={
+                    "client_ip": client_ip,
+                    "retry_after": ip_metadata.get("retry_after"),
+                },
+            )
+            return _too_many_requests(
+                "Rate limit exceeded",
+                ip_metadata,
+                limit=self.ip_limiter.requests_per_window,
+            ), ip_metadata
+
+        # For API endpoints, also check app_id rate limit
+        if request.url.path.startswith("/api/"):
+            app_id = get_app_id_from_headers(dict(request.headers))
+            if app_id:
+                try:
+                    app_allowed, app_metadata = await self.app_limiter.check_app_limit(
+                        app_id
+                    )
+                except RedisError, OSError:
+                    # The per-app limit is a second line behind the IP limit that already
+                    # passed: fail open, but never silently.
                     logger.warning(
-                        "Rate limit exceeded (in-memory)",
+                        "App rate limit check failed; request allowed",
+                        extra={"app_id": app_id},
+                        exc_info=True,
+                    )
+                    return None, ip_metadata
+                if not app_allowed:
+                    logger.warning(
+                        "App rate limit exceeded",
                         extra={
-                            "client_ip": client_ip,
-                            "requests_count": len(self.requests[client_ip]),
+                            "app_id": app_id,
+                            "retry_after": app_metadata.get("retry_after"),
                         },
                     )
-                    raise HTTPException(status_code=429, detail="Rate limit exceeded")
+                    return _too_many_requests(
+                        "App rate limit exceeded",
+                        app_metadata,
+                        limit=self.app_limiter.requests_per_window,
+                    ), ip_metadata
 
-                # Add current request
-                self.requests[client_ip].append(now)
+        return None, ip_metadata
 
-            return await call_next(request)
+    async def _memory_decision(self, client_ip: str) -> Response | None:
+        """In-memory IP limit for when Redis is unavailable: a 429 response, or None to proceed."""
+        now = datetime.now(UTC)
+        window_start = now - timedelta(seconds=settings.RATE_LIMIT_WINDOW)
+
+        async with self.lock:
+            # Clean old requests
+            self.requests[client_ip] = [
+                req_time
+                for req_time in self.requests[client_ip]
+                if req_time > window_start
+            ]
+
+            # Check rate limit
+            if len(self.requests[client_ip]) >= settings.RATE_LIMIT_REQUESTS:
+                logger.warning(
+                    "Rate limit exceeded (in-memory)",
+                    extra={
+                        "client_ip": client_ip,
+                        "requests_count": len(self.requests[client_ip]),
+                    },
+                )
+                # A response, not HTTPException: raised from a middleware it reaches no
+                # exception handler and the client gets a 500.
+                return _too_many_requests(
+                    "Rate limit exceeded",
+                    {"retry_after": settings.RATE_LIMIT_WINDOW},
+                    limit=settings.RATE_LIMIT_REQUESTS,
+                )
+
+            # Add current request
+            self.requests[client_ip].append(now)
+
+        return None
+
+
+def _too_many_requests(
+    error: str, metadata: dict[str, Any], limit: int
+) -> JSONResponse:
+    retry_after = metadata.get("retry_after") or 60
+    return JSONResponse(
+        status_code=429,
+        content={"error": error, "retry_after": retry_after},
+        headers={
+            "X-RateLimit-Limit": str(limit),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": str(metadata.get("reset", 0)),
+            "Retry-After": str(retry_after),
+        },
+    )
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     """Middleware to enforce request body size limits."""
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
         self.max_size = settings.MAX_REQUEST_SIZE
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # Only check size for API routes — web form POSTs need the stream intact
         if not request.url.path.startswith("/api/"):
             return await call_next(request)
@@ -378,7 +406,7 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
             request.state.body = body
 
             # Recreate the request with the stored body
-            async def receive():
+            async def receive() -> Message:
                 return {"type": "http.request", "body": body}
 
             request._receive = receive

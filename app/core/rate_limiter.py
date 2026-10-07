@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import redis.asyncio as redis
@@ -24,12 +24,13 @@ class RateLimiter:
         requests_per_window: int | None = None,
         window_seconds: int | None = None,
         key_prefix: str = "rate_limit",
-    ):
+    ) -> None:
         self.requests_per_window = requests_per_window or settings.RATE_LIMIT_REQUESTS
         self.window_seconds = window_seconds or settings.RATE_LIMIT_WINDOW
         self.key_prefix = key_prefix
         # Fallback in-memory storage
-        self._memory_storage: dict[str, list] = {}
+        # identifier -> [(request time, cost)] within the window
+        self._memory_storage: dict[str, list[tuple[datetime, int]]] = {}
 
     async def is_allowed(
         self, identifier: str, cost: int = 1
@@ -89,7 +90,8 @@ class RateLimiter:
                     # Get oldest request time to calculate retry_after
                     oldest = await redis_client.zrange(key, 0, 0, withscores=True)
                     if oldest:
-                        oldest_time = oldest[0][1]
+                        # withscores=True yields (member, score); the score is the float timestamp
+                        oldest_time = float(oldest[0][1])
                         retry_after = int(oldest_time + self.window_seconds - now)
                     else:
                         retry_after = self.window_seconds
@@ -101,14 +103,14 @@ class RateLimiter:
                         "retry_after": retry_after,
                     }
 
-            except Exception as e:
-                logger.error("Redis rate limit check failed", extra={"error": str(e)})
+            except Exception:
+                logger.exception("Redis rate limit check failed")
                 # Fall back to memory on Redis error
                 return self._check_memory(identifier, cost)
 
     def _check_memory(self, identifier: str, cost: int) -> tuple[bool, dict[str, Any]]:
         """Fallback in-memory rate limiting."""
-        now = datetime.now()
+        now = datetime.now(UTC)
         window_start = now - timedelta(seconds=self.window_seconds)
 
         # Clean old requests
@@ -160,7 +162,7 @@ class RateLimiter:
 class AppRateLimiter(RateLimiter):
     """Rate limiter specifically for app_id based limiting."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(key_prefix="app_rate_limit")
 
     async def check_app_limit(
@@ -182,7 +184,7 @@ class AppRateLimiter(RateLimiter):
 class IPRateLimiter(RateLimiter):
     """Rate limiter for IP-based limiting."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(key_prefix="ip_rate_limit")
 
     async def check_ip_limit(
