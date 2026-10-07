@@ -24,10 +24,12 @@ class AppCRUD:
         result = await db.execute(select(App).where(App.app_id == app_id))
         return result.scalar_one_or_none()
 
-    async def get_all(self, db: AsyncSession, include_inactive: bool = False) -> list:
+    async def get_all(
+        self, db: AsyncSession, include_inactive: bool = False
+    ) -> list[App]:
         query = select(App)
         if not include_inactive:
-            query = query.where(App.is_active)
+            query = query.where(App.is_active.is_(True))
         query = query.order_by(App.created_at.desc())
         result = await db.execute(query)
         return list(result.scalars().all())
@@ -47,7 +49,7 @@ class AppCRUD:
         await db.delete(app)
         await db.flush()
 
-    async def search(self, db: AsyncSession, query_str: str) -> list:
+    async def search(self, db: AsyncSession, query_str: str) -> list[App]:
         pattern = f"%{query_str}%"
         result = await db.execute(
             select(App)
@@ -61,7 +63,7 @@ class AppCRUD:
         )
         return list(result.scalars().all())
 
-    async def get_stats(self, db: AsyncSession, app_id: str) -> dict:
+    async def get_stats(self, db: AsyncSession, app_id: str) -> dict[str, int]:
         result = await db.execute(
             select(
                 func.count(Event.id).label("total_events"),
@@ -69,7 +71,7 @@ class AppCRUD:
                 func.count(func.distinct(Event.session_id)).label("unique_sessions"),
             ).where(Event.app_id == app_id)
         )
-        row = result.first()
+        row = result.one()
         return {
             "total_events": row.total_events,
             "unique_users": row.unique_users,

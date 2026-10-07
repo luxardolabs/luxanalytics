@@ -9,6 +9,7 @@ from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEVICE_CONTEXT_KEYS
+from app.core.tracing import create_service_span
 from app.crud.device_crud import device_crud
 from app.crud.event_crud import EventWriteCRUD, event_crud
 from app.models.event_model import Event
@@ -47,94 +48,97 @@ class EventCoreService:
 
     async def ingest(self, app_id: str, payload: object) -> list[Event]:
         """Validate a decoded ingest payload and store its events (see events_from_payload)."""
-        events = events_from_payload(payload)
-        logger.debug(
-            "Analytics payload received",
-            extra={
-                "app_id": app_id,
-                "batch_size": len(events),
-                "event_names": [e.name for e in events],
-            },
-        )
-        created = await self.create_events(app_id, events)
-        logger.info(
-            "Analytics events processed",
-            extra={
-                "app_id": app_id,
-                "events_count": len(created),
-                "event_types": sorted({e.name for e in created}),
-                "batch_type": "batch" if len(events) > 1 else "single",
-            },
-        )
-        return created
+        with create_service_span("EventCoreService", "ingest", app_id=app_id):
+            events = events_from_payload(payload)
+            logger.debug(
+                "Analytics payload received",
+                extra={
+                    "app_id": app_id,
+                    "batch_size": len(events),
+                    "event_names": [e.name for e in events],
+                },
+            )
+            created = await self.create_events(app_id, events)
+            logger.info(
+                "Analytics events processed",
+                extra={
+                    "app_id": app_id,
+                    "events_count": len(created),
+                    "event_types": sorted({e.name for e in created}),
+                    "batch_type": "batch" if len(events) > 1 else "single",
+                },
+            )
+            return created
 
     async def count_events(self, app_id: str, hours: int = STATS_WINDOW_HOURS) -> int:
         """Events the app sent in the last `hours`."""
-        conditions = event_crud.time_conditions(hours=hours, app_id=app_id)
-        return await event_crud.count(self.db, conditions)
+        with create_service_span("EventCoreService", "count_events", app_id=app_id):
+            conditions = event_crud.time_conditions(hours=hours, app_id=app_id)
+            return await event_crud.count(self.db, conditions)
 
     async def create_events(
         self, app_id: str, events: list[EventCreate]
     ) -> list[Event]:
         """Create events with promoted columns, properties JSONB, and device upserts."""
-        received_at = datetime.now(UTC)
-        insert_data = []
-        devices_to_upsert: dict[str, dict[str, Any]] = {}
+        with create_service_span("EventCoreService", "create_events", app_id=app_id):
+            received_at = datetime.now(UTC)
+            insert_data = []
+            devices_to_upsert: dict[str, dict[str, Any]] = {}
 
-        for event_data in events:
-            event_id = str(uuid.uuid4())
-            metadata = event_data.metadata or {}
+            for event_data in events:
+                event_id = str(uuid.uuid4())
+                metadata = event_data.metadata or {}
 
-            device_id = metadata.get("device_id")
-            device_model = metadata.get("device_model")
-            os_version = metadata.get("system_version")
-            app_version = metadata.get("app_version")
-            platform = metadata.get("platform", "ios")
+                device_id = metadata.get("device_id")
+                device_model = metadata.get("device_model")
+                os_version = metadata.get("system_version")
+                app_version = metadata.get("app_version")
+                platform = metadata.get("platform", "ios")
 
-            properties = {
-                k: v for k, v in metadata.items() if k not in DEVICE_CONTEXT_KEYS
-            }
-
-            insert_data.append(
-                {
-                    "id": event_id,
-                    "app_id": app_id,
-                    "name": event_data.name,
-                    "timestamp": event_data.timestamp,
-                    "user_id": event_data.user_id,
-                    "session_id": event_data.session_id,
-                    "device_id": device_id,
-                    "device_model": device_model,
-                    "os_version": os_version,
-                    "app_version": app_version,
-                    "platform": platform,
-                    "properties": properties or None,
-                    "event_metadata": metadata,
-                    "received_at": received_at,
-                }
-            )
-
-            if device_id and device_id not in devices_to_upsert:
-                devices_to_upsert[device_id] = {
-                    "device_id": device_id,
-                    "app_id": app_id,
-                    "device_model": device_model,
-                    "device_type": metadata.get("device_type"),
-                    "os_version": os_version,
-                    "app_version": app_version,
-                    "build_number": metadata.get("build_number"),
-                    "screen_resolution": metadata.get("screen_resolution"),
-                    "locale": metadata.get("locale"),
-                    "timezone": metadata.get("timezone"),
-                    "is_testflight": metadata.get("is_testflight") == "true",
-                    "platform": platform,
-                    "first_seen": received_at,
-                    "last_seen": received_at,
+                properties = {
+                    k: v for k, v in metadata.items() if k not in DEVICE_CONTEXT_KEYS
                 }
 
-        await event_write_crud.bulk_insert(self.db, insert_data)
+                insert_data.append(
+                    {
+                        "id": event_id,
+                        "app_id": app_id,
+                        "name": event_data.name,
+                        "timestamp": event_data.timestamp,
+                        "user_id": event_data.user_id,
+                        "session_id": event_data.session_id,
+                        "device_id": device_id,
+                        "device_model": device_model,
+                        "os_version": os_version,
+                        "app_version": app_version,
+                        "platform": platform,
+                        "properties": properties or None,
+                        "event_metadata": metadata,
+                        "received_at": received_at,
+                    }
+                )
 
-        for device_data in devices_to_upsert.values():
-            await device_crud.upsert(self.db, device_data)
+                if device_id and device_id not in devices_to_upsert:
+                    devices_to_upsert[device_id] = {
+                        "device_id": device_id,
+                        "app_id": app_id,
+                        "device_model": device_model,
+                        "device_type": metadata.get("device_type"),
+                        "os_version": os_version,
+                        "app_version": app_version,
+                        "build_number": metadata.get("build_number"),
+                        "screen_resolution": metadata.get("screen_resolution"),
+                        "locale": metadata.get("locale"),
+                        "timezone": metadata.get("timezone"),
+                        "is_testflight": metadata.get("is_testflight") == "true",
+                        "platform": platform,
+                        "first_seen": received_at,
+                        "last_seen": received_at,
+                    }
 
-        return [Event(**data) for data in insert_data]
+            await event_write_crud.bulk_insert(self.db, insert_data)
+
+            for device_data in devices_to_upsert.values():
+                await device_crud.upsert(self.db, device_data)
+
+            return [Event(**data) for data in insert_data]

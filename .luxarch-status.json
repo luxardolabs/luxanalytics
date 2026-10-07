@@ -1386,30 +1386,30 @@
         },
         {
           "rule": "obs.method_span",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.10.0",
-          "violations": 60,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
         },
         {
           "rule": "obs.span_name_matches_class",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.10.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "obs.record_exception",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.10.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "obs.route_enrich_user",
@@ -1440,12 +1440,12 @@
         },
         {
           "rule": "obs.no_silent_suppress",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.10.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no function calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "obs.job_root_span",
@@ -1458,12 +1458,12 @@
         },
         {
           "rule": "obs.record_before_raise",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.10.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no except handler calls matches `record_exception_in_span` \u2014 set `[observability.markers].record_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "obs.enrich_early",
@@ -1476,12 +1476,12 @@
         },
         {
           "rule": "obs.entity_id_forwarded",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.10.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "obs.metric_label_cardinality",
@@ -1503,11 +1503,11 @@
         }
       ],
       "summary": {
-        "PASS": 130,
-        "FAIL": 1,
+        "PASS": 136,
+        "FAIL": 0,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 35
+        "INERT": 30
       }
     }
   ],
@@ -2045,12 +2045,12 @@
     }
   },
   "summary": {
-    "PASS": 184,
-    "FAIL": 2,
+    "PASS": 190,
+    "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 38
+    "INERT": 33
   },
-  "commit": "228870f41c8d40965249f64f94526aab52d81e86",
-  "generated_at": "2026-10-07T18:42:03Z"
+  "commit": "a5ee01354355a2272a44422bac9823db4e029e9f",
+  "generated_at": "2026-10-07T19:42:24Z"
 }
