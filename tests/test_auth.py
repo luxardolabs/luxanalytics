@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 import pytest
 from httpx import AsyncClient
 
+from app.core.config import settings
+
 
 @pytest.mark.asyncio
 async def test_hmac_auth_valid(client):
@@ -181,3 +183,34 @@ async def test_set_app_context_requires_a_dashboard_session(
     assert response.status_code == 303
     assert response.headers["location"].startswith("/login")
     assert "analytics_app_id" not in response.headers.get("set-cookie", "")
+
+
+@pytest.mark.db
+async def test_stats_overview_requires_a_dashboard_session(client: AsyncClient) -> None:
+    # Cross-app analytics; it used to answer anonymous callers (LUXANALYTI-62).
+    response = await client.get("/api/v1/stats/overview", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login")
+
+
+@pytest.mark.db
+async def test_stats_overview_answers_a_logged_in_session(
+    client: AsyncClient, sample_events: list[dict[str, object]]
+) -> None:
+    client.base_url = "https://test"  # the session cookie is https_only
+    login = await client.post(
+        "/login",
+        data={
+            "username": settings.DASHBOARD_USERNAME,
+            "password": settings.DASHBOARD_PASSWORD,
+        },
+        headers={"X-Forwarded-For": "198.51.100.62"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 303
+    response = await client.get("/api/v1/stats/overview")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hours"] == 24
+    assert body["total_events"] >= 1
+    assert all(set(e) == {"name", "count"} for e in body["top_events"])
