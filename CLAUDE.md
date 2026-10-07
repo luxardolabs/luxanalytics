@@ -170,22 +170,23 @@ make guard-upgrade    # bump every guard pin to latest
 - Reds stay red: align the code or escalate a wrong guard (`fleet-escalation` issue in LuxPM). Never defer to green.
 - Read guard docs from the image: `luxarch --docs`, `--doc <NAME>`, `--playbook <slug>`.
 
-### Build & Registry
+### Build & Registry (emitted image block — `luxarch --emit image-block`)
 
 ```bash
-make external-build         # Build + push to the external registry (Makefile.local)
-make external-build-latest  # Same + :latest tag
-make local-build            # Build + push to local registry
-make release                # Push to both registries
-make version                # Show current version info
+make publish-sha      # Build + scan + push this commit as :sha-<commit> (moves the :dev alias)
+make release          # Cut VERSION: build + scan + push :$(VERSION), then the GitHub Release (refuses a released VERSION, a dirty tree, an untagged HEAD)
+make version          # Show the version and image refs
 ```
+
+One registry (`$(REGISTRY)` in `Makefile.local`) holds the app images and the guards. Deploy tags are immutable: `:$(VERSION)` for prod, `:sha-<commit>` for anything else; `:dev` is an alias nothing pins.
 
 ### Production (OVH via jump host)
 
 ```bash
-make prod-deploy      # Pull + restart on production
-make prod-push        # Push compose/env config to prod server
-make prod-release     # external-build + prod-push + prod-deploy (full release)
+make prod-deploy      # prod-pin + prod-sync + pull + restart on production
+make prod-sync        # Sync deploy/prod (compose + .env.prod + nginx conf) to the prod node
+make prod-pin         # Pin TAG in .env.prod to a released version (PROD_TAG=… to roll back)
+make prod-release     # release + prod-deploy (full release)
 make prod-restart     # Restart app container only
 make prod-stop        # Stop all production containers
 make prod-logs        # Tail production logs
@@ -201,7 +202,7 @@ make prod-version     # Show running image version
 ### Typical deploy workflow
 
 ```bash
-make external-build && make prod-deploy
+make release && make prod-deploy
 # or all-in-one:
 make prod-release
 ```
@@ -247,7 +248,7 @@ make prod-release
 
 - **Host**: the prod node behind an ssh jump host — `PROD_HOST` / `PROD_JUMP` in `Makefile.local`
 - **Path**: `/opt/luxardolabs/luxanalytics`
-- **Registry**: `$(EXTERNAL_REGISTRY)/luxardolabs/luxanalytics` (host in `Makefile.local`; prod image ref in `deploy/prod/.env.prod` as `LUXANALYTICS_IMAGE`)
+- **Registry**: `$(REGISTRY)/luxardolabs/luxanalytics` (host in `Makefile.local`); prod runs `${REGISTRY}/luxardolabs/luxanalytics:${TAG}` with both set in `deploy/prod/.env.prod`
 - **Nginx**: Reverse proxy config at `deploy/prod/analytics.luxardolabs.com.conf`
 - **Compose**: `deploy/prod/compose.yaml` with `.env.prod`
 - **Port mapping**: 4000:4000 (no mental remapping)

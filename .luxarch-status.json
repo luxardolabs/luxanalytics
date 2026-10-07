@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.265.0",
+  "guard_version": "0.266.0",
   "repo": "/repo",
   "targets": [
     {
@@ -567,12 +567,12 @@
         },
         {
           "rule": "fw.no_reserved_logging_keys",
-          "status": "PASS",
+          "status": "INERT",
           "since": "0.2.0",
           "violations": 0,
           "deferred": false,
-          "inert": false,
-          "inert_reason": ""
+          "inert": true,
+          "inert_reason": "the fleet logging module (app/core/logging_config.py) is installed: a colliding `extra=` key is kept as `extra_<key>` instead of raising"
         },
         {
           "rule": "fw.restricted_imports",
@@ -1206,12 +1206,12 @@
         },
         {
           "rule": "fw.test_engine_pool_parity",
-          "status": "PASS",
+          "status": "INERT",
           "since": "0.160.0",
           "violations": 0,
           "deferred": false,
-          "inert": false,
-          "inert_reason": ""
+          "inert": true,
+          "inert_reason": "the harness isolates by holding ONE connection and rolling it back (tests/conftest.py:231), so a pooled test engine cannot work here \u2014 each pytest-asyncio test gets its own loop and a pooled connection belongs to the loop that opened it. **This INERT is the correct END STATE for such a harness, not a todo.** Do NOT migrate to DELETE/TRUNCATE-per-test to satisfy this rule: luxlint's test.no_handrolled_cleanup exists to red exactly that, and rollback isolation is the better pattern (faster, no table-ordering bugs, nothing to forget). An earlier version of this message named that migration as the prerequisite and was wrong \u2014 it pointed at something another fleet guard forbids. Measured, pursuing pooling here costs you: 0 failures on NullPool, 139 pooled, 366 pooled+dispose. And you lose nothing in DETECTION \u2014 the cross-session visibility class this rule guards is caught by durability locks that read on a SEPARATE connection, which works whatever the pool class. Pool the APP engine (fw.dev_prod_pool_parity); leave the test engine alone."
         },
         {
           "rule": "fw.template_context_complete",
@@ -1386,11 +1386,11 @@
         }
       ],
       "summary": {
-        "PASS": 96,
+        "PASS": 94,
         "FAIL": 21,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 36
+        "INERT": 38
       }
     }
   ],
@@ -1461,9 +1461,9 @@
       },
       {
         "rule": "repo.guard_owned_tools_undeclared",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.243.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1488,9 +1488,9 @@
       },
       {
         "rule": "repo.logging_canonical",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.254.0",
-        "violations": 21,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1533,12 +1533,12 @@
       },
       {
         "rule": "repo.db_verify_image_is_current",
-        "status": "INERT",
+        "status": "PASS",
         "since": "0.196.0",
         "violations": 0,
         "deferred": false,
-        "inert": true,
-        "inert_reason": "no `db-verify` target in a committed makefile \u2014 there is no migration-chain run to judge"
+        "inert": false,
+        "inert_reason": ""
       },
       {
         "rule": "repo.image_name_declares_provenance",
@@ -1560,12 +1560,12 @@
       },
       {
         "rule": "repo.release_scans_candidate",
-        "status": "INERT",
+        "status": "PASS",
         "since": "0.250.0",
         "violations": 0,
         "deferred": false,
-        "inert": true,
-        "inert_reason": "no make target publishes an immutable tag \u2014 there is no push to gate"
+        "inert": false,
+        "inert_reason": ""
       },
       {
         "rule": "repo.makefile_image_ref_well_formed",
@@ -1578,9 +1578,9 @@
       },
       {
         "rule": "repo.alembic_env_honors_caller_url",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.217.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1641,39 +1641,39 @@
       },
       {
         "rule": "repo.makefile_test_db_harness",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.102.0",
-        "violations": 3,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
       },
       {
         "rule": "repo.migrations_build_schema",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.120.0",
-        "violations": 2,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
       },
       {
         "rule": "repo.release_docs_present",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.137.0",
-        "violations": 4,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
       },
       {
         "rule": "repo.release_docs_current",
-        "status": "INERT",
+        "status": "PASS",
         "since": "0.137.0",
         "violations": 0,
         "deferred": false,
-        "inert": true,
-        "inert_reason": "no VERSION file to key the per-version docs to (repo.version_single_source owns that)"
+        "inert": false,
+        "inert_reason": ""
       },
       {
         "rule": "repo.github_release_wired",
@@ -1731,18 +1731,18 @@
       },
       {
         "rule": "repo.fleet_dep_floor",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.219.0",
-        "violations": 3,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
       },
       {
         "rule": "repo.schema_from_migrations",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.130.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1821,18 +1821,18 @@
       },
       {
         "rule": "repo.alembic_path_separator",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.71.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
       },
       {
         "rule": "repo.alembic_autogen_comparisons",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.123.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1866,18 +1866,18 @@
       },
       {
         "rule": "repo.version_single_source",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.52.0",
-        "violations": 2,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
       },
       {
         "rule": "repo.hatchling_build_backend",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.62.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1893,12 +1893,12 @@
       },
       {
         "rule": "repo.app_version_calver",
-        "status": "INERT",
+        "status": "PASS",
         "since": "0.50.0",
         "violations": 0,
         "deferred": false,
-        "inert": true,
-        "inert_reason": "no VERSION file governs any app target (none in a target's package or any directory above it up to the repo root) \u2014 nothing to judge. The VERSION file is the fleet's one version source: add it (see --doc FLEET-BUILD-DEPLOY-STANDARD)"
+        "inert": false,
+        "inert_reason": ""
       },
       {
         "rule": "repo.dockerfile_provenance_args",
@@ -1920,20 +1920,20 @@
       }
     ],
     "summary": {
-      "PASS": 35,
-      "FAIL": 16,
+      "PASS": 51,
+      "FAIL": 4,
       "XFAIL": 0,
       "XPASS": 0,
-      "INERT": 7
+      "INERT": 3
     }
   },
   "summary": {
-    "PASS": 131,
-    "FAIL": 37,
+    "PASS": 145,
+    "FAIL": 25,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 43
+    "INERT": 41
   },
-  "commit": "425e67992bf2c989bb1535318237250f7f921ce6",
-  "generated_at": "2026-10-07T02:48:29Z"
+  "commit": "c6c6545cea420076ccad4f2ae3dddf87a4decc38",
+  "generated_at": "2026-10-07T03:56:07Z"
 }

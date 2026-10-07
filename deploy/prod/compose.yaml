@@ -1,7 +1,7 @@
 services:
   luxanalytics_app:
-    # The registry host is private; the ref (an immutable version tag) lives in .env.prod.
-    image: ${LUXANALYTICS_IMAGE:?set LUXANALYTICS_IMAGE in .env.prod}
+    # Immutable release tag only: REGISTRY and TAG come from .env.prod (`make prod-deploy` pins TAG).
+    image: ${REGISTRY:?set REGISTRY in .env.prod}/luxardolabs/luxanalytics:${TAG:?make prod-deploy pins TAG in .env.prod}
     container_name: luxanalytics_app
     restart: always
     env_file:

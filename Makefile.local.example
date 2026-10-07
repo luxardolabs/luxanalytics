@@ -3,15 +3,12 @@
 #
 #   cp Makefile.local.example Makefile.local     # then edit the values below
 #
-# REGISTRY holds this app's local images AND the luxarch / luxlint / luxaudit guard images, so
-# `make check` and every guard target need it. EXTERNAL_REGISTRY is where production pulls the
-# released image from. PROD_JUMP / PROD_HOST are the ssh jump host and the prod node behind it.
-# The registry CREDENTIAL is a secret, not topology: it goes in a gitignored .env.build
-# (REGISTRY_USER=… / REGISTRY_PASSWORD=…), never here.
+# REGISTRY is the ONE artifact registry: this app's images (`make release`, `make publish-sha`), the
+# image production pulls, AND the luxarch / luxlint / luxaudit guard images, so `make check` and
+# every guard target need it. PROD_JUMP / PROD_HOST are the ssh jump host and the prod node behind it.
 # Without this file `make up` / `make dev` still work; only the registry, guard and prod targets
 # need it.
 REGISTRY                   ?= docker.your-registry.example:5000
-EXTERNAL_REGISTRY          ?= registry.your-domain.example
 PROD_JUMP                  ?= jump.your-domain.example
 PROD_HOST                  ?= root@prod-node.example
 # Host directory holding the TLS cert + key the local nginx serves (compose.yml).

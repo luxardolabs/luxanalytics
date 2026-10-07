@@ -7,28 +7,14 @@
 # values win over the empty defaults below.
 -include Makefile.local
 
-# The external-registry credential is a SECRET, not topology, so it lives in the gitignored
-# .env.build (REGISTRY_USER / REGISTRY_PASSWORD), same as www / open-claim / luxof.life — never in
-# a Makefile. `export` makes it visible to recipe shells, which read it as $$REGISTRY_PASSWORD.
-# See luxarch --doc FLEET-BUILD-DEPLOY-STANDARD ("Versioning your ops config").
--include .env.build
-export REGISTRY_USER REGISTRY_PASSWORD
-
 # =============================================================================
 # Configuration
 # =============================================================================
 APP_NAME := luxanalytics
 
-# The fleet registry: holds this app's local images AND the three guard images.
+# The fleet registry (Makefile.local): the ONE artifact hub. It holds this app's images (named by the
+# image block below) AND the three guard images; production pulls from it too.
 REGISTRY ?=
-# The external registry production pulls from (its credential is in .env.build, above).
-EXTERNAL_REGISTRY ?=
-REGISTRY_USER ?= luxardolabs
-
-# Image name
-IMAGE_NAME := luxanalytics
-LOCAL_IMAGE := $(REGISTRY)/luxardolabs/$(IMAGE_NAME)
-EXTERNAL_IMAGE := $(EXTERNAL_REGISTRY)/luxardolabs/$(IMAGE_NAME)
 
 # The VERSION file is the one version source (CalVer YYYY.0M.MICRO for an app).
 PWD := $(shell pwd)
@@ -52,7 +38,7 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.265.0
+LUXARCH_VERSION  := 0.266.0
 LUXLINT_VERSION  := 0.61.0
 LUXAUDIT_VERSION := 0.13.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
@@ -71,9 +57,9 @@ export TLS_CERTS_DIR
         audit gitleaks gitleaks-staged onboard-check \
         build build-fast up down restart logs logs-app logs-db shell shell-db test-local migrate migrate-down \
         migrate-create clean stack-status health ps backup restore work quick css css-watch check-env \
-        local-build local-build-latest external-build external-build-latest release release-latest \
-        buildx-setup version images \
-        prod-push prod-deploy prod-restart prod-stop prod-logs prod-status prod-shell prod-shell-db \
+        publish-sha release gh-release dev-deploy dev-pin test-build \
+        buildx-setup version \
+        prod-sync prod-pin prod-deploy prod-restart prod-stop prod-logs prod-status prod-shell prod-shell-db \
         prod-nginx prod-migrate prod-backup prod-version prod-release
 
 # THE fleet gate — byte-identical composition across every app repo. Make stops at the FIRST
@@ -405,17 +391,13 @@ help:
 	@echo "  make css         - Build Tailwind CSS"
 	@echo "  make css-watch   - Watch and rebuild CSS on changes"
 	@echo ""
-	@echo "Local Registry ($(REGISTRY)):"
-	@echo "  make local-build         - Build and push to local registry"
-	@echo "  make local-build-latest  - Build and push with :latest tag"
+	@echo "Images ($(REGISTRY)):"
+	@echo "  make publish-sha   - Build + scan + push this commit as :sha-<commit>"
+	@echo "  make release       - Cut VERSION: build + scan + push :$(VERSION), then the GitHub Release"
+	@echo "  make version       - Show the version and image refs"
 	@echo ""
-	@echo "External Registry ($(EXTERNAL_REGISTRY)):"
-	@echo "  make external-build         - Build and push to external registry"
-	@echo "  make external-build-latest  - Build and push with :latest tag"
-	@echo ""
-	@echo "Release:"
-	@echo "  make release         - Build and push to both registries"
-	@echo "  make release-latest  - Build and push to both with :latest tag"
+	@echo "Production:"
+	@echo "  make prod-release  - release + prod-deploy (pin TAG=$(VERSION), sync, pull, up)"
 	@echo ""
 
 # =============================================================================
@@ -439,81 +421,262 @@ buildx-setup:
 	fi
 
 # =============================================================================
-# Local Registry
+# Images, deploy tags and the release (emitted asset — never hand-edit)
 # =============================================================================
-local-build: buildx-setup css
-	@echo "Building and pushing to local registry..."
-	@echo "Image: $(LOCAL_IMAGE):$(BUILD_VERSION)"
-	docker buildx build --platform linux/amd64 \
-		$(BUILD_ARGS) \
-		-t $(LOCAL_IMAGE):$(BUILD_VERSION) \
-		$(CACHE_FLAG) --push .
-	@echo "✅ Pushed $(LOCAL_IMAGE):$(BUILD_VERSION)"
+# luxarch:image-block asset v9 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
+# ── Images: ONE naming scheme, and the NAME declares what the image IS ──────────────────────────
+# Emitted by `luxarch --emit image-block`. Two axes, both readable from the name alone:
+#
+#   Registry-qualified  ->  DEPLOY artifact  ->  built AND PUSHED
+#   Bare (no registry)  ->  LOCAL artifact   ->  built from source every run, NEVER pushed
+#
+#   Immutable tag (:$(VERSION), :sha-…)  ->  a stack MAY pin it
+#   Moving tag (:dev, :latest)           ->  a human alias; NOTHING pins it, NOTHING builds FROM it
+#
+# **Immutable tags are the point.** "A deployable never rolls" is why `:latest` is banned as a
+# deploy tag — and `:dev` rolls identically. Every `docker push` of `:dev` silently changes what
+# every stack pinned to it will run on next restart, so a moving tag cannot be a deployment record:
+# you cannot say which bits are in dev, and you cannot roll back to them. One build -> one permanent
+# identifier -> environments reference THAT. The sha costs nothing: this repo already computes it
+# for BUILD_COMMIT.
+#
+# **A local-only image must not wear a registry name.** One repo's compose pulled
+# `$(REGISTRY)/luxardolabs/<app>:dev` with no `build:` fallback, its Makefile never pushed it,
+# the registry held ZERO tags, and a routine `docker image prune` took the service down with
+# nothing to re-pull. The name promised a registry artifact; only a local one existed.
+#
+# Enforced by `repo.image_name_declares_provenance`.
 
-local-build-latest: local-build
-	@echo "Tagging as latest..."
-	docker buildx build --platform linux/amd64 \
-		$(BUILD_ARGS) \
-		-t $(LOCAL_IMAGE):latest \
-		--push .
-	@echo "✅ Pushed $(LOCAL_IMAGE):latest"
+REGISTRY      ?=
+IMAGE_NAME    := luxardolabs/$(notdir $(CURDIR))
+# BASE — no tag; every tag composes from it. The comment sits ABOVE the value, never after it:
+# GNU make keeps the whitespace between a value and an inline `#`, so `IMAGE := …/repo   # note`
+# defines IMAGE *with trailing spaces*, and every tag built from it — `…/repo   :0.1.0` — is an
+# invalid docker reference. This block shipped that way from 0.197.0 and `make release` could not
+# run at all; no repo had executed it, so three green rules stood over a recipe that was broken on
+# its first line. Locked by test_emitted_makefiles_have_no_inline_comment_on_an_assignment.
+IMAGE         := $(REGISTRY)/$(IMAGE_NAME)
+COMMIT        := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 
-# =============================================================================
-# External Registry
-# =============================================================================
-external-build: buildx-setup css
-	@echo "Building and pushing to external registry..."
-	@echo "Image: $(EXTERNAL_IMAGE):$(BUILD_VERSION)"
-	@test -n "$${REGISTRY_PASSWORD}" || { echo "REGISTRY_PASSWORD not set (expected in .env.build)"; exit 1; }
-	@printf '%s' "$${REGISTRY_PASSWORD}" | docker login $(EXTERNAL_REGISTRY) -u $(REGISTRY_USER) --password-stdin
-	docker buildx build --platform linux/amd64 \
-		$(BUILD_ARGS) \
-		-t $(EXTERNAL_IMAGE):$(BUILD_VERSION) \
-		$(CACHE_FLAG) --push .
-	@docker logout $(EXTERNAL_REGISTRY)
-	@echo "✅ Pushed $(EXTERNAL_IMAGE):$(BUILD_VERSION)"
+# IMMUTABLE deploy tags — the ONLY tags a stack may pin (`TAG=` in .env.<env>).
+#   VERSION_IMAGE = cut releases;  SHA_IMAGE = every other build, addressable, no ceremony.
+VERSION_IMAGE := $(IMAGE):$(VERSION)
+SHA_IMAGE     := $(IMAGE):sha-$(COMMIT)
 
-external-build-latest: buildx-setup css
-	@echo "Building and pushing to external registry with :latest..."
-	@test -n "$${REGISTRY_PASSWORD}" || { echo "REGISTRY_PASSWORD not set (expected in .env.build)"; exit 1; }
-	@printf '%s' "$${REGISTRY_PASSWORD}" | docker login $(EXTERNAL_REGISTRY) -u $(REGISTRY_USER) --password-stdin
-	docker buildx build --platform linux/amd64 \
-		$(BUILD_ARGS) \
-		-t $(EXTERNAL_IMAGE):$(BUILD_VERSION) \
-		-t $(EXTERNAL_IMAGE):latest \
-		$(CACHE_FLAG) --push .
-	@docker logout $(EXTERNAL_REGISTRY)
-	@echo "✅ Pushed $(EXTERNAL_IMAGE):$(BUILD_VERSION) + latest"
-	docker buildx build --platform linux/amd64 \
-		$(BUILD_ARGS) \
-		-t $(EXTERNAL_IMAGE):latest \
-		--push .
-	@echo "✅ Pushed $(EXTERNAL_IMAGE):latest"
+# MOVING alias — for a human reading `docker images`. Never pinned by a stack, never a build input,
+# never a base. If you delete this line nothing breaks; that is the test of an alias.
+DEV_ALIAS     := $(IMAGE):dev
 
-# =============================================================================
-# Release (Both Registries)
-# =============================================================================
-release: local-build external-build
-	@echo "✅ Released $(BUILD_VERSION) to both registries"
+# LOCAL verification image — BARE on purpose: it cannot be pushed by accident and cannot be
+# mistaken for a deployable. Rebuilt from source every run, so the suite never inherits a stale
+# interpreter or stale deps. It is NOT `:dev`; a repo that tested on `:dev` kept failing correct
+# code against a 13-day-old Python 3.13 image after the tree had moved to 3.14.
+TEST_IMAGE    := $(notdir $(IMAGE_NAME)):test
 
-release-latest: local-build-latest external-build-latest
-	@echo "✅ Released $(BUILD_VERSION) + latest to both registries"
+# Where the image is built from. v9: v1-v8 built `.` with `./Dockerfile`, so a monorepo whose app builds
+# from `apps/backend/` could only adopt the block by editing it. Set these above the block when the app
+# is not at the root, e.g. `BUILD_CONTEXT := apps/backend`. Keep the context as narrow as the app: in a
+# repo that holds data which must never ship, a narrow context is what keeps that data out of every
+# image, structurally, rather than one `.dockerignore` pattern away.
+BUILD_CONTEXT ?= .
+DOCKERFILE    ?= $(BUILD_CONTEXT)/Dockerfile
 
-# =============================================================================
-# Version Info
-# =============================================================================
-version:
-	@echo "Version: $(BUILD_VERSION)"
-	@echo "Commit: $(BUILD_COMMIT)"
-	@echo "Local:  $(LOCAL_IMAGE):$(BUILD_VERSION)"
-	@echo "External: $(EXTERNAL_IMAGE):$(BUILD_VERSION)"
+# ── Deploy: build AND push, always together ─────────────────────────────────────────────────────
+# Never split them. A `docker build` of a registry-qualified tag with no matching push is what
+# leaves a deployable name pointing at nothing.
 
-images:
-	@echo "Local registry:"
-	@docker images $(LOCAL_IMAGE) --format "table {{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" 2>/dev/null | head -5
-	@echo ""
-	@echo "External registry:"
-	@docker images $(EXTERNAL_IMAGE) --format "table {{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" 2>/dev/null | head -5
+# Named `release`, not `publish`. An earlier cut of this block called it `publish` while
+# `--emit release-skill` step 11, `--doc FLEET-RELEASE-PROCESS` §8 and `repo.github_release_wired`
+# all said `release` — so a repo that correctly adopted THIS asset ended up with no `release` target
+# and the rule stopped looking. Adopting the newer asset was what made the older rule go quiet.
+# One name, and `release` is the one the skill, the standard, the rule and every
+# fleet Makefile already use.
+# A `sha-<commit>` tag is immutable only if the bits ARE that commit. `git rev-parse HEAD` says nothing
+# about the working tree: build with uncommitted changes and the registry holds an image named after
+# commit X that contains X plus whatever was dirty, which is indistinguishable afterwards from a
+# truthful one and worse than `:dev`, which is at least honestly ambiguous. One repo published
+# `sha-b55e9a7b25ed` carrying a lockfile that commit does not have: bump deps, `make dev-build` to see
+# it works, commit after. That is the routine order, and this recipe invited it. Untracked
+# files count, because they are in the build context. No escape hatch: every fleet repo builds and PUSHES,
+# and a stack runs what was pushed, so commit first. `make test-build` is for the TEST suite, not the stack.
+# The candidate gate, used by every target that pushes: scan the exact bits just built, mount-only,
+# and refuse the push on any fixable HIGH/CRITICAL (luxaudit >= 0.13.0 in LUXAUDIT_IMAGE or LUXAUDIT).
+# `make audit`'s image leg reads what the registry already holds, so it can only clear AFTER a release;
+# as the gate it deadlocked. This is the gate. (v5)
+define scan_candidate
+	@set -e; ref='$(or $(LUXAUDIT_IMAGE),$(LUXAUDIT))'; \
+	if [ -z "$$ref" ]; then echo "REFUSING: set LUXAUDIT_IMAGE to the pinned luxaudit; the candidate must be scanned before it is pushed"; exit 2; fi; \
+	T=$$(mktemp); trap 'rm -f "$$T"' EXIT INT TERM; \
+	docker save $(1) -o "$$T"; chmod 644 "$$T"; \
+	docker run --rm -v $(PWD):/repo -v luxaudit-cache:/root/.cache/trivy -v "$$T":/candidate.tar:ro \
+	  "$$ref" --image-archive /candidate.tar --image-label $(1)
+endef
+
+define refuse_dirty_tree
+	@if [ -n "$$(git status --porcelain 2>/dev/null)" ]; then \
+	  echo "REFUSING: the working tree is dirty, so sha-$(COMMIT) would not describe these bits:"; \
+	  git status --short | sed 's/^/    /'; \
+	  echo "Commit first, then deploy what you pushed (make dev-deploy). make test-build is for the TEST suite only; it cannot run the stack."; \
+	  exit 1; \
+	fi
+endef
+
+# Every commit's deployable: build, scan, push `:sha-<commit>` (what a dev/demo stack pins) and move the
+# `:dev` alias. NEVER the version tag. v6: v5's `dev-deploy` ran `release`, which pushed `:$(VERSION)`
+# on every run, so the first dev deploy after a version shipped overwrote that RELEASED tag with
+# unreleased code (in one repo, prod's `:2026.09.0` silently became another
+# commit's bits, caught by hand before the next prod pull).
+publish-sha: ## Build + scan + PUSH this commit as :sha-<commit> (and move the :dev alias) — never the version
+	$(refuse_dirty_tree)
+	docker build --target production $(BUILD_ARGS) -f $(DOCKERFILE) -t $(SHA_IMAGE) $(BUILD_CONTEXT)
+	$(call scan_candidate,$(SHA_IMAGE))
+	docker push $(SHA_IMAGE)
+	@# The alias moves LAST and carries nothing: it is a label on an already-published artifact.
+	docker tag $(SHA_IMAGE) $(DEV_ALIAS) && docker push $(DEV_ALIAS)
+	@echo "deploy it with:  make dev-deploy   (or: make dev-pin TAG=sha-$(COMMIT))"
+
+# The GitHub Release: this version's user-facing notes on the repo's /releases page (--doc
+# FLEET-RELEASE-PROCESS §9, `repo.github_release_wired`). v8: v1-v7 had no step for it, so an exact copy
+# of this DO-NOT-EDIT block was red on that rule and the only ways to green were editing the block or a
+# target outside `release` that nothing runs. `release` now runs it last, and checks everything it needs
+# BEFORE the first push, against the REMOTE: `gh release create --verify-tag` needs the tag on GitHub, so
+# a tag that exists only locally would let the image push and the Release fail. If the Release step
+# still fails, re-run `make gh-release` alone: it is idempotent, and it needs the pushed tag, not HEAD
+# (`release` refuses an already-released version, and HEAD moves on after the release commit).
+# RELEASE_NOTES is found, not assumed: `<app>/release_notes/$(VERSION).md` wherever the app lives, up to
+# three directories down (`app/`, `src/<pkg>/`, `apps/backend/app/`). Set it above this block only when
+# more than one app ships notes.
+RELEASE_NOTES ?= $(wildcard release_notes/$(VERSION).md */release_notes/$(VERSION).md */*/release_notes/$(VERSION).md */*/*/release_notes/$(VERSION).md)
+
+define gh_release_preflight
+	@command -v gh >/dev/null 2>&1 || { echo "REFUSING: the GitHub CLI (gh) is not installed; the release publishes its notes with it"; exit 1; }
+	@gh auth status >/dev/null 2>&1 || { echo "REFUSING: gh is not authenticated (gh auth login)"; exit 1; }
+	@set -- $(RELEASE_NOTES); if [ $$# -ne 1 ]; then \
+	  echo "REFUSING: need exactly ONE release notes file for $(VERSION), found $$#: $(or $(RELEASE_NOTES),none)"; \
+	  echo "Write <app>/release_notes/$(VERSION).md (luxarch --emit release-notes-guide), or set RELEASE_NOTES above this block."; \
+	  exit 1; \
+	fi
+	@git ls-remote --exit-code --tags origin "refs/tags/v$(VERSION)" >/dev/null 2>&1 || { \
+	  echo "REFUSING: v$(VERSION) is not on origin; the GitHub Release hangs off the pushed tag:"; \
+	  echo "    git tag -a v$(VERSION) -m v$(VERSION) && git push origin v$(VERSION)"; exit 1; }
+endef
+
+gh-release: ## Publish the GitHub Release for v$(VERSION) from its release notes (idempotent; `release` runs it)
+	$(gh_release_preflight)
+	@if gh release view "v$(VERSION)" >/dev/null 2>&1; then \
+	  echo "GitHub Release v$(VERSION) already exists, skipped (a Release, like its tag, is immutable)"; \
+	else \
+	  gh release create "v$(VERSION)" --verify-tag --title "$(VERSION)" --notes-file $(RELEASE_NOTES); \
+	fi
+
+# Cut VERSION: the immutable release tag prod pins. Refuses when that version is ALREADY released, in
+# the registry or as a git tag at another commit: a released version is never re-pushed, not even from
+# its own commit (a rebuild is different bytes under a name prod already runs). Bump VERSION instead.
+release: ## Cut VERSION: build + scan + PUSH :sha-<commit> AND :$(VERSION), then the GitHub Release (refuses an already-released VERSION)
+	@if docker manifest inspect $(VERSION_IMAGE) >/dev/null 2>&1; then \
+	  echo "REFUSING: $(VERSION_IMAGE) is already RELEASED. A released version is immutable: prod pins it."; \
+	  echo "Bump VERSION for a new release; deploy this commit to dev with make dev-deploy (:sha-$(COMMIT))."; \
+	  echo "If its GitHub Release is missing (the last step failed), run: make gh-release"; \
+	  exit 1; \
+	fi
+	@# Fails CLOSED: `manifest inspect` exits 1 for "no such manifest" AND for an unreachable registry,
+	@# so only the registry's own not-found answer reads as unreleased (a DNS blip must not let a
+	@# re-push through).
+	@out=$$(docker manifest inspect $(VERSION_IMAGE) 2>&1) || case "$$out" in \
+	  *[Nn]"o such manifest"*|*"manifest unknown"*) ;; \
+	  *) echo "REFUSING: cannot verify $(VERSION_IMAGE) is unreleased: $$out"; exit 1 ;; \
+	esac
+	@t=$$(git rev-parse -q --verify "refs/tags/v$(VERSION)^{commit}" 2>/dev/null); \
+	if [ -n "$$t" ] && [ "$$t" != "$$(git rev-parse HEAD)" ]; then \
+	  echo "REFUSING: v$(VERSION) is already tagged at $$t, not HEAD: bump VERSION."; exit 1; \
+	fi
+	$(refuse_dirty_tree)
+	@t=$$(git rev-parse -q --verify "refs/tags/v$(VERSION)^{commit}" 2>/dev/null); \
+	if [ "$$t" != "$$(git rev-parse HEAD)" ]; then \
+	  echo "REFUSING: v$(VERSION) is not tagged at HEAD. Tag and push it first:"; \
+	  echo "    git tag -a v$(VERSION) -m v$(VERSION) && git push origin v$(VERSION)"; exit 1; \
+	fi
+	$(gh_release_preflight)
+	docker build --target production $(BUILD_ARGS) -f $(DOCKERFILE) -t $(SHA_IMAGE) -t $(VERSION_IMAGE) $(BUILD_CONTEXT)
+	$(call scan_candidate,$(SHA_IMAGE))
+	docker push $(SHA_IMAGE)
+	docker push $(VERSION_IMAGE)
+	docker tag $(SHA_IMAGE) $(DEV_ALIAS) && docker push $(DEV_ALIAS)
+	@$(MAKE) --no-print-directory gh-release
+	@echo "released $(VERSION_IMAGE); pin prod to TAG=$(VERSION)"
+
+# ── Point an environment at a build ─────────────────────────────────────────────────────────────
+# Immutable tags move a burden: a NEW tag per build has to actually reach the stack. This block used
+# to end by telling a human to go hand-edit a gitignored file — advice beside a working button, and
+# it is how a dev node ends up still serving last week's sha while everyone believes otherwise.
+#
+# The tag is PERSISTED into .env.<env>, not passed in the deploying shell, because the stack has to
+# come back after a reboot: compose reads `${TAG:?}`, so a tag that lived only in one shell leaves a
+# plain `docker compose up` on that node unable to start the stack at all. Exactly ONE line of that
+# file is rewritten in place; nothing else is read, printed or reordered, because it holds secrets.
+#
+# `.env.prod` takes the same call from whatever `prod-deploy` does over SSH — the pinning is shared,
+# the transport is node-specific and stays in the repo.
+
+TAG ?= sha-$(COMMIT)
+
+# Which compose profiles the dev stack runs. v8: v7 restarted with a bare `up -d`, and in a compose.yml
+# where every service carries `profiles:` (the fleet's one-file model) that selects NO service unless
+# something declares the stack: compose exits 0 and `dev-deploy` reported success over a stack it never
+# restarted. Declare it ONE of two ways (`repo.compose_up_selects_services` checks either):
+#   - COMPOSE_PROFILES=<profiles> in .env.dev, declared in the committed .env.example (leave this empty);
+#   - or set the profiles above this block: `DEV_PROFILES := dev`. A `--profile` REPLACES the
+#     env file's COMPOSE_PROFILES, so list every profile the dev stack needs.
+# A service with no `profiles:` starts either way.
+DEV_PROFILES ?=
+
+define pin_env_tag
+	f='$(1)'; t='$(2)'; \
+	[ -f "$$f" ] || { echo "$$f is missing — copy .env.example and fill it in first"; exit 1; }; \
+	tmp=$$(mktemp); trap 'rm -f "$$tmp"' EXIT; \
+	if grep -qE '^[[:space:]]*TAG=' "$$f"; then \
+	  awk -v t="$$t" '/^[[:space:]]*TAG=/ && !d {print "TAG=" t; d=1; next} {print}' "$$f" > "$$tmp"; \
+	else \
+	  cp "$$f" "$$tmp" && printf 'TAG=%s\n' "$$t" >> "$$tmp"; \
+	fi; \
+	[ -s "$$tmp" ] || { echo "refusing to write an empty $$f"; exit 1; }; \
+	o=$$(wc -l < "$$f"); n=$$(wc -l < "$$tmp"); \
+	[ "$$n" -ge "$$o" ] || { echo "refusing: rewriting $$f lost lines ($$o -> $$n)"; exit 1; }; \
+	cat "$$tmp" > "$$f"; \
+	echo "$$f: TAG=$$t"
+endef
+
+dev-deploy: ## Build+push THIS commit (:sha-…, never the version), pin .env.dev to it, restart the dev stack
+	@$(MAKE) --no-print-directory publish-sha
+	@$(MAKE) --no-print-directory dev-pin TAG=sha-$(COMMIT)
+
+# The rollback path, and the only one that does not build: name a tag you already published.
+# The registry is checked FIRST because the alternative is the outage above — a stack pinned to a
+# name the registry never held, discovered at the next restart when there was nothing to re-pull.
+dev-pin: ## Point the dev stack at an ALREADY-PUBLISHED tag and restart it (rollback path)
+	@docker manifest inspect $(IMAGE):$(TAG) >/dev/null 2>&1 || \
+	  { echo "$(IMAGE):$(TAG) is not in the registry — publish it before pinning a stack to it"; exit 1; }
+	@$(call pin_env_tag,.env.dev,$(TAG))
+	docker compose --env-file .env.dev $(foreach p,$(DEV_PROFILES),--profile $(p)) up -d
+
+# ── Verify: build from source, locally, every run ───────────────────────────────────────────────
+# The test image must carry the SAME app layers production ships, plus the dev group. Two Dockerfile
+# shapes do that, and either is canonical:
+#   - `FROM production AS test`, putting back what production stripped (`python -m ensurepip`)
+#     before `poetry install --with dev`;
+#   - one shared `app` stage that both `test` and `production` build FROM, when production also
+#     strips poetry. v3 said only "FROM production", which a production stage hardened per
+#     FLEET-BUILD-DEPLOY-STANDARD (no pip/poetry in the runtime) cannot satisfy literally.
+# Either way the Dockerfile needs a stage named `test`: this target builds it.
+
+test-build: ## Build the LOCAL test image from source (never pushed, never a deploy tag)
+	@docker build --target test $(BUILD_ARGS) -f $(DOCKERFILE) -t $(TEST_IMAGE) $(BUILD_CONTEXT) >/dev/null
+
+version: ## Show the version and the image refs this commit builds
+	@echo "Version:  $(VERSION)"
+	@echo "Commit:   $(COMMIT)"
+	@echo "Release:  $(VERSION_IMAGE)"
+	@echo "This sha: $(SHA_IMAGE)"
 
 # =============================================================================
 # Development
@@ -624,19 +787,26 @@ PROD_HOST ?=
 PROD_PATH ?= /opt/luxardolabs/luxanalytics
 PROD_SSH := ssh $(PROD_JUMP) "ssh $(PROD_HOST)
 
-prod-push:
+prod-sync: ## Sync deploy/prod (compose + .env.prod + nginx conf) to the prod node
 	@echo "Pushing deploy config to production..."
 	@# Streamed through both ssh hops: no staging file on any host.
 	@tar -czf - -C deploy/prod . | $(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf - -C $(PROD_PATH)/'"
 	@echo "✅ Deploy config pushed to $(PROD_PATH)"
 
-prod-deploy:
-	@echo "Deploying LuxAnalytics $(BUILD_VERSION) to production..."
-	@# The password crosses both ssh hops on STDIN, never on a remote command line (where ps shows it).
-	@set -e; test -n "$${REGISTRY_PASSWORD}" || { echo "REGISTRY_PASSWORD not set (expected in .env.build)"; exit 1; }; \
-	printf '%s' "$${REGISTRY_PASSWORD}" | $(PROD_SSH) 'docker login $(EXTERNAL_REGISTRY) -u $(REGISTRY_USER) --password-stdin'"; \
-	$(PROD_SSH) 'cd $(PROD_PATH) && docker compose --env-file .env.prod pull && docker compose --env-file .env.prod up -d; rc=\$$?; docker logout $(EXTERNAL_REGISTRY); exit \$$rc'"
-	@echo "✅ Deployed $(BUILD_VERSION)"
+# Prod runs a CUT release: the immutable :$(VERSION) that `make release` pushed, persisted as TAG= in
+# .env.prod so the stack comes back after a reboot. PROD_TAG=<older version> is the rollback path.
+PROD_ENV := deploy/prod/.env.prod
+PROD_TAG ?= $(VERSION)
+
+prod-pin: ## Point .env.prod at an ALREADY-RELEASED version (PROD_TAG, default VERSION)
+	@docker manifest inspect $(IMAGE):$(PROD_TAG) >/dev/null 2>&1 || \
+	  { echo "$(IMAGE):$(PROD_TAG) is not in the registry — make release first"; exit 1; }
+	@$(call pin_env_tag,$(PROD_ENV),$(PROD_TAG))
+
+prod-deploy: prod-pin prod-sync ## Pin TAG, sync deploy/prod, pull + restart on the prod node
+	@echo "Deploying LuxAnalytics $(PROD_TAG) to production..."
+	@$(PROD_SSH) 'cd $(PROD_PATH) && docker compose --env-file .env.prod pull && docker compose --env-file .env.prod up -d'"
+	@echo "✅ Deployed $(PROD_TAG)"
 
 prod-restart:
 	@echo "Restarting LuxAnalytics on production..."
@@ -682,5 +852,5 @@ prod-backup:
 prod-version:
 	@$(PROD_SSH) 'docker inspect luxanalytics_app --format \"{{.Config.Image}}\" 2>/dev/null || echo not running'"
 
-prod-release: external-build prod-push prod-deploy
-	@echo "✅ Released $(BUILD_VERSION) to production"
+prod-release: release prod-deploy ## Cut VERSION and deploy it to production
+	@echo "✅ Released $(VERSION) to production"
