@@ -61,6 +61,10 @@ export default {
           DEFAULT: '#ffa500',
         },
 
+        // Semantic foreground token (luxarch --playbook design-system): the one class a neutral
+        // text color uses, defined by --color-fg in input.css so a light mode flips it there.
+        fg: 'rgb(var(--color-fg) / <alpha-value>)',
+
         // Dark surfaces — warm-tinted from colorffy
         surface: {
           0:   '#121212',        // a0  — deepest background

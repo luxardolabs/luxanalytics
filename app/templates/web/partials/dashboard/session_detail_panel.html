@@ -57,7 +57,7 @@
                 <div class="flex items-center justify-between text-sm py-1">
                     <span class="text-slate-300">
                         <span class="text-slate-500">{{ tap.screen | friendly_name }}</span>
-                        → <span class="text-white font-medium">{{ tap.button | friendly_name }}</span>
+                        → <span class="text-fg font-medium">{{ tap.button | friendly_name }}</span>
                     </span>
                 </div>
                 {% endfor %}
@@ -95,7 +95,7 @@
                     <div class="flex items-center justify-between text-xs py-1 {% if not loop.last %}border-b border-surface-20{% endif %}">
                         <div class="flex items-center gap-2">
                             <span class="text-slate-500 tabular-nums w-16">{{ e.received_at | time('short') }}</span>
-                            <span class="text-white font-medium">{{ e.name | friendly_name }}</span>
+                            <span class="text-fg font-medium">{{ e.name | friendly_name }}</span>
                         </div>
                         {% if e.properties %}
                         <span class="text-slate-500 truncate ml-2 max-w-[200px]">

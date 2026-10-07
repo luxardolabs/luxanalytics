@@ -47,3 +47,8 @@ non_request_files = ["app/db/database.py"]
 path = "app/models/device_model.py"
 column = "device_type"
 evidence = "Apple's UIDevice.current.model, stored verbatim from the iOS SDK (docs/ios-sdk-platform-field.md:22); Apple adds device families, so the set is open"
+
+# The semantic color palette (luxarch --playbook design-system): token -> the Tailwind color it
+# stands for. `text-fg` is the app's neutral foreground (tailwind.config.js, --color-fg).
+[color_tokens]
+fg = "white"

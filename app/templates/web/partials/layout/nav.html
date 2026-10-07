@@ -6,7 +6,7 @@
         <div class="flex items-center justify-between h-14">
 
             {# Logo #}
-            <a href="/dashboard/overview" class="flex items-center gap-2 text-white font-semibold text-lg shrink-0">
+            <a href="/dashboard/overview" class="flex items-center gap-2 text-fg font-semibold text-lg shrink-0">
                 <svg class="w-6 h-6 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -42,7 +42,7 @@
                           {% if current_path.startswith(href) %}
                           bg-brand-500/15 text-brand-400 font-medium
                           {% else %}
-                          text-slate-500 hover:text-white hover:bg-surface-10
+                          text-slate-500 hover:text-fg hover:bg-surface-10
                           {% endif %}">
                     {{ label }}
                 </a>
@@ -56,7 +56,7 @@
                 <a href="/health" class="text-xs text-slate-500 hover:text-slate-300 transition-colors">Health</a>
                 <span class="text-xs text-surface-20">v{{ version }}</span>
                 <a href="/logout"
-                   class="text-xs text-slate-500 hover:text-white bg-surface-10 hover:bg-surface-20 px-2.5 py-1 rounded-md transition-colors">
+                   class="text-xs text-slate-500 hover:text-fg bg-surface-10 hover:bg-surface-20 px-2.5 py-1 rounded-md transition-colors">
                     Logout
                 </a>
             </div>
@@ -70,7 +70,7 @@
                       {% if current_path.startswith(href) %}
                       bg-brand-500/15 text-brand-400 font-medium
                       {% else %}
-                      text-slate-500 hover:text-white
+                      text-slate-500 hover:text-fg
                       {% endif %}">
                 {{ label }}
             </a>

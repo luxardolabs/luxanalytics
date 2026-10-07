@@ -35,7 +35,7 @@
        value="{{ value }}"
        placeholder="{{ placeholder }}"
        {% if required %}required{% endif %}
-       class="block w-full rounded-md bg-surface-10 border-surface-20 text-white placeholder-slate-500 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm {{ class }}">
+       class="block w-full rounded-md bg-surface-10 border-surface-20 text-fg placeholder-slate-500 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm {{ class }}">
 {% if help %}
 <p class="mt-1 text-xs text-slate-500">{{ help }}</p>
 {% endif %}
@@ -60,7 +60,7 @@
         {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
         {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
         {% if hx_trigger %}hx-trigger="{{ hx_trigger }}"{% endif %}
-        class="block w-full px-3 pr-10 py-2.5 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm transition-all bg-surface-0 border border-surface-20 {{ class }}">
+        class="block w-full px-3 pr-10 py-2.5 rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm transition-all bg-surface-0 border border-surface-20 {{ class }}">
     {% for opt in options %}
     <option value="{{ opt.value }}" {% if opt.value == value %}selected{% endif %}>
         {{ opt.label }}
@@ -83,7 +83,7 @@
            value="{{ value }}"
            placeholder="{{ placeholder }}"
            {% if required %}required{% endif %}
-           class="block w-full px-2.5 py-2 border border-surface-20 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm bg-surface-10 text-white placeholder-slate-500">
+           class="block w-full px-2.5 py-2 border border-surface-20 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm bg-surface-10 text-fg placeholder-slate-500">
     {% if help %}
     <p class="mt-0.5 text-xs text-slate-500">{{ help }}</p>
     {% endif %}
@@ -104,7 +104,7 @@
           rows="{{ rows }}"
           placeholder="{{ placeholder }}"
           {% if required %}required{% endif %}
-          class="block w-full rounded-md bg-surface-10 border-surface-20 text-white placeholder-slate-500 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm {{ class }}">{{ value }}</textarea>
+          class="block w-full rounded-md bg-surface-10 border-surface-20 text-fg placeholder-slate-500 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm {{ class }}">{{ value }}</textarea>
 {% if help %}
 <p class="mt-1 text-xs text-slate-500">{{ help }}</p>
 {% endif %}

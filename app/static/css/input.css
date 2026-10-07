@@ -9,6 +9,12 @@
 @tailwind utilities;
 
 @layer base {
+  /* Semantic color tokens (tailwind.config.js `fg`). The app is dark-only today; a light mode
+     overrides these variables and every `text-fg` follows. */
+  :root {
+    --color-fg: 255 255 255;
+  }
+
   [x-cloak] {
     display: none !important;
   }

@@ -46,7 +46,7 @@
                 {% for d in devices %}
                 <div class="flex items-center justify-between text-sm py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
                     <div>
-                        <span class="text-white font-medium">{{ d.device_model }}</span>
+                        <span class="text-fg font-medium">{{ d.device_model }}</span>
                         <span class="text-slate-500 text-xs ml-2">iOS {{ d.os_version }} · v{{ d.app_version }}</span>
                     </div>
                     <div class="text-xs text-slate-500 tabular-nums">{{ d.event_count }} events</div>

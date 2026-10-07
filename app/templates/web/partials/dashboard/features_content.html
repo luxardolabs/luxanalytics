@@ -22,7 +22,7 @@
             {% for feature in features %}
             <div>
                 <div class="flex items-center justify-between mb-1">
-                    <span class="text-sm font-medium text-white">{{ feature.name | friendly_name }}</span>
+                    <span class="text-sm font-medium text-fg">{{ feature.name | friendly_name }}</span>
                     <span class="text-xs text-slate-500 tabular-nums">{{ feature.total | number_format }} events</span>
                 </div>
                 {% if feature.top_events %}
@@ -47,7 +47,7 @@
             {% for screen in screens %}
             <div>
                 <div class="flex items-center justify-between mb-1">
-                    <span class="text-sm font-medium text-white">{{ screen.name | friendly_name }}</span>
+                    <span class="text-sm font-medium text-fg">{{ screen.name | friendly_name }}</span>
                     <span class="text-xs text-slate-500 tabular-nums">{{ screen.total | number_format }} views</span>
                 </div>
                 {% if screen.top_events %}

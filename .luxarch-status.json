@@ -1071,12 +1071,12 @@
         },
         {
           "rule": "fw.color_mode_tokens",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.107.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no [color_tokens] palette declared \u2014 declare it (token \u2192 tailwind color) to enforce that a hand-rolled light/dark pair uses the token; off until then"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.no_nested_session",
@@ -1503,11 +1503,11 @@
         }
       ],
       "summary": {
-        "PASS": 136,
+        "PASS": 137,
         "FAIL": 0,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 30
+        "INERT": 29
       }
     }
   ],
@@ -2045,12 +2045,12 @@
     }
   },
   "summary": {
-    "PASS": 190,
+    "PASS": 191,
     "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 33
+    "INERT": 32
   },
-  "commit": "032f41469d0fdb0e5352e46b454959976219b157",
-  "generated_at": "2026-10-07T19:56:43Z"
+  "commit": "96bd7353974c384b27afbca9c408c64696b7205f",
+  "generated_at": "2026-10-07T20:01:54Z"
 }

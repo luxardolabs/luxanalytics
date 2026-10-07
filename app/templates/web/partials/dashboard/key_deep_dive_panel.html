@@ -24,7 +24,7 @@
                 <div class="space-y-2">
                     {% for value, count in top_values[:15] %}
                     <div class="flex items-center justify-between text-sm">
-                        <span class="text-white font-mono text-xs truncate mr-3 max-w-[300px]">{{ value }}</span>
+                        <span class="text-fg font-mono text-xs truncate mr-3 max-w-[300px]">{{ value }}</span>
                         <div class="flex items-center gap-2 shrink-0">
                             {% set pct = (count / total_occurrences * 100) | round(1) if total_occurrences else 0 %}
                             <div class="w-20 h-1.5 bg-surface-20 rounded-full overflow-hidden">
@@ -43,7 +43,7 @@
             {% call detail_section("By Event Type") %}
                 {% for ename, values in value_by_event_type.items() %}
                 <div class="mb-3 {% if not loop.last %}pb-3 border-b border-surface-20{% endif %}">
-                    <div class="text-sm font-medium text-white mb-1">{{ ename | friendly_name }}</div>
+                    <div class="text-sm font-medium text-fg mb-1">{{ ename | friendly_name }}</div>
                     {% for val, cnt in values.items() %}
                     <div class="flex justify-between text-xs py-0.5">
                         <span class="text-slate-300 font-mono truncate mr-2">{{ val }}</span>
@@ -62,7 +62,7 @@
                     {% for s in samples %}
                     <div class="flex items-center justify-between text-xs py-1.5 {% if not loop.last %}border-b border-surface-20{% endif %}">
                         <div>
-                            <span class="text-white font-medium">{{ s.event_name | friendly_name }}</span>
+                            <span class="text-fg font-medium">{{ s.event_name | friendly_name }}</span>
                             <span class="text-slate-500 ml-2">{{ s.key_value }}</span>
                         </div>
                         <div class="flex items-center gap-2">

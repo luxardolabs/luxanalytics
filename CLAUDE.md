@@ -225,6 +225,7 @@ make prod-release
 
 - **Orange primary**: `#ffa500` with warm dark surfaces (`#121212`)
 - Colors from colorffy flat palette — all custom in `tailwind.config.js`
+- Neutral foreground is the semantic token `text-fg` (`--color-fg` in `input.css`, declared in `.luxarch.toml [color_tokens]`), never a bare `text-white`/`text-gray-*`; white stays only on a fixed brand background (luxarch --playbook design-system)
 - Slider panels for all detail views, never modals
 - `info_box` macro for notices (from `macros/badges.html`)
 - `pagination_controls` macro for paged tables (emitted, in `macros/tables.html`; state from `build_pagination()` in the view)

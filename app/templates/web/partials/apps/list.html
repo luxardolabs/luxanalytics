@@ -7,7 +7,7 @@
 {% call data_table(["Name", "App ID", "Organization", "Status", {"label": "Events", "class": "text-right"}, {"label": "", "class": "w-24"}], bordered=true) %}
             {% for app in apps %}
             <tr class="hover:bg-surface-10/50 transition-colors">
-                {% call td() %}<span class="font-medium text-white">{{ app.name }}</span>{% endcall %}
+                {% call td() %}<span class="font-medium text-fg">{{ app.name }}</span>{% endcall %}
                 {% call td() %}<span class="font-mono text-xs text-slate-500">{{ app.app_id }}</span>{% endcall %}
                 {% call td() %}{{ app.organization | default('—', true) }}{% endcall %}
                 {% call td() %}

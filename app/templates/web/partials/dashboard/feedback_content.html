@@ -26,7 +26,7 @@
             {% for cat in categories %}
             <div>
                 <div class="flex items-center justify-between mb-1">
-                    <span class="text-sm text-white">{{ cat.name | friendly_name }}</span>
+                    <span class="text-sm text-fg">{{ cat.name | friendly_name }}</span>
                     <span class="text-xs text-slate-500">{{ cat.count }} ({{ cat.percentage }}%)</span>
                 </div>
                 <div class="w-full h-1.5 bg-surface-20 rounded-full overflow-hidden">

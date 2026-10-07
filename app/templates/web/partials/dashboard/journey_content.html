@@ -37,25 +37,25 @@
         {% if popular_screens %}
         <div class="bg-surface-10/50 rounded-lg p-4">
             <h5 class="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1">Most Popular</h5>
-            <p class="text-sm text-slate-300"><strong class="text-white">{{ popular_screens[0][0] | friendly_name }}</strong> · {{ popular_screens[0][1] }} visits</p>
+            <p class="text-sm text-slate-300"><strong class="text-fg">{{ popular_screens[0][0] | friendly_name }}</strong> · {{ popular_screens[0][1] }} visits</p>
         </div>
         {% endif %}
         {% if button_flows %}
         <div class="bg-surface-10/50 rounded-lg p-4">
             <h5 class="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1">Top Action</h5>
-            <p class="text-sm text-slate-300"><strong class="text-white">{{ button_flows[0][0].split(' → ')[1] | friendly_name }}</strong> button</p>
+            <p class="text-sm text-slate-300"><strong class="text-fg">{{ button_flows[0][0].split(' → ')[1] | friendly_name }}</strong> button</p>
         </div>
         {% endif %}
         {% if exit_screens %}
         <div class="bg-surface-10/50 rounded-lg p-4">
             <h5 class="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1">Top Exit Screen</h5>
-            <p class="text-sm text-slate-300"><strong class="text-white">{{ exit_screens[0][0] | friendly_name }}</strong> · {{ exit_screens[0][1] }} exits</p>
+            <p class="text-sm text-slate-300"><strong class="text-fg">{{ exit_screens[0][0] | friendly_name }}</strong> · {{ exit_screens[0][1] }} exits</p>
         </div>
         {% endif %}
         {% if session_metrics %}
         <div class="bg-surface-10/50 rounded-lg p-4">
             <h5 class="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1">Engagement</h5>
-            <p class="text-sm text-slate-300"><strong class="text-white">{{ session_metrics.avg_screens }}</strong> screens/session · <strong class="text-white">{{ session_metrics.avg_duration_seconds | duration }}</strong> avg</p>
+            <p class="text-sm text-slate-300"><strong class="text-fg">{{ session_metrics.avg_screens }}</strong> screens/session · <strong class="text-fg">{{ session_metrics.avg_duration_seconds | duration }}</strong> avg</p>
         </div>
         {% endif %}
     </div>
@@ -179,10 +179,10 @@
         {% call data_table(["Screen", {"label": "Visits", "class": "text-right"}, {"label": "Avg Time", "class": "text-right"}, {"label": "Median", "class": "text-right"}, {"label": "Max", "class": "text-right"}]) %}
                     {% for d in dwell_times %}
                     <tr class="hover:bg-surface-10/50 transition-colors">
-                        {% call td() %}<span class="text-white font-medium">{{ d.screen | friendly_name }}</span>{% endcall %}
+                        {% call td() %}<span class="text-fg font-medium">{{ d.screen | friendly_name }}</span>{% endcall %}
                         {% call td(class="text-right tabular-nums") %}{{ d.visits }}{% endcall %}
                         {% call td(class="text-right tabular-nums") %}
-                            <span class="{% if d.avg_seconds > 30 %}text-green-400{% elif d.avg_seconds > 5 %}text-white{% else %}text-slate-500{% endif %}">
+                            <span class="{% if d.avg_seconds > 30 %}text-green-400{% elif d.avg_seconds > 5 %}text-fg{% else %}text-slate-500{% endif %}">
                                 {{ d.avg_seconds }}s
                             </span>
                         {% endcall %}
@@ -215,7 +215,7 @@
     <div class="flex gap-6 flex-wrap">
         {% for launch_type, count in launch_patterns %}
         <div class="text-center">
-            <div class="text-2xl font-bold text-white">{{ count }}</div>
+            <div class="text-2xl font-bold text-fg">{{ count }}</div>
             <div class="text-sm text-slate-500">{{ launch_type | friendly_name }}</div>
         </div>
         {% endfor %}
@@ -233,7 +233,7 @@
         {% set screen_detail = screen_details[screen] %}
         <div class="bg-surface-10/50 border border-surface-20 rounded-lg p-4">
             <div class="flex justify-between items-center mb-3">
-                <h4 class="text-sm font-medium text-white">{{ screen | friendly_name }}</h4>
+                <h4 class="text-sm font-medium text-fg">{{ screen | friendly_name }}</h4>
                 {{ badge((visits | string) ~ " views", variant="default") }}
             </div>
             {% if screen_detail.features %}
@@ -265,7 +265,7 @@
                     {% call td() %}
                         {% set parts = flow.split(' → ') %}
                         <span class="text-slate-500">{{ parts[0] | default('') | friendly_name }}</span>
-                        <span class="text-white font-medium"> → {{ parts[1] | default('') | friendly_name }}</span>
+                        <span class="text-fg font-medium"> → {{ parts[1] | default('') | friendly_name }}</span>
                     {% endcall %}
                     {% call td(class="text-right tabular-nums") %}{{ count }}{% endcall %}
                     {% call td() %}

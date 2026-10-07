@@ -61,7 +61,7 @@
             {% if op.is_fast_operation %}bg-green-500/5{% elif op.needs_attention %}bg-red-500/5{% else %}bg-surface-10{% endif %}">
             <div class="flex justify-between items-start gap-3">
                 <div>
-                    <h4 class="text-white font-semibold">{{ op.operation | friendly_name }}</h4>
+                    <h4 class="text-fg font-semibold">{{ op.operation | friendly_name }}</h4>
                     <div class="text-xs text-slate-500 mt-1">
                         {{ op.total_count | number_format }} measurements
                         {% if op.is_fast_operation %}
@@ -123,9 +123,9 @@
             <div>
                 <h5 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Duration Range</h5>
                 <div class="flex justify-between items-center bg-surface-10/50 rounded-lg p-3 text-sm">
-                    <span class="text-slate-300">Min: <strong class="text-white">{{ op.min_ms }}ms</strong></span>
-                    <span class="text-slate-300">Mean: <strong class="text-white">{{ op.mean_ms }}ms</strong></span>
-                    <span class="text-slate-300">Max: <strong class="text-white">{{ op.max_ms }}ms</strong></span>
+                    <span class="text-slate-300">Min: <strong class="text-fg">{{ op.min_ms }}ms</strong></span>
+                    <span class="text-slate-300">Mean: <strong class="text-fg">{{ op.mean_ms }}ms</strong></span>
+                    <span class="text-slate-300">Max: <strong class="text-fg">{{ op.max_ms }}ms</strong></span>
                 </div>
             </div>
         </div>
