@@ -8,6 +8,7 @@ from base64 import b64encode
 from datetime import UTC, datetime
 
 import pytest
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
@@ -167,3 +168,16 @@ async def test_dashboard_requires_auth(client):
     # requested path as `next` — assert exactly that, not "some non-200".
     assert response.status_code == 303
     assert response.headers["location"] == "/login?next=/dashboard/overview"
+
+
+@pytest.mark.db
+async def test_set_app_context_requires_a_dashboard_session(
+    client: AsyncClient,
+) -> None:
+    # An anonymous POST must not set the dashboard's app-context cookie.
+    response = await client.post(
+        "/set-app-context", data={"app_id": "test_app"}, follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login")
+    assert "analytics_app_id" not in response.headers.get("set-cookie", "")

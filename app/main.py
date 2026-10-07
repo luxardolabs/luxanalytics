@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from alembic.config import Config
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import RedirectResponse, Response
@@ -23,7 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from alembic import command
 from app.api.v1.routers import router as api_router
-from app.core.auth import get_session_secret
+from app.core.auth import get_session_secret, require_auth
 from app.core.config import settings
 from app.core.limiter import limiter, rate_limit_exceeded_handler
 from app.core.logging_config import configure_logging
@@ -248,7 +248,8 @@ def create_application() -> FastAPI:
         """Redirect to dashboard."""
         return RedirectResponse(url="/dashboard/overview", status_code=302)
 
-    @app.post("/set-app-context")
+    # Only the dashboard nav (apps_dropdown.html) posts here, from an authenticated page.
+    @app.post("/set-app-context", dependencies=[Depends(require_auth)])
     async def set_app_context(request: Request) -> Response:
         """Set the current app context via cookie (used by nav app selector)."""
         form = await request.form()

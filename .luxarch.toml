@@ -7,3 +7,8 @@
 [[target]]
 kind = "fastapi-web"
 app = "app"
+
+# How mutating routes are authenticated (luxarch --playbook route-auth). Facts, not exemptions:
+# the dashboard session dependency and the three ingest credentials.
+[auth]
+deps = ["require_auth", "verify_hmac_signature", "extract_app_from_dsn", "verify_project_dsn"]
