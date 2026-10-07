@@ -33,7 +33,7 @@
                 {% call td() %}
                     {% if event.user_id %}
                     <button class="font-mono text-xs text-brand-500 hover:text-brand-400 transition-colors"
-                            hx-get="/dashboard/user/{{ event.user_id }}"
+                            hx-get="{{ user_urls[event.user_id] }}"
                             hx-target="#panel-container"
                             hx-swap="innerHTML">{{ event.user_id | truncate(16) }}</button>
                     {% else %}
@@ -43,7 +43,7 @@
                 {% call td() %}
                     {% if event.session_id %}
                     <button class="font-mono text-xs text-brand-500 hover:text-brand-400 transition-colors"
-                            hx-get="/dashboard/session/{{ event.session_id }}"
+                            hx-get="{{ session_urls[event.session_id] }}"
                             hx-target="#panel-container"
                             hx-swap="innerHTML">{{ event.session_id | truncate(10) }}</button>
                     {% else %}
@@ -92,7 +92,7 @@
                     <span class="text-xs {{ event.received_at | timeago_color }}">{{ event.received_at | timeago }}</span>
                 {% endcall %}
                 {% call td() %}
-                    {{ icon_view(hx_get='/dashboard/events/detail/' ~ event.id, hx_target='#panel-container', hx_swap='innerHTML') }}
+                    {{ icon_view(hx_get=detail_urls[event.id | string], hx_target='#panel-container', hx_swap='innerHTML') }}
                 {% endcall %}
             </tr>
             {% endfor %}

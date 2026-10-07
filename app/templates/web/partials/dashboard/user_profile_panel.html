@@ -62,7 +62,7 @@
                 <div class="py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
                     <div class="flex items-center justify-between">
                         <button class="text-sm text-brand-500 hover:text-brand-400 transition-colors font-mono"
-                                hx-get="/dashboard/session/{{ s.session_id }}"
+                                hx-get="{{ session_urls[s.session_id] }}"
                                 hx-target="#panel-container"
                                 hx-swap="innerHTML">
                             {{ s.session_id | truncate(12) }}

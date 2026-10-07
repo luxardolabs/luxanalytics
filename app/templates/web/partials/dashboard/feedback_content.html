@@ -110,7 +110,7 @@
                         <span class="text-xs {{ fb.received_at | timeago_color }}">{{ fb.received_at | timeago }}</span>
                     {% endcall %}
                     {% call td() %}
-                        {{ icon_view(hx_get='/dashboard/events/detail/' ~ fb.id, hx_target='#panel-container', hx_swap='innerHTML') }}
+                        {{ icon_view(hx_get=detail_urls[fb.id | string], hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% endcall %}
                 </tr>
                 {% endfor %}

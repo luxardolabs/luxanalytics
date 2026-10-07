@@ -13,7 +13,7 @@
 {# ── Events Timeline (lazy loaded) ── #}
 <div class="mb-6">
 {% call analytics_card("Events Timeline") %}
-    {{ chart_area("timeline-chart-area", "/dashboard/overview/timeline?hours=" ~ hours ~ "&app_id=" ~ (app_id or '')) }}
+    {{ chart_area("timeline-chart-area", urls.timeline) }}
 {% endcall %}
 </div>
 
@@ -21,7 +21,7 @@
 {% call grid(columns=3, class="mb-6") %}
     {% call analytics_card("Event Type Breakdown") %}
         <div id="event-type-chart-area"
-             hx-get="/dashboard/overview/event-types?hours={{ hours }}&app_id={{ app_id or '' }}"
+             hx-get="{{ urls.event_types }}"
              hx-trigger="load"
              hx-swap="innerHTML"
              style="min-height: 250px;">
@@ -31,7 +31,7 @@
 
     {% call analytics_card("Top Screens") %}
         <div id="top-screens-area"
-             hx-get="/dashboard/overview/top-screens?hours={{ hours }}&app_id={{ app_id or '' }}"
+             hx-get="{{ urls.top_screens }}"
              hx-trigger="load"
              hx-swap="innerHTML"
              style="min-height: 250px;">
@@ -44,7 +44,7 @@
         <div class="space-y-2.5">
             {% for event in top_events %}
             <div class="flex items-center justify-between text-sm">
-                <a href="/dashboard/events?event_name={{ event.name }}&hours={{ hours }}&app_id={{ app_id or '' }}"
+                <a href="{{ event_urls[event.name] }}"
                    class="text-slate-300 hover:text-brand-500 transition-colors truncate mr-3">
                     {{ event.name | friendly_name }}
                 </a>
@@ -67,7 +67,7 @@
 {# ── Recent Activity (full width) ── #}
 {% call analytics_card("Recent Activity") %}
     <div id="recent-events"
-         hx-get="/dashboard/events/content?hours={{ hours }}&app_id={{ app_id or '' }}&limit=10"
+         hx-get="{{ urls.recent_events }}"
          hx-trigger="load"
          hx-swap="innerHTML">
         {{ loading("Loading...") }}

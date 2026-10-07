@@ -6,6 +6,7 @@ context key a template needs that the view stopped providing shows up here as a 
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 
@@ -109,3 +110,36 @@ async def test_every_dashboard_page_renders_with_no_data(client: AsyncClient) ->
         if response.status_code != 200:
             failures[path] = response.status_code
     assert not failures, failures
+
+
+@pytest.mark.db
+async def test_top_event_links_encode_the_event_name(
+    client: AsyncClient, db: AsyncSession, sample_app: object
+) -> None:
+    # The link used to interpolate the raw name into the query: `a&b c` broke it at the `&`.
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from app.models.event_model import Event
+
+    now = datetime.now(UTC)
+    db.add(
+        Event(
+            id=uuid4(), app_id="test_app", name="a&b c", timestamp=now, received_at=now
+        )
+    )
+    await db.flush()
+
+    client.base_url = "https://test"
+    await client.post(
+        "/login",
+        data={
+            "username": settings.DASHBOARD_USERNAME,
+            "password": settings.DASHBOARD_PASSWORD,
+        },
+        headers={"X-Forwarded-For": "198.51.100.93"},
+        follow_redirects=False,
+    )
+    response = await client.get("/dashboard/overview/content?app_id=test_app")
+    assert response.status_code == 200
+    assert "event_name=a%26b+c" in response.text
