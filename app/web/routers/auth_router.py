@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.core.auth import (
     create_session,
@@ -11,6 +11,7 @@ from app.core.auth import (
     verify_credentials,
 )
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.web.templates import templates
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ async def login_page(
     next: str = "/dashboard/overview",
     error: str | None = None,
     message: str | None = None,
-):
+) -> Response:
     """Display login page."""
     # Check if already authenticated
     user = await get_current_user(request)
@@ -44,12 +45,13 @@ async def login_page(
 
 
 @router.post("/login")
+@limiter.limit(settings.LOGIN_RATE_LIMIT)
 async def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
     next: str = Form("/"),
-):
+) -> RedirectResponse:
     """Process login form."""
     # Verify credentials
     if not verify_credentials(username, password):
@@ -67,7 +69,7 @@ async def login(
 
 
 @router.get("/logout")
-async def logout(request: Request):
+async def logout(request: Request) -> RedirectResponse:
     """Log out and clear session."""
     destroy_session(request)
 

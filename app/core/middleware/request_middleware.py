@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import ClientDisconnect
 from starlette.types import ASGIApp, Message
 
+from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
 from app.core.rate_limiter import AppRateLimiter, IPRateLimiter
 from app.core.security import get_app_id_from_headers
@@ -188,7 +189,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in ["/health", "/metrics", "/docs", "/openapi.json"]:
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
+        # The real client behind the proxy; request.client is nginx for every caller.
+        client_ip = client_ip_from_request(request)
 
         # Decide FIRST, then run the request exactly once. The try covers only the limit
         # check: wrapping call_next in it routed every exception the app raised into the

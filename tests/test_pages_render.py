@@ -35,3 +35,13 @@ async def test_dashboard_renders_after_real_login(client: AsyncClient) -> None:
     page = await client.get("/dashboard/overview")
     assert page.status_code == 200
     assert "text/html" in page.headers["content-type"]
+
+
+@pytest.mark.db
+async def test_health_reports_the_typed_contract(client: AsyncClient) -> None:
+    response = await client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "healthy"
+    assert body["database"]["status"] == "healthy"
+    assert body["redis"]["status"] in {"healthy", "not configured"}

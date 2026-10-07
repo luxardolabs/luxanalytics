@@ -1,11 +1,13 @@
-import json
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, TypeAdapter
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_STR_DICT = TypeAdapter(dict[str, str])
+_STR_LIST = TypeAdapter(list[str])
 
 
 def _running_version() -> str:
@@ -52,6 +54,12 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW: int = 60
+    # POST /login, per client address (slowapi syntax). A login cannot key on identity: the
+    # credential is what is being verified (FLEET-RATE-LIMIT-STANDARD §1.3).
+    LOGIN_RATE_LIMIT: str = "5/minute"
+    # Peers whose X-Forwarded-For is believed (comma-separated CIDRs): the app is reachable only
+    # through nginx on the docker network. See app/core/client_ip.py for the trust model.
+    TRUSTED_PROXIES: str = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -68,7 +76,9 @@ class Settings(BaseSettings):
 
     # Dashboard Auth
     DASHBOARD_USERNAME: str = "admin"
-    DASHBOARD_PASSWORD: str = "changeme"
+    # Required, no default: a missing env var must stop the app, never fall back to a guessable
+    # credential on the internet-facing dashboard.
+    DASHBOARD_PASSWORD: str = Field(min_length=1)
     DASHBOARD_SESSION_SECRET: str | None = None
     DASHBOARD_SESSION_TIMEOUT: int = 3600
 
@@ -82,7 +92,8 @@ class Settings(BaseSettings):
 
     @property
     def hmac_keys_dict(self) -> dict[str, str]:
-        return json.loads(self.HMAC_KEYS)
+        """HMAC_KEYS as {key id: secret}; a value that is not that shape fails loudly here."""
+        return _STR_DICT.validate_json(self.HMAC_KEYS)
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -94,10 +105,9 @@ class Settings(BaseSettings):
         """
         if not self.CORS_ORIGINS:
             return []
-        try:
-            return json.loads(self.CORS_ORIGINS)
-        except json.JSONDecodeError:
-            return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        if self.CORS_ORIGINS.lstrip().startswith("["):
+            return _STR_LIST.validate_json(self.CORS_ORIGINS)
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     @property
     def allowed_hosts_list(self) -> list[str]:
@@ -119,4 +129,4 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 
-settings = Settings()  # type: ignore[call-arg]
+settings = Settings()

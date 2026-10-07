@@ -126,6 +126,7 @@ TEST_DB_URL  := postgresql+asyncpg://test:test@$(TEST_DB):5432/test
 TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
             -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e SECRET_KEY=test-only \
             -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost -e DASHBOARD_SESSION_SECRET=test-only \
+            -e DASHBOARD_PASSWORD=test-only-dashboard-password \
             -e 'HMAC_KEYS={"test_app": "test-only-hmac-secret"}'
 
 # The lean test image, rebuilt only when the lock / Dockerfile change; source is over-mounted.
@@ -202,7 +203,7 @@ status: guard-registry ## Regenerate committed guard-status files (.lux*-status.
 
 # db-verify settings (the emitted block below reads these; set ABOVE it, as it says).
 DBV_PG_IMAGE  := postgres:16-alpine
-DBV_EXTRA_ENV := -e DATABASE_URL_SYNC=unused -e SECRET_KEY=db-verify-only
+DBV_EXTRA_ENV := -e DATABASE_URL_SYNC=unused -e SECRET_KEY=db-verify-only -e DASHBOARD_PASSWORD=db-verify-only
 
 # luxarch:db-verify asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
 # ── The migration-chain gate ────────────────────────────────────────────────────────────────────

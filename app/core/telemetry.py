@@ -3,10 +3,12 @@
 import logging
 import os
 
+from fastapi import FastAPI
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.metrics import Counter, Histogram, UpDownCounter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -14,6 +16,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_client import CollectorRegistry, generate_latest
 
 from app.core.config import settings
+from app.db.database import async_engine
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,7 @@ logger = logging.getLogger(__name__)
 REGISTRY = CollectorRegistry()
 
 
-def setup_telemetry(app=None):
+def setup_telemetry(app: FastAPI | None = None) -> None:
     """Initialize OpenTelemetry tracing and metrics."""
 
     # Skip if no OTEL endpoint configured
@@ -40,9 +43,10 @@ def setup_telemetry(app=None):
             }
         )
 
-        # Setup tracing
-        trace.set_tracer_provider(TracerProvider(resource=resource))
-        tracer_provider = trace.get_tracer_provider()
+        # Setup tracing. Keep the SDK provider we built: trace.get_tracer_provider() returns the
+        # API type (no add_span_processor), and a provider set earlier would be returned instead.
+        tracer_provider = TracerProvider(resource=resource)
+        trace.set_tracer_provider(tracer_provider)
 
         # Add OTLP exporter
         otlp_exporter = OTLPSpanExporter(
@@ -62,8 +66,6 @@ def setup_telemetry(app=None):
 
         # Auto-instrument SQLAlchemy
         try:
-            from app.db.database import async_engine
-
             SQLAlchemyInstrumentor().instrument(
                 engine=async_engine.sync_engine, service="ll_analytics_db"
             )
@@ -79,8 +81,9 @@ def setup_telemetry(app=None):
             },
         )
 
-    except Exception as e:
-        logger.error("Failed to initialize OpenTelemetry", extra={"error": str(e)})
+    except Exception:
+        # Telemetry is optional: the app serves without it, but the failure is recorded.
+        logger.exception("Failed to initialize OpenTelemetry")
 
 
 def get_prometheus_metrics() -> bytes:
@@ -91,7 +94,7 @@ def get_prometheus_metrics() -> bytes:
     return generate_latest(REGISTRY)
 
 
-def create_custom_metrics():
+def create_custom_metrics() -> dict[str, Counter | Histogram | UpDownCounter]:
     """Create custom application metrics."""
     meter = metrics.get_meter("ll_analytics")
 

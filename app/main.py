@@ -1,4 +1,5 @@
-# Updated main.py file
+"""The FastAPI application: middleware, exception handlers, routers, lifespan."""
+
 import asyncio
 import logging
 import sys
@@ -6,17 +7,25 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from prometheus_client import CONTENT_TYPE_LATEST
 from redis.exceptions import RedisError
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import Connection, text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.pool import QueuePool
 from starlette.middleware.sessions import SessionMiddleware
 
+from alembic import command
 from app.api.v1.routers import router as api_router
 from app.core.auth import get_session_secret
 from app.core.config import settings
+from app.core.limiter import limiter, rate_limit_exceeded_handler
 from app.core.logging_config import configure_logging
 from app.core.middleware import (
     LoggingMiddleware,
@@ -26,6 +35,15 @@ from app.core.middleware import (
 from app.core.redis_client import get_redis_client
 from app.core.telemetry import get_prometheus_metrics, setup_telemetry
 from app.db.database import async_engine
+
+# Every model registered on Base.metadata before anything migrates or queries.
+from app.models import App, Device, Event  # noqa: F401
+from app.schemas.health_schema import (
+    DatabaseHealth,
+    HealthResponse,
+    PoolStats,
+    RedisHealth,
+)
 from app.utils.exception_handlers import general_exception_handler
 from app.web.routers import router as web_router
 from app.web.templates import error_templates
@@ -38,23 +56,15 @@ configure_logging(
 )
 logger = logging.getLogger(__name__)
 
-# Import models at module level to ensure they're registered with Base
-from app.models import App, Device, Event  # noqa: F401, E402  # Register with Base
 
-
-async def run_migrations():
+async def run_migrations() -> None:
     """Run database migrations via Alembic."""
     try:
-        from alembic.config import Config
-
-        from alembic import command
-        from app.db.database import async_engine
-
         logger.info("Running database migrations via Alembic...")
 
         alembic_cfg = Config("alembic.ini")
 
-        def _run_upgrade(connection):
+        def _run_upgrade(connection: Connection) -> None:
             alembic_cfg.attributes["connection"] = connection
             command.upgrade(alembic_cfg, "head")
 
@@ -63,17 +73,14 @@ async def run_migrations():
 
         logger.info("Database migrations completed successfully!")
 
-    except Exception as e:
-        logger.error("Database migrations failed!", extra={"error": str(e)})
+    except Exception:
+        # Refuse to serve on a schema the code does not match.
+        logger.exception("Database migrations failed!")
         sys.exit(1)
 
 
-async def wait_for_database():
+async def wait_for_database() -> None:
     """Wait for database to be ready."""
-    from sqlalchemy import text
-
-    from app.db.database import async_engine
-
     logger.info("⏳ Waiting for database to be ready...")
 
     max_retries = 30
@@ -86,7 +93,7 @@ async def wait_for_database():
                 await conn.execute(text("SELECT 1"))
             logger.info("✅ Database is ready!")
             return
-        except Exception as e:
+        except (SQLAlchemyError, OSError) as e:
             retry_count += 1
             logger.info(
                 "Database not ready (attempt %s/%s), waiting...",
@@ -178,6 +185,9 @@ def create_application() -> FastAPI:
     # The canonical exception handler renders its error page/partial through this instance.
     app.state.templates = error_templates
     app.add_exception_handler(Exception, general_exception_handler)
+    # Per-route limits (slowapi): the limiter is found on app.state; a refusal is a 429 + Retry-After.
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
     # Static files (for CSS, JS, images)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -186,71 +196,61 @@ def create_application() -> FastAPI:
     app.include_router(web_router)
     app.include_router(api_router)
 
-    @app.get("/health")
-    async def health_check():
+    @app.get("/health", response_model=HealthResponse)
+    async def health_check() -> HealthResponse:
         """Health check endpoint with database pool stats."""
-        from app.core.redis_client import get_redis_client
-        from app.db.database import async_engine
-
-        # Get database pool stats
+        # Pool counters exist on a QueuePool (the async engine's AsyncAdaptedQueuePool is one).
         pool = async_engine.pool
-        db_pool_stats = {
-            "size": pool.size(),
-            "checked_in": pool.checkedin(),
-            "checked_out": pool.checkedout(),
-            "overflow": pool.overflow(),
-            "total": pool.checkedin() + pool.checkedout(),
-            "pool_size_setting": settings.DB_POOL_SIZE,
-            "max_overflow_setting": settings.DB_POOL_MAX_OVERFLOW,
-        }
+        pool_stats = (
+            PoolStats(
+                size=pool.size(),
+                checked_in=pool.checkedin(),
+                checked_out=pool.checkedout(),
+                overflow=pool.overflow(),
+                total=pool.checkedin() + pool.checkedout(),
+                pool_size_setting=settings.DB_POOL_SIZE,
+                max_overflow_setting=settings.DB_POOL_MAX_OVERFLOW,
+            )
+            if isinstance(pool, QueuePool)
+            else None
+        )
 
         # Check database connectivity
-        db_status = "healthy"
+        database = DatabaseHealth(status="healthy", pool=pool_stats)
         try:
-            from sqlalchemy import text
-
             async with async_engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
         except (SQLAlchemyError, OSError) as e:
-            db_status = f"unhealthy: {str(e)}"
+            database = DatabaseHealth(status="unhealthy", error=str(e), pool=pool_stats)
 
         # Check Redis connectivity
-        redis_status = "healthy"
+        redis = RedisHealth(status="healthy")
         try:
             redis_client = await get_redis_client()
             if redis_client:
                 await redis_client.ping()
             else:
-                redis_status = "not configured"
+                redis = RedisHealth(status="not configured")
         except (RedisError, OSError) as e:
-            redis_status = f"unhealthy: {str(e)}"
+            redis = RedisHealth(status="unhealthy", error=str(e))
 
-        return {
-            "status": "healthy" if db_status == "healthy" else "degraded",
-            "timestamp": time.time(),
-            "version": settings.APP_VERSION,
-            "build_timestamp": settings.BUILD_TIMESTAMP,
-            "database": {
-                "status": db_status,
-                "pool": db_pool_stats,
-            },
-            "redis": {
-                "status": redis_status,
-            },
-        }
+        return HealthResponse(
+            status="healthy" if database.status == "healthy" else "degraded",
+            timestamp=time.time(),
+            version=settings.APP_VERSION,
+            build_timestamp=settings.BUILD_TIMESTAMP,
+            database=database,
+            redis=redis,
+        )
 
     @app.get("/")
-    async def root():
+    async def root() -> RedirectResponse:
         """Redirect to dashboard."""
-        from fastapi.responses import RedirectResponse
-
         return RedirectResponse(url="/dashboard/overview", status_code=302)
 
     @app.post("/set-app-context")
-    async def set_app_context(request: Request):
+    async def set_app_context(request: Request) -> Response:
         """Set the current app context via cookie (used by nav app selector)."""
-        from fastapi.responses import Response
-
         form = await request.form()
         app_id = str(form.get("app_id", ""))
         response = Response(status_code=204)
@@ -268,11 +268,8 @@ def create_application() -> FastAPI:
         return response
 
     @app.get("/metrics")
-    async def metrics():
+    async def metrics() -> Response:
         """Prometheus metrics endpoint."""
-        from fastapi.responses import Response
-        from prometheus_client import CONTENT_TYPE_LATEST
-
         metrics_data = get_prometheus_metrics()
         return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
 
