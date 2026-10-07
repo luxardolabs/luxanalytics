@@ -198,9 +198,9 @@
         },
         {
           "rule": "fw.no_crud_imports_crud",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1503,8 +1503,8 @@
         }
       ],
       "summary": {
-        "PASS": 140,
-        "FAIL": 1,
+        "PASS": 141,
+        "FAIL": 0,
         "XFAIL": 0,
         "XPASS": 0,
         "INERT": 25
@@ -2045,12 +2045,12 @@
     }
   },
   "summary": {
-    "PASS": 194,
-    "FAIL": 2,
+    "PASS": 195,
+    "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "a2eb973ee65abb6880eabff4481ade536076af93",
-  "generated_at": "2026-10-07T20:26:49Z"
+  "commit": "bcf49fbbcf3b605d00fc104c677d8dbead8945cc",
+  "generated_at": "2026-10-07T20:28:05Z"
 }

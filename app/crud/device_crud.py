@@ -3,14 +3,16 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Row, and_, desc, func, select, true
+from sqlalchemy import ColumnElement, Row, and_, desc, func, select, true
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
-from app.crud.event_crud import Conditions
 from app.models.device_model import Device
 from app.models.event_model import Event
+
+# WHERE clauses, ANDed by each query (crud modules import no other crud module).
+Conditions = list[ColumnElement[bool]]
 
 
 class DeviceCRUD:
