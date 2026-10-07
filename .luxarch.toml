@@ -1,8 +1,8 @@
 # Architecture-conformance config for luxarch (the fleet arch guard).
 # Run via `make arch`; schema: `luxarch --doc REFERENCE`.
 #
-# Facts only. No allowlist entries: every one needs a written evidence line, and none has
-# been earned yet. Reds stay red and are tracked in LuxPM (LUXANALYTI-42 onboarding).
+# Facts, plus the two owner-approved allowlist rows at the end (each with its evidence and the
+# playbook that prescribes it). Reds stay red and are tracked in LuxPM (LUXANALYTI-42 onboarding).
 
 [[target]]
 kind = "fastapi-web"
@@ -34,3 +34,16 @@ no_nesting = true
 enabled = true
 signals = ["traces", "metrics"]
 entity_id_params = ["app_id", "event_id", "user_id", "session_id"]
+
+# Owner-approved (2026-10-07), each the declaration its playbook prescribes for this exact case.
+[allowlist]
+# The two transaction OWNERS (luxarch --playbook db-mutations §1-2): get_db (request) and
+# get_db_context (non-request) commit on success and roll back on error.
+non_request_files = ["app/db/database.py"]
+
+# Device.device_type is Apple's UIDevice.current.model, stored verbatim from the SDK
+# (docs/ios-sdk-platform-field.md:22): an OPEN vendor vocabulary (luxarch --playbook enum-typing).
+[[allowlist.enum_freetext_columns]]
+path = "app/models/device_model.py"
+column = "device_type"
+evidence = "Apple's UIDevice.current.model, stored verbatim from the iOS SDK (docs/ios-sdk-platform-field.md:22); Apple adds device families, so the set is open"

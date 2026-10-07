@@ -297,9 +297,9 @@
         },
         {
           "rule": "fw.enumish_columns",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -369,9 +369,9 @@
         },
         {
           "rule": "fw.no_redundant_commit",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 4,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1503,8 +1503,8 @@
         }
       ],
       "summary": {
-        "PASS": 128,
-        "FAIL": 3,
+        "PASS": 130,
+        "FAIL": 1,
         "XFAIL": 0,
         "XPASS": 0,
         "INERT": 35
@@ -2045,12 +2045,12 @@
     }
   },
   "summary": {
-    "PASS": 182,
-    "FAIL": 4,
+    "PASS": 184,
+    "FAIL": 2,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 38
   },
-  "commit": "30949f8edc2c1243efabb2e60c0e0df2144a6866",
-  "generated_at": "2026-10-07T07:06:19Z"
+  "commit": "228870f41c8d40965249f64f94526aab52d81e86",
+  "generated_at": "2026-10-07T18:42:03Z"
 }
