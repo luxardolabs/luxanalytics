@@ -27,7 +27,7 @@ def test_a_stamped_build_busts_with_its_commit(monkeypatch: pytest.MonkeyPatch) 
 @pytest.mark.db
 async def test_the_rendered_page_carries_a_real_token(client: AsyncClient) -> None:
     response = await client.get("/login")
-    assert 'href="/static/css/compiled.css?v=' in response.text
+    assert 'href="/static/css/app.css?v=' in response.text
     assert '?v="' not in response.text  # never an empty token
 
 

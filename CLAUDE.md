@@ -125,7 +125,7 @@ app/
 │   ├── pages/dashboard/     # Full page templates (9 pages)
 │   └── partials/dashboard/  # HTMX content partials + slider panels
 ├── static/
-│   ├── css/compiled.css     # Tailwind compiled output
+│   ├── css/input.css        # Tailwind source; app.css is compiled by the image's css stage (gitignored)
 │   ├── js/charts.js         # Chart.js + ECharts auto-initializer
 │   └── vendor/              # Alpine, HTMX, Chart.js, ECharts
 └── main.py                  # FastAPI app factory
@@ -150,8 +150,7 @@ make test             # Full suite against a throwaway Postgres (test-db-up/down
 make db-verify        # Migrate an EMPTY DB to head and diff it against the models
 make migrate          # Run Alembic migrations
 make migrate-create   # Create new migration (interactive)
-make css              # Build Tailwind CSS
-make css-watch        # Watch mode for Tailwind
+make css-watch        # Live stylesheet rebuilds (Node in a throwaway container; app.css gitignored)
 make stack-status     # Health check + container status
 make backup           # Backup local database
 ```

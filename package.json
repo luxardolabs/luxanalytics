@@ -5,9 +5,7 @@
   "type": "module",
   "description": "LuxAnalytics - Analytics Event Collector Frontend Assets",
   "scripts": {
-    "dev:css": "tailwindcss -i ./app/static/css/tailwind.css -o ./app/static/css/compiled.css --watch",
-    "build:css": "NODE_ENV=production tailwindcss -i ./app/static/css/tailwind.css -o ./app/static/css/compiled.css --minify",
-    "build": "npm run build:css"
+    "build:css": "tailwindcss -i app/static/css/input.css -o app/static/css/app.css --minify"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.7",

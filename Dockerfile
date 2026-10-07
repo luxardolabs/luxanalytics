@@ -1,3 +1,17 @@
+# luxarch:css-stage asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit css-stage`.
+# ---- css: compile the stylesheet; only its output reaches the app image (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD) ----
+# Paste above your app stage, then copy ONLY the output into it:
+#   COPY --from=css /build/app/static/css/app.css /app/app/static/css/app.css
+# Node, node_modules and the Tailwind toolchain never reach the runtime image. In a monorepo the paths
+# are relative to the app's build context (apps/backend/).
+FROM node:24-slim AS css
+WORKDIR /build
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+RUN npm run build:css
+# ---- end css stage ----
+
 # ---- builder: resolve the lock into a venv; the build tooling never reaches the runtime ----
 FROM python:3.14-slim AS builder
 
@@ -36,6 +50,8 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY VERSION ./
 COPY app ./app
+# The stylesheet the css stage compiled (gitignored in the repo; built here, every image).
+COPY --from=css /build/app/static/css/app.css /app/app/static/css/app.css
 COPY alembic ./alembic
 COPY alembic.ini ./
 

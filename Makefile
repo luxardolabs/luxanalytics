@@ -56,7 +56,7 @@ export TLS_CERTS_DIR
         arch-rule arch-file lint-file mypy-file status test-db-up test-db-down db-verify \
         audit gitleaks gitleaks-staged onboard-check \
         network up down restart logs logs-app logs-db shell shell-db migrate migrate-down \
-        migrate-create clean stack-status health ps backup restore work quick css css-watch check-env \
+        migrate-create clean stack-status health ps backup restore work quick css-watch check-env \
         publish-sha release gh-release dev-deploy dev-pin test-build \
         buildx-setup version \
         prod-sync prod-pin prod-deploy prod-restart prod-stop prod-logs prod-status prod-shell prod-shell-db \
@@ -764,11 +764,16 @@ quick:
 	$(DEV_COMPOSE) restart luxanalytics_app
 	$(DEV_COMPOSE) logs -f luxanalytics_app
 
-css:
-	npm run build:css
+# luxarch:css-watch asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit css-watch`.
+# Live stylesheet rebuilds for local development, with Node in a throwaway container: nothing is
+# installed on the host and nothing runs in compose. The output it writes is gitignored; the image
+# builds its own (luxarch --emit css-stage). See luxarch --doc FLEET-BUILD-DEPLOY-STANDARD.
+CSS_NODE_IMAGE ?= node:24-slim
 
-css-watch:
-	npm run dev:css
+.PHONY: css-watch
+css-watch: ## Recompile the stylesheet on change (Node in a throwaway container; output gitignored)
+	docker run --rm -it -v "$(CURDIR)":/w -w /w $(CSS_NODE_IMAGE) \
+	  sh -c 'npm ci --no-audit --no-fund && npm run build:css -- --watch'
 
 check-env:
 	@command -v docker >/dev/null 2>&1 && echo "✅ Docker" || echo "❌ Docker"
