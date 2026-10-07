@@ -27,6 +27,12 @@ from app.models.event_model import Event
 Conditions = list[ColumnElement[bool]]
 
 
+def _has_value(expr: ColumnElement[str]) -> ColumnElement[bool]:
+    """A JSONB property that carries a value: present, not JSON null, not an empty string.
+    One rule for every property aggregate, so a panel's totals and its rows agree."""
+    return and_(expr.isnot(None), expr != "")
+
+
 class EventWriteCRUD:
     """Write operations for events."""
 
@@ -82,10 +88,8 @@ class EventCRUD:
         hours: int = 24,
     ) -> tuple[list[Event], int]:
         """Returns (events, total_count)."""
-        since = datetime.now(UTC) - timedelta(hours=hours)
-        conditions = [Event.received_at >= since]
-        if app_id:
-            conditions.append(Event.app_id == app_id)
+        # time_conditions: hours=0 is "All" (it read "the last 0 hours", an always-empty list).
+        conditions = self.time_conditions(hours, app_id)
         if event_name:
             conditions.append(Event.name.icontains(event_name, autoescape=True))
         if user_id:
@@ -159,11 +163,11 @@ class EventCRUD:
     async def count_by_property(
         self, db: AsyncSession, key: str, conditions: Conditions, limit: int = 20
     ) -> list[tuple[Any, int]]:
-        """GROUP BY a JSONB properties key. Returns [(value, count)]."""
+        """GROUP BY a JSONB properties key. Returns [(value, count)]; a JSON null or "" is no value."""
         prop_expr = Event.properties[key].astext
         query = (
             select(prop_expr.label("val"), func.count().label("cnt"))
-            .where(and_(true(), *conditions), Event.properties.has_key(key))
+            .where(and_(true(), *conditions), _has_value(prop_expr))
             .group_by(prop_expr)
             .order_by(desc("cnt"))
             .limit(limit)
@@ -259,9 +263,10 @@ class EventCRUD:
             select(
                 operation_col.label("operation"),
                 func.count().label("total_count"),
-                func.sum(func.cast(success_col == "true", Integer)).label(
-                    "success_count"
-                ),
+                # No row with a success flag sums to NULL: count it as 0 successes.
+                func.coalesce(
+                    func.sum(func.cast(success_col == "true", Integer)), 0
+                ).label("success_count"),
                 func.min(duration_col).label("min_ms"),
                 func.max(duration_col).label("max_ms"),
                 func.avg(duration_col).label("mean_ms"),
@@ -474,7 +479,7 @@ class EventCRUD:
                 WHERE name = 'screen_viewed'
                   AND properties->>'screen' IS NOT NULL
                   AND session_id IS NOT NULL
-                  AND received_at >= NOW() - make_interval(hours => :hours)
+                  AND (:hours <= 0 OR received_at >= NOW() - make_interval(hours => :hours))
                   AND (CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id)
             )
             SELECT prev_screen, screen AS next_screen, COUNT(*) AS cnt
@@ -503,7 +508,7 @@ class EventCRUD:
                 WHERE name = 'screen_viewed'
                   AND properties->>'screen' IS NOT NULL
                   AND session_id IS NOT NULL
-                  AND received_at >= NOW() - make_interval(hours => :hours)
+                  AND (:hours <= 0 OR received_at >= NOW() - make_interval(hours => :hours))
                   AND (CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id)
                 ORDER BY session_id, received_at
             )
@@ -535,7 +540,7 @@ class EventCRUD:
                 WHERE name = 'screen_viewed'
                   AND properties->>'screen' IS NOT NULL
                   AND session_id IS NOT NULL
-                  AND received_at >= NOW() - make_interval(hours => :hours)
+                  AND (:hours <= 0 OR received_at >= NOW() - make_interval(hours => :hours))
                   AND (CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id)
             )
             SELECT
@@ -568,7 +573,7 @@ class EventCRUD:
                 FROM events
                 WHERE name = 'app_entered_background'
                   AND session_id IS NOT NULL
-                  AND received_at >= NOW() - make_interval(hours => :hours)
+                  AND (:hours <= 0 OR received_at >= NOW() - make_interval(hours => :hours))
                   AND (CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id)
             ),
             last_screen AS (
@@ -608,7 +613,7 @@ class EventCRUD:
                     MAX(received_at) - MIN(received_at) AS duration
                 FROM events
                 WHERE session_id IS NOT NULL
-                  AND received_at >= NOW() - make_interval(hours => :hours)
+                  AND (:hours <= 0 OR received_at >= NOW() - make_interval(hours => :hours))
                   AND (CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id)
                 GROUP BY session_id
             )
@@ -652,23 +657,23 @@ class EventCRUD:
     async def property_key_summary(
         self, db: AsyncSession, key: str, conditions: Conditions
     ) -> Row[int, int, int]:
-        """Over every event carrying `key`: how many, distinct values, distinct event names."""
+        """Over every event with a value for `key`: how many, distinct values, distinct names."""
         value = Event.properties[key].astext
         query = select(
             func.count(Event.id),
             func.count(func.distinct(value)),
             func.count(func.distinct(Event.name)),
-        ).where(and_(true(), *conditions), Event.properties.has_key(key))
+        ).where(and_(true(), *conditions), _has_value(value))
         return (await db.execute(query)).one()
 
     async def property_values_by_name(
         self, db: AsyncSession, key: str, conditions: Conditions, limit: int
-    ) -> list[Row[str, str | None, int]]:
-        """(event name, value of `key`, count), commonest first."""
+    ) -> list[Row[str, str, int]]:
+        """(event name, value of `key`, count), commonest first; null and "" are no value."""
         value = Event.properties[key].astext
         query = (
             select(Event.name, value, func.count().label("cnt"))
-            .where(and_(true(), *conditions), Event.properties.has_key(key))
+            .where(and_(true(), *conditions), _has_value(value))
             .group_by(Event.name, value)
             .order_by(desc("cnt"))
             .limit(limit)
@@ -681,7 +686,7 @@ class EventCRUD:
         """Get events that have a specific key in properties."""
         query = (
             select(Event)
-            .where(and_(true(), *conditions), Event.properties.has_key(key))
+            .where(and_(true(), *conditions), _has_value(Event.properties[key].astext))
             .order_by(desc(Event.received_at))
             .limit(limit)
         )

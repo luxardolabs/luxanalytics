@@ -3,6 +3,7 @@
 View services call this. This calls CRUD. Never the other way around.
 """
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -27,6 +28,12 @@ ERROR_TOP_MESSAGES = 2
 KEY_TOP_VALUES = 15
 KEY_VALUES_BY_EVENT = 100
 KEY_SAMPLES = 20
+
+
+def _as_text(value: object) -> str:
+    """A JSONB value as Postgres's ->> renders it, so a sample matches the SQL distribution:
+    a string as-is, anything else as JSON (true, 3, {"a": 1})."""
+    return value if isinstance(value, str) else json.dumps(value)
 
 
 class AnalyticsCoreService:
@@ -1051,14 +1058,14 @@ class AnalyticsCoreService:
             for name, value, count in await event_crud.property_values_by_name(
                 self.db, key_name, conditions, limit=KEY_VALUES_BY_EVENT
             ):
-                value_by_event.setdefault(name, {})[str(value)] = count
+                value_by_event.setdefault(name, {})[value] = count
             recent = await event_crud.get_events_with_property_key(
                 self.db, key_name, conditions, limit=KEY_SAMPLES
             )
             samples = [
                 {
                     "event_name": e.name,
-                    "key_value": str((e.properties or {}).get(key_name, "null")),
+                    "key_value": _as_text((e.properties or {})[key_name]),
                     "received_at": e.received_at,
                 }
                 for e in recent

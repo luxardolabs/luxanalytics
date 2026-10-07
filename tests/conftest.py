@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import pytest
@@ -30,6 +31,7 @@ from sqlalchemy.ext.asyncio import (
 import app.db.database as _appdb
 
 # «EDIT» — the FastAPI dependency your routes use to get a session
+from app.core.config import settings as app_settings
 from app.core.redis_client import close_redis_client, get_redis_client
 from app.db.database import get_db
 
@@ -268,8 +270,22 @@ async def _redis_client_per_test() -> AsyncIterator[None]:
     yield
     redis_client = await get_redis_client()
     if redis_client is not None:
+        _guard_not_the_dev_redis(app_settings.REDIS_URL or "")
         await redis_client.flushdb()
     await close_redis_client()
+
+
+def _guard_not_the_dev_redis(url: str) -> None:
+    """FLUSHDB is irreversible: refuse it on anything but a throwaway test Redis, the way
+    _guard_not_the_dev_database refuses the dev/prod database. `make test` runs
+    luxanalytics_testredis; pytest inside the dev app container would otherwise wipe the dev
+    stack's Redis (rate-limit state) after its first test."""
+    host = urlsplit(url).hostname or ""
+    if "test" not in host.lower():
+        raise RuntimeError(
+            f"REDIS_URL does not look like a disposable test Redis: {url!r}. The suite flushes it "
+            "after every test; run it with `make test`, which starts the throwaway one."
+        )
 
 
 # ── durability fixtures ─────────────────────────────────────────────────────────────────────────

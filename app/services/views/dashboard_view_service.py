@@ -8,7 +8,8 @@ nothing. Architecture: Router -> DashboardViewService -> AnalyticsCoreService ->
 
 from collections.abc import Iterable
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit
+from uuid import UUID
 
 from fastapi import HTTPException, Query, Request
 from fastapi.responses import Response
@@ -65,6 +66,14 @@ def switch_app_response(current_url: str, app_id: str) -> Response:
     return response
 
 
+def _is_uuid(value: str) -> bool:
+    try:
+        UUID(value)
+    except ValueError:
+        return False
+    return True
+
+
 class DashboardViewService:
     def __init__(self, db: AsyncSession, request: Request) -> None:
         self._core = AnalyticsCoreService(db)
@@ -76,7 +85,11 @@ class DashboardViewService:
         """A route's PATH resolved by name, plus an encoded query with empty values dropped
         (luxarch --playbook url-in-view). A path, not an absolute URL: behind the proxy the request
         scheme can read http, and an http:// link inside the https dashboard is blocked."""
-        path = self._request.app.url_path_for(route, **params)
+        # Path values are SDK input (user ids, session ids, property keys): percent-encode them, so a
+        # "?" or "#" stays part of the value and a "/" reaches the route's {…:path} parameter.
+        path = self._request.app.url_path_for(
+            route, **{k: quote(v, safe="") for k, v in params.items()}
+        )
         kept = {k: v for k, v in (query or {}).items() if v not in (None, "")}
         return f"{path}?{urlencode(kept)}" if kept else path
 
@@ -263,6 +276,9 @@ class DashboardViewService:
         with create_service_span(
             "DashboardViewService", "event_detail_context", event_id=event_id
         ):
+            if not _is_uuid(event_id):
+                # Not an event id at all: not found, not a database error.
+                raise HTTPException(status_code=404, detail="Event not found")
             event = await self._core.get_event_by_id(event_id)
             if not event:
                 raise HTTPException(status_code=404, detail="Event not found")

@@ -309,7 +309,7 @@ async def event_detail_panel(
     )
 
 
-@router.get("/explorer/key/{key_name}", response_class=HTMLResponse)
+@router.get("/explorer/key/{key_name:path}", response_class=HTMLResponse)
 async def key_deep_dive_panel(
     request: Request,
     key_name: str,
@@ -325,7 +325,7 @@ async def key_deep_dive_panel(
     )
 
 
-@router.get("/user/{user_id}", response_class=HTMLResponse)
+@router.get("/user/{user_id:path}", response_class=HTMLResponse)
 async def user_profile_panel(
     request: Request, user_id: str, db: AsyncSession = Depends(get_db)
 ) -> Response:
@@ -336,7 +336,7 @@ async def user_profile_panel(
     )
 
 
-@router.get("/session/{session_id}", response_class=HTMLResponse)
+@router.get("/session/{session_id:path}", response_class=HTMLResponse)
 async def session_detail_panel(
     request: Request, session_id: str, db: AsyncSession = Depends(get_db)
 ) -> Response:
