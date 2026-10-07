@@ -7,20 +7,26 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from redis.exceptions import RedisError
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.api.v1.routers import router as api_router
 from app.core.auth import get_session_secret
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.core.middleware import (
+    LoggingMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.core.redis_client import get_redis_client
-from app.db.database import async_engine
-from app.core.middleware import (LoggingMiddleware, RateLimitMiddleware,
-                                 RequestSizeLimitMiddleware, SecurityHeadersMiddleware)
 from app.core.telemetry import get_prometheus_metrics, setup_telemetry
+from app.db.database import async_engine
+from app.utils.exception_handlers import general_exception_handler
 from app.web.routers import router as web_router
-from app.api.v1.routers import router as api_router
+from app.web.templates import error_templates
 
 # Setup logging
 setup_logging()
@@ -33,9 +39,9 @@ from app.models import App, Device, Event  # noqa: F401, E402  # Register with B
 async def run_migrations():
     """Run database migrations via Alembic."""
     try:
-        from alembic import command
         from alembic.config import Config
 
+        from alembic import command
         from app.db.database import async_engine
 
         logger.info("Running database migrations via Alembic...")
@@ -77,7 +83,9 @@ async def wait_for_database():
         except Exception as e:
             retry_count += 1
             logger.info(
-                f"Database not ready (attempt {retry_count}/{max_retries}), waiting...",
+                "Database not ready (attempt %s/%s), waiting...",
+                retry_count,
+                max_retries,
                 error=str(e),
             )
             await asyncio.sleep(2)
@@ -101,12 +109,21 @@ def create_application() -> FastAPI:
     # Setup OpenTelemetry
     setup_telemetry(app)
 
-    # Security middleware (order matters: outermost first)
+    # Middleware. Starlette's add_middleware PREPENDS, so the LAST one added is the OUTERMOST.
+    # Effective order, outer -> inner: TrustedHost, CORS, RateLimit, Logging, SecurityHeaders,
+    # Session. Host validation and CORS run before anything else touches the request.
     app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.allowed_hosts_list,
+        SessionMiddleware,
+        secret_key=get_session_secret(),
+        session_cookie="analytics_session",
+        max_age=settings.DASHBOARD_SESSION_TIMEOUT,
+        same_site="lax",
+        https_only=True,
     )
-
+    app.add_middleware(SecurityHeadersMiddleware, environment=settings.ENVIRONMENT)
+    app.add_middleware(LoggingMiddleware)
+    # RequestSizeLimitMiddleware disabled — nginx handles body size via client_max_body_size
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
@@ -114,22 +131,14 @@ def create_application() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
-
-    # Session middleware
     app.add_middleware(
-        SessionMiddleware,
-        secret_key=get_session_secret(),
-        session_cookie="analytics_session",
-        max_age=settings.DASHBOARD_SESSION_TIMEOUT,
-        same_site="lax",
-        https_only=not settings.DEBUG,
+        TrustedHostMiddleware,
+        allowed_hosts=settings.allowed_hosts_list,
     )
 
-    # Custom middleware
-    app.add_middleware(SecurityHeadersMiddleware, environment=settings.ENVIRONMENT)
-    app.add_middleware(LoggingMiddleware)
-    # RequestSizeLimitMiddleware disabled — nginx handles body size via client_max_body_size
-    app.add_middleware(RateLimitMiddleware)
+    # The canonical exception handler renders its error page/partial through this instance.
+    app.state.templates = error_templates
+    app.add_exception_handler(Exception, general_exception_handler)
 
     # Static files (for CSS, JS, images)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -163,7 +172,7 @@ def create_application() -> FastAPI:
 
             async with async_engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
-        except Exception as e:
+        except (SQLAlchemyError, OSError) as e:
             db_status = f"unhealthy: {str(e)}"
 
         # Check Redis connectivity
@@ -174,7 +183,7 @@ def create_application() -> FastAPI:
                 await redis_client.ping()
             else:
                 redis_status = "not configured"
-        except Exception as e:
+        except (RedisError, OSError) as e:
             redis_status = f"unhealthy: {str(e)}"
 
         return {
@@ -195,17 +204,26 @@ def create_application() -> FastAPI:
     async def root():
         """Redirect to dashboard."""
         from fastapi.responses import RedirectResponse
+
         return RedirectResponse(url="/dashboard/overview", status_code=302)
 
     @app.post("/set-app-context")
     async def set_app_context(request: Request):
         """Set the current app context via cookie (used by nav app selector)."""
         from fastapi.responses import Response
+
         form = await request.form()
         app_id = str(form.get("app_id", ""))
         response = Response(status_code=204)
         if app_id:
-            response.set_cookie("analytics_app_id", app_id, max_age=86400 * 30)
+            response.set_cookie(
+                "analytics_app_id",
+                app_id,
+                max_age=86400 * 30,
+                secure=True,
+                httponly=True,
+                samesite="lax",
+            )
         else:
             response.delete_cookie("analytics_app_id")
         return response
@@ -216,14 +234,8 @@ def create_application() -> FastAPI:
         from fastapi.responses import Response
         from prometheus_client import CONTENT_TYPE_LATEST
 
-        try:
-            metrics_data = get_prometheus_metrics()
-            return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
-        except Exception as e:
-            logger.error("Failed to generate metrics", error=str(e))
-            return Response(
-                content=b"# Error generating metrics\n", media_type="text/plain"
-            )
+        metrics_data = get_prometheus_metrics()
+        return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
 
     @app.on_event("startup")
     async def startup_event():
@@ -252,15 +264,9 @@ def create_application() -> FastAPI:
             if redis:
                 await redis.close()
                 logger.info("Redis connection closed")
-        except Exception:
-            pass
-
-    @app.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception):
-        logger.error("Unhandled exception", error=str(exc), path=request.url.path, method=request.method)
-        if settings.DEBUG:
-            raise exc
-        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+        except (RedisError, OSError) as e:
+            # Shutdown proceeds either way; record that the close failed instead of hiding it.
+            logger.warning("Redis close failed during shutdown", error=str(e))
 
     return app
 

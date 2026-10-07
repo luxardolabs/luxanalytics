@@ -1,10 +1,14 @@
 import structlog
-from typing import Optional
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.core.auth import (create_session, destroy_session, get_current_user,
-                           verify_credentials)
+from app.core.auth import (
+    create_session,
+    destroy_session,
+    get_current_user,
+    safe_redirect_target,
+    verify_credentials,
+)
 from app.core.config import settings
 from app.web.templates import templates
 
@@ -14,13 +18,16 @@ router = APIRouter()
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(
-    request: Request, next: str = "/dashboard/overview", error: Optional[str] = None, message: Optional[str] = None
+    request: Request,
+    next: str = "/dashboard/overview",
+    error: str | None = None,
+    message: str | None = None,
 ):
     """Display login page."""
     # Check if already authenticated
     user = await get_current_user(request)
     if user:
-        return RedirectResponse(url=next, status_code=303)
+        return RedirectResponse(url=safe_redirect_target(next), status_code=303)
 
     return templates.TemplateResponse(
         "pages/auth/login.html",
@@ -54,8 +61,8 @@ async def login(
     # Create session
     create_session(request, username)
 
-    # Redirect to requested page
-    return RedirectResponse(url=next, status_code=303)
+    # Redirect to the requested page — same-site paths only (no open redirect)
+    return RedirectResponse(url=safe_redirect_target(next), status_code=303)
 
 
 @router.get("/logout")

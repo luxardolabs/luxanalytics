@@ -623,6 +623,9 @@ class AnalyticsService:
         samples: list[dict] = []
 
         for e in events:
+            # The query filters on properties ? key_name, so properties is never NULL here.
+            if e.properties is None:
+                continue
             val = str(e.properties.get(key_name, "null"))
             value_counts[val] = value_counts.get(val, 0) + 1
 

@@ -1,5 +1,6 @@
 import base64
 import json
+import secrets
 
 import structlog  # type: ignore
 from fastapi import APIRouter, Depends, HTTPException, Request  # type: ignore
@@ -7,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
 from app.core.dsn_auth import extract_app_from_dsn
 from app.core.security import verify_hmac_signature
+from app.crud.event_crud import event_crud
 from app.db.database import get_db
 from app.schemas.event_schema import BatchEventRequest, EventCreate, EventResponse
-from app.crud.event_crud import event_crud
 from app.services.app_service import AppService
 from app.services.event_service import EventService
 
@@ -162,12 +163,13 @@ async def create_events_by_project_id(
     authorization = request.headers.get("authorization")
     if authorization and authorization.startswith("Basic "):
         try:
-
             encoded = authorization.replace("Basic ", "")
             decoded = base64.b64decode(encoded).decode("utf-8")
             auth_public_id = decoded.split(":")[0] if ":" in decoded else decoded
 
-            if auth_public_id != app.public_id:
+            if not secrets.compare_digest(
+                auth_public_id.encode(), app.public_id.encode()
+            ):
                 logger.warning(
                     "Invalid public_id for project",
                     project_id=project_id,
@@ -175,10 +177,10 @@ async def create_events_by_project_id(
                     provided_public_id=auth_public_id[:8] + "...",
                 )
                 raise HTTPException(status_code=401, detail="Invalid DSN key")
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error("Error parsing auth header", error=str(e))
+        except (ValueError, UnicodeDecodeError) as e:
+            # b64decode raises binascii.Error (a ValueError); .decode raises UnicodeDecodeError.
+            # A malformed header is the caller's error (401); anything else is a bug and propagates.
+            logger.warning("Malformed authorization header", error=str(e))
             raise HTTPException(status_code=401, detail="Invalid authorization")
     else:
         logger.warning("Missing authorization header", project_id=project_id)

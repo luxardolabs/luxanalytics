@@ -1,0 +1,3 @@
+{# Swapped into the failing HTMX target by static/js/htmx-error-swap.js (HX-Error-Swap: true). #}
+{% from "macros/layout.html" import alert_banner %}
+{{ alert_banner("Something went wrong loading this. Try again; if it keeps happening, quote reference " ~ (request_id or "n/a") ~ ".", variant="danger") }}

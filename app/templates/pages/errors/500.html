@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error — LuxAnalytics</title>
+    <link rel="stylesheet" href="/static/css/compiled.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="bg-surface-0 min-h-screen flex items-center justify-center px-4">
+    {% from "macros/layout.html" import alert_banner %}
+    <div class="w-full max-w-md">
+        {{ alert_banner("Something went wrong. If it keeps happening, quote reference " ~ (request_id or "n/a") ~ ".", variant="danger", action_text="Back to dashboard", action_url="/") }}
+    </div>
+</body>
+</html>

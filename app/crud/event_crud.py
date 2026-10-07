@@ -1,18 +1,34 @@
 """Event CRUD — all event table queries."""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
-from sqlalchemy import Integer, and_, cast, desc, func, insert, literal_column, select, text
+from sqlalchemy import (
+    ColumnElement,
+    Integer,
+    Row,
+    and_,
+    cast,
+    desc,
+    func,
+    insert,
+    literal_column,
+    select,
+    text,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event_model import Event
+
+# A WHERE clause as built by time_conditions(): SQLAlchemy boolean predicates, AND-ed by callers.
+Conditions = list[ColumnElement[bool]]
 
 
 class EventWriteCRUD:
     """Write operations for events."""
 
-    async def bulk_insert(self, db: AsyncSession, rows: list[dict]) -> None:
+    async def bulk_insert(self, db: AsyncSession, rows: list[dict[str, Any]]) -> None:
         stmt = insert(Event).values(rows)
         await db.execute(stmt)
 
@@ -22,17 +38,19 @@ class EventCRUD:
 
     # ── Counts ────────────────────────────────────────────────────────────
 
-    async def count(self, db: AsyncSession, conditions: list) -> int:
+    async def count(self, db: AsyncSession, conditions: Conditions) -> int:
         result = await db.execute(select(func.count(Event.id)).where(and_(*conditions)))
         return result.scalar() or 0
 
-    async def count_unique_users(self, db: AsyncSession, conditions: list) -> int:
+    async def count_unique_users(self, db: AsyncSession, conditions: Conditions) -> int:
         result = await db.execute(
             select(func.count(func.distinct(Event.user_id))).where(and_(*conditions))
         )
         return result.scalar() or 0
 
-    async def count_unique_devices(self, db: AsyncSession, conditions: list) -> int:
+    async def count_unique_devices(
+        self, db: AsyncSession, conditions: Conditions
+    ) -> int:
         result = await db.execute(
             select(func.count(func.distinct(Event.device_id))).where(
                 and_(*conditions), Event.device_id.isnot(None)
@@ -42,50 +60,67 @@ class EventCRUD:
 
     # ── Reads ─────────────────────────────────────────────────────────────
 
-    async def get_by_id(self, db: AsyncSession, event_id: str) -> Optional[Event]:
+    async def get_by_id(self, db: AsyncSession, event_id: str) -> Event | None:
         result = await db.execute(select(Event).where(Event.id == event_id))
         return result.scalar_one_or_none()
 
     async def get_filtered(
-        self, db: AsyncSession,
-        app_id: Optional[str] = None,
-        event_name: Optional[str] = None,
-        user_id: Optional[str] = None,
+        self,
+        db: AsyncSession,
+        app_id: str | None = None,
+        event_name: str | None = None,
+        user_id: str | None = None,
         hours: int = 24,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list, int]:
+    ) -> tuple[list[Event], int]:
         """Returns (events, total_count)."""
         since = datetime.now(UTC) - timedelta(hours=hours)
         conditions = [Event.received_at >= since]
         if app_id:
             conditions.append(Event.app_id == app_id)
         if event_name:
-            conditions.append(Event.name.ilike(f"%{event_name}%"))
+            conditions.append(Event.name.icontains(event_name, autoescape=True))
         if user_id:
             conditions.append(Event.user_id == user_id)
         where = and_(*conditions)
-        total = (await db.execute(select(func.count(Event.id)).where(where))).scalar() or 0
-        query = select(Event).where(where).order_by(desc(Event.received_at)).limit(limit).offset(offset)
+        total = (
+            await db.execute(select(func.count(Event.id)).where(where))
+        ).scalar() or 0
+        query = (
+            select(Event)
+            .where(where)
+            .order_by(desc(Event.received_at))
+            .limit(limit)
+            .offset(offset)
+        )
         result = await db.execute(query)
         return list(result.scalars().all()), total
 
     async def search(
-        self, db: AsyncSession, query_str: str, search_type: str = "event_name", limit: int = 50
-    ) -> list:
+        self,
+        db: AsyncSession,
+        query_str: str,
+        search_type: str = "event_name",
+        limit: int = 50,
+    ) -> list[Event]:
         if search_type == "user_id":
-            q = select(Event).where(Event.user_id.ilike(f"%{query_str}%"))
+            q = select(Event).where(Event.user_id.icontains(query_str, autoescape=True))
         elif search_type == "metadata":
-            q = select(Event).where(Event.properties.astext.ilike(f"%{query_str}%"))
+            q = select(Event).where(
+                Event.properties.astext.icontains(query_str, autoescape=True)
+            )
         else:
-            q = select(Event).where(Event.name.ilike(f"%{query_str}%"))
+            q = select(Event).where(Event.name.icontains(query_str, autoescape=True))
         q = q.order_by(desc(Event.received_at)).limit(limit)
         result = await db.execute(q)
         return list(result.scalars().all())
 
     # ── Aggregations ──────────────────────────────────────────────────────
 
-    async def top_event_names(self, db: AsyncSession, conditions: list, limit: int = 10) -> list:
+    async def top_event_names(
+        self, db: AsyncSession, conditions: Conditions, limit: int = 10
+    ) -> list[dict[str, Any]]:
         query = (
             select(Event.name, func.count(Event.id).label("count"))
             .where(and_(*conditions))
@@ -96,7 +131,9 @@ class EventCRUD:
         result = await db.execute(query)
         return [{"name": row.name, "count": row.count} for row in result.all()]
 
-    async def count_by_column(self, db: AsyncSession, column, conditions: list, limit: int = 20) -> list:
+    async def count_by_column(
+        self, db: AsyncSession, column, conditions: Conditions, limit: int = 20
+    ) -> list[tuple[Any, int]]:
         """GROUP BY a promoted column. Returns [(value, count)]."""
         query = (
             select(column, func.count().label("cnt"))
@@ -108,7 +145,9 @@ class EventCRUD:
         result = await db.execute(query)
         return [(row[0], row[1]) for row in result.all()]
 
-    async def count_by_property(self, db: AsyncSession, key: str, conditions: list, limit: int = 20) -> list:
+    async def count_by_property(
+        self, db: AsyncSession, key: str, conditions: Conditions, limit: int = 20
+    ) -> list[tuple[Any, int]]:
         """GROUP BY a JSONB properties key. Returns [(value, count)]."""
         prop_expr = Event.properties[key].astext
         query = (
@@ -122,8 +161,8 @@ class EventCRUD:
         return [(row[0], row[1]) for row in result.all()]
 
     async def get_by_names(
-        self, db: AsyncSession, names: list, conditions: list, limit: int = 2000
-    ) -> list:
+        self, db: AsyncSession, names: list, conditions: Conditions, limit: int = 2000
+    ) -> list[Event]:
         """Get events filtered by event names."""
         query = (
             select(Event)
@@ -135,8 +174,8 @@ class EventCRUD:
         return list(result.scalars().all())
 
     async def get_with_properties(
-        self, db: AsyncSession, conditions: list, limit: int = 500
-    ) -> list:
+        self, db: AsyncSession, conditions: Conditions, limit: int = 500
+    ) -> list[Event]:
         """Get events that have non-null properties."""
         query = (
             select(Event)
@@ -161,8 +200,8 @@ class EventCRUD:
     }
 
     async def timeline_buckets(
-        self, db: AsyncSession, bucket_key: str, conditions: list
-    ) -> list:
+        self, db: AsyncSession, bucket_key: str, conditions: Conditions
+    ) -> list[Row[Any]]:
         bucket_sql = self.BUCKET_EXPRESSIONS.get(bucket_key)
         if not bucket_sql:
             raise ValueError(f"Invalid bucket key: {bucket_key}")
@@ -178,7 +217,9 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.all())
 
-    async def hourly_counts(self, db: AsyncSession, conditions: list) -> list:
+    async def hourly_counts(
+        self, db: AsyncSession, conditions: Conditions
+    ) -> list[Row[Any]]:
         bucket = func.date_trunc("hour", Event.received_at).label("hour")
         query = (
             select(bucket, func.count().label("cnt"))
@@ -191,7 +232,9 @@ class EventCRUD:
 
     # ── Performance ───────────────────────────────────────────────────────
 
-    async def performance_by_operation(self, db: AsyncSession, conditions: list) -> list:
+    async def performance_by_operation(
+        self, db: AsyncSession, conditions: Conditions
+    ) -> list[Row[Any]]:
         """Aggregate performance stats per operation using percentile_cont."""
         duration_col = cast(Event.properties["duration_ms"].astext, Integer)
         operation_col = Event.properties["operation"].astext
@@ -201,7 +244,9 @@ class EventCRUD:
             select(
                 operation_col.label("operation"),
                 func.count().label("total_count"),
-                func.sum(func.cast(success_col == "true", Integer)).label("success_count"),
+                func.sum(func.cast(success_col == "true", Integer)).label(
+                    "success_count"
+                ),
                 func.min(duration_col).label("min_ms"),
                 func.max(duration_col).label("max_ms"),
                 func.avg(duration_col).label("mean_ms"),
@@ -217,28 +262,29 @@ class EventCRUD:
         )
         return list((await db.execute(query)).all())
 
-    async def performance_global(self, db: AsyncSession, conditions: list):
+    async def performance_global(
+        self, db: AsyncSession, conditions: Conditions
+    ) -> Row[Any]:
         """Global performance percentiles across all operations."""
         duration_col = cast(Event.properties["duration_ms"].astext, Integer)
-        query = (
-            select(
-                func.count().label("total"),
-                func.min(duration_col).label("min"),
-                func.max(duration_col).label("max"),
-                func.avg(duration_col).label("mean"),
-                func.percentile_cont(0.5).within_group(duration_col).label("p50"),
-                func.percentile_cont(0.75).within_group(duration_col).label("p75"),
-                func.percentile_cont(0.9).within_group(duration_col).label("p90"),
-                func.percentile_cont(0.95).within_group(duration_col).label("p95"),
-                func.percentile_cont(0.99).within_group(duration_col).label("p99"),
-            )
-            .where(and_(*conditions), Event.properties.has_key("duration_ms"))
-        )
+        query = select(
+            func.count().label("total"),
+            func.min(duration_col).label("min"),
+            func.max(duration_col).label("max"),
+            func.avg(duration_col).label("mean"),
+            func.percentile_cont(0.5).within_group(duration_col).label("p50"),
+            func.percentile_cont(0.75).within_group(duration_col).label("p75"),
+            func.percentile_cont(0.9).within_group(duration_col).label("p90"),
+            func.percentile_cont(0.95).within_group(duration_col).label("p95"),
+            func.percentile_cont(0.99).within_group(duration_col).label("p99"),
+        ).where(and_(*conditions), Event.properties.has_key("duration_ms"))
         return (await db.execute(query)).one()
 
     # ── Conditions builder ────────────────────────────────────────────────
 
-    async def get_apps_with_stats(self, db: AsyncSession) -> list:
+    async def get_apps_with_stats(
+        self, db: AsyncSession
+    ) -> list[Row[str, int, int, datetime]]:
         """Get app_ids with event counts, unique users, last event."""
         query = (
             select(
@@ -253,7 +299,7 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.all())
 
-    async def get_apps_for_dropdown(self, db: AsyncSession) -> list:
+    async def get_apps_for_dropdown(self, db: AsyncSession) -> list[Row[str, int]]:
         """Get app_ids with event counts for dropdown."""
         query = (
             select(Event.app_id, func.count(Event.id).label("total_events"))
@@ -263,12 +309,17 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.all())
 
-    async def get_button_flows(self, db: AsyncSession, conditions: list, limit: int = 15) -> list:
+    async def get_button_flows(
+        self, db: AsyncSession, conditions: Conditions, limit: int = 15
+    ) -> list[tuple[str, int]]:
         """Get screen→button flow counts."""
         screen_prop = Event.properties["screen"].astext
         button_prop = Event.properties["button"].astext
         query = (
-            select(func.concat(screen_prop, " → ", button_prop).label("flow"), func.count().label("cnt"))
+            select(
+                func.concat(screen_prop, " → ", button_prop).label("flow"),
+                func.count().label("cnt"),
+            )
             .where(and_(*conditions), Event.properties.has_key("button"))
             .group_by(screen_prop, button_prop)
             .order_by(desc("cnt"))
@@ -277,15 +328,24 @@ class EventCRUD:
         result = await db.execute(query)
         return [(r.flow, r.cnt) for r in result.all()]
 
-    async def get_recent(self, db: AsyncSession, conditions: list, limit: int = 10) -> list:
+    async def get_recent(
+        self, db: AsyncSession, conditions: Conditions, limit: int = 10
+    ) -> list[Event]:
         """Get most recent events matching conditions."""
-        query = select(Event).where(and_(*conditions)).order_by(desc(Event.received_at)).limit(limit)
+        query = (
+            select(Event)
+            .where(and_(*conditions))
+            .order_by(desc(Event.received_at))
+            .limit(limit)
+        )
         result = await db.execute(query)
         return list(result.scalars().all())
 
     # ── User / Session queries ─────────────────────────────────────────
 
-    async def get_events_by_user(self, db: AsyncSession, user_id: str, limit: int = 200) -> list:
+    async def get_events_by_user(
+        self, db: AsyncSession, user_id: str, limit: int = 200
+    ) -> list[Event]:
         query = (
             select(Event)
             .where(Event.user_id == user_id)
@@ -295,7 +355,9 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.scalars().all())
 
-    async def get_events_by_session(self, db: AsyncSession, session_id: str, limit: int = 200) -> list:
+    async def get_events_by_session(
+        self, db: AsyncSession, session_id: str, limit: int = 200
+    ) -> list[Event]:
         query = (
             select(Event)
             .where(Event.session_id == session_id)
@@ -305,7 +367,9 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.scalars().all())
 
-    async def get_user_sessions(self, db: AsyncSession, user_id: str) -> list:
+    async def get_user_sessions(
+        self, db: AsyncSession, user_id: str
+    ) -> list[Row[str | None, int, datetime, datetime, Sequence[Any]]]:
         """Get distinct sessions for a user with first/last event and event count."""
         query = (
             select(
@@ -323,7 +387,11 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.all())
 
-    async def get_user_devices(self, db: AsyncSession, user_id: str) -> list:
+    async def get_user_devices(
+        self, db: AsyncSession, user_id: str
+    ) -> list[
+        Row[str | None, str | None, str | None, str | None, str | None, int, datetime]
+    ]:
         """Get distinct devices used by a user."""
         query = (
             select(
@@ -336,13 +404,19 @@ class EventCRUD:
                 func.max(Event.received_at).label("last_seen"),
             )
             .where(Event.user_id == user_id, Event.device_id.isnot(None))
-            .group_by(Event.device_id, Event.device_model, Event.os_version, Event.app_version, Event.platform)
+            .group_by(
+                Event.device_id,
+                Event.device_model,
+                Event.os_version,
+                Event.app_version,
+                Event.platform,
+            )
             .order_by(desc(func.max(Event.received_at)))
         )
         result = await db.execute(query)
         return list(result.all())
 
-    async def get_user_summary(self, db: AsyncSession, user_id: str) -> dict:
+    async def get_user_summary(self, db: AsyncSession, user_id: str) -> dict[str, Any]:
         """Aggregate stats for a single user."""
         query = select(
             func.count(Event.id).label("total_events"),
@@ -362,9 +436,16 @@ class EventCRUD:
             "last_seen": result.last_seen,
         }
 
-    async def get_screen_transitions(self, db: AsyncSession, hours: int = 720, app_id: str | None = None, limit: int = 50) -> list:
+    async def get_screen_transitions(
+        self,
+        db: AsyncSession,
+        hours: int = 720,
+        app_id: str | None = None,
+        limit: int = 50,
+    ) -> list[tuple[str, str, int]]:
         """Consecutive screen-to-screen transitions within sessions using LAG window function."""
-        result = await db.execute(text("""
+        result = await db.execute(
+            text("""
             WITH screen_events AS (
                 SELECT
                     session_id,
@@ -387,12 +468,17 @@ class EventCRUD:
             GROUP BY prev_screen, screen
             ORDER BY cnt DESC
             LIMIT :limit
-        """), {"hours": hours, "limit": limit, "app_id": app_id})
+        """),
+            {"hours": hours, "limit": limit, "app_id": app_id},
+        )
         return [(r.prev_screen, r.next_screen, r.cnt) for r in result.all()]
 
-    async def get_screen_entry_points(self, db: AsyncSession, hours: int = 720, app_id: str | None = None) -> list:
+    async def get_screen_entry_points(
+        self, db: AsyncSession, hours: int = 720, app_id: str | None = None
+    ) -> list[tuple[str, int]]:
         """First screen viewed per session (entry points)."""
-        result = await db.execute(text("""
+        result = await db.execute(
+            text("""
             WITH first_screens AS (
                 SELECT DISTINCT ON (session_id)
                     session_id,
@@ -410,12 +496,17 @@ class EventCRUD:
             GROUP BY screen
             ORDER BY cnt DESC
             LIMIT 20
-        """), {"hours": hours, "app_id": app_id})
+        """),
+            {"hours": hours, "app_id": app_id},
+        )
         return [(r.screen, r.cnt) for r in result.all()]
 
-    async def get_screen_dwell_times(self, db: AsyncSession, hours: int = 720, app_id: str | None = None) -> list:
+    async def get_screen_dwell_times(
+        self, db: AsyncSession, hours: int = 720, app_id: str | None = None
+    ) -> list[Row[Any]]:
         """Average time spent on each screen (seconds between arriving and leaving)."""
-        result = await db.execute(text("""
+        result = await db.execute(
+            text("""
             WITH screen_events AS (
                 SELECT
                     session_id,
@@ -445,12 +536,17 @@ class EventCRUD:
               AND EXTRACT(EPOCH FROM (next_event_at - received_at)) > 0
             GROUP BY screen
             ORDER BY avg_seconds DESC
-        """), {"hours": hours, "app_id": app_id})
+        """),
+            {"hours": hours, "app_id": app_id},
+        )
         return list(result.all())
 
-    async def get_exit_screens(self, db: AsyncSession, hours: int = 720, app_id: str | None = None) -> list:
+    async def get_exit_screens(
+        self, db: AsyncSession, hours: int = 720, app_id: str | None = None
+    ) -> list[tuple[str, int]]:
         """Screens users were on before backgrounding the app."""
-        result = await db.execute(text("""
+        result = await db.execute(
+            text("""
             WITH bg_events AS (
                 SELECT session_id, received_at
                 FROM events
@@ -476,12 +572,17 @@ class EventCRUD:
             GROUP BY screen
             ORDER BY exit_count DESC
             LIMIT 20
-        """), {"hours": hours, "app_id": app_id})
+        """),
+            {"hours": hours, "app_id": app_id},
+        )
         return [(r.screen, r.exit_count) for r in result.all()]
 
-    async def get_session_metrics(self, db: AsyncSession, hours: int = 720, app_id: str | None = None) -> dict:
+    async def get_session_metrics(
+        self, db: AsyncSession, hours: int = 720, app_id: str | None = None
+    ) -> dict[str, Any]:
         """Aggregate session-level metrics: avg screens, avg duration, error rate."""
-        result = await db.execute(text("""
+        result = await db.execute(
+            text("""
             WITH session_stats AS (
                 SELECT
                     session_id,
@@ -505,7 +606,9 @@ class EventCRUD:
                 COUNT(*) FILTER (WHERE error_count > 0) AS sessions_with_errors
             FROM session_stats
             WHERE event_count > 1
-        """), {"hours": hours, "app_id": app_id})
+        """),
+            {"hours": hours, "app_id": app_id},
+        )
         row = result.one()
         return {
             "total_sessions": row.total_sessions or 0,
@@ -517,7 +620,9 @@ class EventCRUD:
             "sessions_with_errors": row.sessions_with_errors or 0,
         }
 
-    async def get_events_with_properties(self, db: AsyncSession, conditions: list, limit: int = 500) -> list:
+    async def get_events_with_properties(
+        self, db: AsyncSession, conditions: Conditions, limit: int = 500
+    ) -> list[Event]:
         """Get events that have non-null properties for metadata analysis."""
         query = (
             select(Event)
@@ -528,7 +633,9 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.scalars().all())
 
-    async def get_events_with_property_key(self, db: AsyncSession, key: str, conditions: list, limit: int = 200) -> list:
+    async def get_events_with_property_key(
+        self, db: AsyncSession, key: str, conditions: Conditions, limit: int = 200
+    ) -> list[Event]:
         """Get events that have a specific key in properties."""
         query = (
             select(Event)
@@ -540,9 +647,11 @@ class EventCRUD:
         return list(result.scalars().all())
 
     @staticmethod
-    def time_conditions(hours: int, app_id: Optional[str] = None, event_name: Optional[str] = None) -> list:
+    def time_conditions(
+        hours: int, app_id: str | None = None, event_name: str | None = None
+    ) -> Conditions:
         """Build standard time + app_id filter conditions. hours=0 means all time."""
-        conditions: list = []
+        conditions: Conditions = []
         if hours > 0:
             since = datetime.now(UTC) - timedelta(hours=hours)
             conditions.append(Event.received_at >= since)

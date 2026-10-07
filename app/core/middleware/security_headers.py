@@ -30,8 +30,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         "connect-src": "'self'",
         # Frames: none
         "frame-src": "'none'",
-        # Frame ancestors: self only (prevents clickjacking)
-        "frame-ancestors": "'self'",
+        # Frame ancestors: none — the app frames nothing of its own (no <iframe> in templates)
+        "frame-ancestors": "'none'",
         # Forms: only submit to self
         "form-action": "'self'",
         # Base URI: only self
@@ -58,10 +58,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         response.headers["Content-Security-Policy"] = self.csp_header
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        # Served only over TLS (nginx terminates HTTPS in every stack), so pin browsers to HTTPS.
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains"
+        )
+        response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=()"
+        )
 
         return response

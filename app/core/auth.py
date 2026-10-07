@@ -1,6 +1,6 @@
 import secrets
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 import structlog
 from fastapi import HTTPException, Request, status
@@ -20,14 +20,20 @@ def get_session_secret() -> str:
 
 
 def verify_credentials(username: str, password: str) -> bool:
-    """Verify username and password against configuration."""
-    return (
-        username == settings.DASHBOARD_USERNAME
-        and password == settings.DASHBOARD_PASSWORD
+    """Check dashboard credentials in constant time, so response timing leaks nothing about them.
+
+    Both comparisons always run (no short-circuit) for the same reason.
+    """
+    user_ok = secrets.compare_digest(
+        username.encode(), settings.DASHBOARD_USERNAME.encode()
     )
+    pass_ok = secrets.compare_digest(
+        password.encode(), settings.DASHBOARD_PASSWORD.encode()
+    )
+    return user_ok and pass_ok
 
 
-async def get_current_user(request: Request) -> Optional[str]:
+async def get_current_user(request: Request) -> str | None:
     """Get current user from session."""
     session = request.session
 
@@ -39,7 +45,7 @@ async def get_current_user(request: Request) -> Optional[str]:
     login_time = session.get("login_time")
     if login_time:
         login_dt = datetime.fromisoformat(login_time)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if (now - login_dt).total_seconds() > settings.DASHBOARD_SESSION_TIMEOUT:
             # Session expired
             session.clear()
@@ -68,12 +74,33 @@ async def require_auth(request: Request):
     return user
 
 
+DEFAULT_AFTER_LOGIN = "/dashboard/overview"
+
+
+def safe_redirect_target(target: str) -> str:
+    """Return `target` only if it is a path on THIS site, else the dashboard home.
+
+    The login flow redirects to a caller-supplied `next`; accepting an absolute or
+    scheme-relative URL there is an open redirect (a phishing link that bounces a freshly
+    logged-in user to another site). Rejects `//host`, `/\\host`, any backslash or control
+    character (browsers normalise those into `//host`), and anything with a scheme or netloc.
+    """
+    if not target.startswith("/") or target.startswith("//"):
+        return DEFAULT_AFTER_LOGIN
+    if "\\" in target or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in target):
+        return DEFAULT_AFTER_LOGIN
+    parts = urlsplit(target)
+    if parts.scheme or parts.netloc:
+        return DEFAULT_AFTER_LOGIN
+    return target
+
+
 def create_session(request: Request, username: str):
     """Create a new authenticated session."""
     request.session.clear()
     request.session["authenticated"] = True
     request.session["username"] = username
-    request.session["login_time"] = datetime.now(timezone.utc).isoformat()
+    request.session["login_time"] = datetime.now(UTC).isoformat()
 
     logger.info("User logged in", username=username)
 
