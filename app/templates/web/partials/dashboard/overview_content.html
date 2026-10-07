@@ -20,21 +20,21 @@
 {# ── 3-column: Event Types + Top Screens + Top Events ── #}
 {% call grid(columns=3, class="mb-6") %}
     {% call analytics_card("Event Type Breakdown") %}
-        <div id="event-type-chart-area"
+        <div class="min-h-[250px]" id="event-type-chart-area"
              hx-get="{{ urls.event_types }}"
              hx-trigger="load"
              hx-swap="innerHTML"
-             style="min-height: 250px;">
+            >
             {{ loading("Loading...") }}
         </div>
     {% endcall %}
 
     {% call analytics_card("Top Screens") %}
-        <div id="top-screens-area"
+        <div class="min-h-[250px]" id="top-screens-area"
              hx-get="{{ urls.top_screens }}"
              hx-trigger="load"
              hx-swap="innerHTML"
-             style="min-height: 250px;">
+            >
             {{ loading("Loading...") }}
         </div>
     {% endcall %}
@@ -51,7 +51,7 @@
                 <div class="flex items-center gap-2 shrink-0">
                     {% set pct = (event.count / total_events * 100) if total_events else 0 %}
                     <div class="w-16 h-1.5 bg-surface-20 rounded-full overflow-hidden">
-                        <div class="h-full bg-brand-500/60 rounded-full" style="width: {{ pct | round(1) }}%"></div>
+                        <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ pct | round(1) }}%"></div>
                     </div>
                     <span class="text-slate-500 text-xs tabular-nums w-10 text-right">{{ event.count | number_format }}</span>
                 </div>

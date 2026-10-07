@@ -30,7 +30,7 @@
                     <span class="text-xs text-slate-500">{{ cat.count }} ({{ cat.percentage }}%)</span>
                 </div>
                 <div class="w-full h-1.5 bg-surface-20 rounded-full overflow-hidden">
-                    <div class="h-full bg-brand-500/60 rounded-full" style="width: {{ cat.percentage }}%"></div>
+                    <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ cat.percentage }}%"></div>
                 </div>
             </div>
             {% endfor %}

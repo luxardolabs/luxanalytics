@@ -28,7 +28,7 @@
                         <div class="flex items-center gap-2 shrink-0">
                             {% set pct = (count / total_occurrences * 100) | round(1) if total_occurrences else 0 %}
                             <div class="w-20 h-1.5 bg-surface-20 rounded-full overflow-hidden">
-                                <div class="h-full bg-brand-500/60 rounded-full" style="width: {{ pct }}%"></div>
+                                <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ pct }}%"></div>
                             </div>
                             <span class="text-slate-500 text-xs tabular-nums w-16 text-right">{{ count }} ({{ pct }}%)</span>
                         </div>

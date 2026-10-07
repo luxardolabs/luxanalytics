@@ -16,7 +16,7 @@
     {# ── Error Timeline Chart ── #}
     {% call analytics_card("Error Timeline") %}
         {% if error_timeline %}
-        <div class="relative" style="height: 250px;">
+        <div class="h-[250px] relative">
             <canvas id="error-timeline-chart"
                     data-chart-config='{{ {
                         "type": "bar",

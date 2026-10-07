@@ -197,7 +197,12 @@ class DashboardViewService:
         if not app_id:
             return self._filtered(app_id, hours, {"requires_app": True})
         data = await self._core.get_user_journey_analytics(app_id=app_id, hours=hours)
-        return self._filtered(app_id, hours, {**data, "requires_app": False})
+        # The heatmap grows a row per screen; its height is layout data the view decides.
+        screens = (data.get("transition_heatmap") or {}).get("screens", [])
+        heatmap_height = 80 + 32 * len(screens)
+        return self._filtered(
+            app_id, hours, {**data, "requires_app": False, "heatmap_height": heatmap_height}
+        )
 
     # ── Explorer ─────────────────────────────────────────────────────────
 

@@ -227,7 +227,7 @@ make prod-release
 - Colors from colorffy flat palette — all custom in `tailwind.config.js`
 - Slider panels for all detail views, never modals
 - `info_box` macro for notices (from `macros/badges.html`)
-- `pagination_bar` macro for tables (from `macros/tables.html`)
+- `pagination_controls` macro for paged tables (emitted, in `macros/tables.html`; state from `build_pagination()` in the view)
 - `time_pills` macro with Alpine.js client-side selection state
 
 ## Authentication

@@ -68,7 +68,7 @@
 <div class="mb-6">
 {% call analytics_card("User Flow") %}
     <div id="journey-sankey"
-         style="height: 400px;"
+         class="h-[400px]"
          data-echart-config='{{ {
              "backgroundColor": "transparent",
              "tooltip": {"trigger": "item", "triggerOn": "mousemove"},
@@ -97,7 +97,7 @@
 <div class="mb-6">
 {% call analytics_card("Screen Transitions") %}
     <div id="transition-heatmap"
-         style="height: {{ 80 + (hm.screens | length * 32) }}px; min-height: 300px;"
+         class="h-[var(--chart-h)] min-h-[300px]" style="--chart-h: {{ heatmap_height }}px"
          data-echart-config='{{ {
              "backgroundColor": "transparent",
              "tooltip": {
@@ -293,7 +293,7 @@
                     {% call td() %}
                         <div class="flex items-center gap-2">
                             <div class="w-24 h-1.5 bg-surface-20 rounded-full overflow-hidden">
-                                <div class="h-full bg-brand-500/60 rounded-full" style="width: {{ strength }}%"></div>
+                                <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ strength }}%"></div>
                             </div>
                             <span class="text-xs text-slate-500 tabular-nums">{{ strength }}%</span>
                         </div>
