@@ -9,7 +9,7 @@ import asyncio
 import sys
 from os.path import abspath, dirname
 
-from sqlalchemy import pool
+from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
@@ -20,7 +20,7 @@ sys.path.insert(0, dirname(dirname(abspath(__file__))))
 # Import all models so they register with Base.metadata
 from app.core.config import settings
 from app.core.logging_config import configure_logging
-from app.models import App, Device, Event  # noqa: F401
+from app.models import App, Device, Event
 from app.models.base_model import Base
 
 # Alembic Config object
@@ -30,13 +30,14 @@ config = context.config
 # runs these migrations in-process at startup (repo.logging_canonical).
 configure_logging(service="luxanalytics-migrations", version=settings.APP_VERSION)
 
+# The models whose tables autogenerate and db-verify compare: importing them registers each
+# table on Base.metadata.
+MODELS = (App, Device, Event)
 target_metadata = Base.metadata
 
 
 def _settings_url() -> str:
     """The app's own database URL — used only when no caller supplied one."""
-    from app.core.config import settings
-
     return settings.DATABASE_URL
 
 
@@ -58,7 +59,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection):
+def do_run_migrations(connection: Connection) -> None:
     """Run migrations using the given connection."""
     context.configure(
         connection=connection,

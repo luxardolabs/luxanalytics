@@ -69,23 +69,8 @@
       "rule": "lint.ruff",
       "status": "FAIL",
       "since": "0.1.0",
-      "violations": 6,
+      "violations": 3,
       "sites": [
-        {
-          "path": "alembic/env.py",
-          "line": 38,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/core/redis_client.py",
-          "line": 36,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/core/security.py",
-          "line": 28,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
         {
           "path": "app/db/pool_monitor.py",
           "line": 73,
@@ -228,6 +213,6 @@
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "bcf49fbbcf3b605d00fc104c677d8dbead8945cc",
-  "generated_at": "2026-10-07T20:28:05Z"
+  "commit": "648b8fced3601e62db0cab7965a76590ddb52641",
+  "generated_at": "2026-10-07T20:31:39Z"
 }

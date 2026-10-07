@@ -3,6 +3,7 @@
 import logging
 
 import redis.asyncio as redis
+from redis.exceptions import RedisError
 
 from app.core.config import settings
 
@@ -32,14 +33,16 @@ async def get_redis_client() -> redis.Redis | None:
             # Test connection
             await _redis_client.ping()
             logger.info("Redis client initialized successfully")
-        except Exception as e:
-            logger.error("Failed to initialize Redis client", extra={"error": str(e)})
+        except RedisError, OSError:
+            # Handled: without Redis the rate limiter uses its in-memory window. The traceback is
+            # logged so an unreachable Redis is visible, not just a one-line message.
+            logger.exception("Failed to initialize Redis client")
             _redis_client = None
 
     return _redis_client
 
 
-async def close_redis_client():
+async def close_redis_client() -> None:
     """Close Redis client connection."""
     global _redis_client
 

@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import logging
 import time
+from collections.abc import Mapping
 
 from fastapi import Header, HTTPException, Request
 
@@ -25,7 +26,7 @@ def verify_hmac_signature(
         if abs(current_time - timestamp) > settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE:
             raise HTTPException(status_code=401, detail="Request timestamp too old")
     except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid timestamp")
+        raise HTTPException(status_code=401, detail="Invalid timestamp") from None
 
     # Get HMAC secret for this key_id
     hmac_keys = settings.hmac_keys_dict
@@ -57,6 +58,6 @@ def verify_hmac_signature(
     return x_key_id
 
 
-def get_app_id_from_headers(headers: dict) -> str:
+def get_app_id_from_headers(headers: Mapping[str, str]) -> str:
     """Extract app_id from request headers without full verification."""
     return headers.get("x-key-id", "")
