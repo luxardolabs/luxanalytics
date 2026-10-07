@@ -8,9 +8,10 @@ nothing. Architecture: Router -> DashboardViewService -> AnalyticsCoreService ->
 
 from collections.abc import Iterable
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from fastapi import HTTPException, Query, Request
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import build_pagination, skip_limit
@@ -33,6 +34,29 @@ def selected_app_id(request: Request, app_id: str | None = Query(None)) -> str |
     if app_id:
         return app_id
     return request.cookies.get(APP_CONTEXT_COOKIE) or None
+
+
+def switch_app_response(current_url: str, app_id: str) -> Response:
+    """The nav app selector's answer: set (or clear) the app cookie, and send htmx back to the page
+    it was on (HX-Current-URL) minus any ?app_id=, which would override the new cookie.
+    Server-driven; no reload in the client (luxarch --playbook hypermedia)."""
+    current = urlsplit(current_url)
+    path = current.path if current.path.startswith("/") else "/dashboard/overview"
+    query = [(k, v) for k, v in parse_qsl(current.query) if k != "app_id"]
+    target = f"{path}?{urlencode(query)}" if query else path
+    response = Response(status_code=204, headers={"HX-Redirect": target})
+    if app_id:
+        response.set_cookie(
+            APP_CONTEXT_COOKIE,
+            app_id,
+            max_age=86400 * 30,
+            secure=True,
+            httponly=True,
+            samesite="lax",
+        )
+    else:
+        response.delete_cookie(APP_CONTEXT_COOKIE)
+    return response
 
 
 class DashboardViewService:
