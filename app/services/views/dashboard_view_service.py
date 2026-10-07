@@ -27,6 +27,7 @@ APP_CONTEXT_COOKIE = "analytics_app_id"
 SEARCH_LIMIT = 50
 TOP_SCREENS_CHARTED = 10
 SESSION_TYPES_SHOWN = 5
+KEY_EXAMPLES_SHOWN = 3
 
 # Rows per page of the events list.
 EVENTS_PER_PAGE = 50
@@ -274,14 +275,38 @@ class DashboardViewService:
             "DashboardViewService", "devices_context", app_id=app_id
         ):
             data = await self._core.get_device_analytics(app_id=app_id, hours=hours)
-            return self._filtered(app_id, hours, data)
+            devices, events = data["unique_devices"], data["total_events"]
+            testflight = data["testflight_vs_appstore"]
+            installs = testflight["testflight"] + testflight["appstore"]
+            return self._filtered(
+                app_id,
+                hours,
+                {
+                    **data,
+                    "events_per_device": round(events / devices, 1) if devices else 0,
+                    "testflight_pct": round(
+                        testflight["testflight"] / installs * 100, 1
+                    )
+                    if installs
+                    else 0,
+                },
+            )
 
     async def errors_context(self, app_id: str | None, hours: int) -> Context:
         with create_service_span(
             "DashboardViewService", "errors_context", app_id=app_id
         ):
             data = await self._core.get_error_analytics(app_id=app_id, hours=hours)
-            return self._filtered(app_id, hours, data)
+            points = data["error_timeline"]
+            return self._filtered(
+                app_id,
+                hours,
+                {
+                    **data,
+                    "error_timeline_labels": [p["hour"] for p in points],
+                    "error_timeline_counts": [p["count"] for p in points],
+                },
+            )
 
     async def performance_context(self, app_id: str | None, hours: int) -> Context:
         with create_service_span(
@@ -348,10 +373,36 @@ class DashboardViewService:
                 k: self._path("key_deep_dive_panel", scope, key_name=k)
                 for k in data["all_keys"]
             }
+            total = data["total_events"]
+            key_rows = [
+                {
+                    "key": key,
+                    "count": count,
+                    "pct": round(count / total * 100, 1) if total else 0,
+                    "types": data["key_types"][key],
+                    "examples": data["key_examples"][key][:KEY_EXAMPLES_SHOWN],
+                    "url": key_urls[key],
+                }
+                for key, count in data["most_common_keys"]
+            ]
+            patterns = [
+                {
+                    "name": name,
+                    "count": pattern["count"],
+                    "keys": [
+                        {"key": k, "url": key_urls[k]} for k in pattern["json_keys"]
+                    ],
+                    "examples": pattern["examples"],
+                }
+                for name, pattern in data["event_patterns"].items()
+            ]
+            occurrences = sum(count for _, count in data["most_common_keys"])
             return {
                 **self._filtered(app_id, hours, data),
                 "event_name": event_name,
-                "key_urls": key_urls,
+                "key_rows": key_rows,
+                "patterns": patterns,
+                "avg_keys": round(occurrences / total, 1) if total else 0,
             }
 
     async def key_deep_dive_context(
@@ -363,7 +414,16 @@ class DashboardViewService:
             data = await self._core.get_key_deep_dive(
                 key_name, app_id=app_id, hours=hours
             )
-            return self._filtered(app_id, hours, data)
+            total = data["total_occurrences"]
+            value_rows = [
+                {
+                    "value": value,
+                    "count": count,
+                    "pct": round(count / total * 100, 1) if total else 0,
+                }
+                for value, count in data["top_values"]
+            ]
+            return self._filtered(app_id, hours, {**data, "value_rows": value_rows})
 
     # ── Slider panels ────────────────────────────────────────────────────
 

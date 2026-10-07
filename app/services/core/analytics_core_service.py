@@ -20,6 +20,13 @@ PROFILE_SESSIONS_SHOWN = 50
 PROFILE_ERRORS_SHOWN = 20
 PROFILE_SCREENS_SHOWN = 30
 ERROR_EVENT_NAMES = ["error_occurred", "authentication_attempt"]
+# The errors table lists each error type's busiest screens and its commonest messages.
+ERROR_TOP_SCREENS = 3
+ERROR_TOP_MESSAGES = 2
+# The key deep-dive panel: its value distribution, its per-event-type breakdown, its samples.
+KEY_TOP_VALUES = 15
+KEY_VALUES_BY_EVENT = 100
+KEY_SAMPLES = 20
 
 
 class AnalyticsCoreService:
@@ -431,10 +438,10 @@ class AnalyticsCoreService:
                     Event.properties["error_type"].astext == etype
                 ]
                 top_screens = await event_crud.count_by_property(
-                    self.db, "screen", screen_conds, limit=5
+                    self.db, "screen", screen_conds, limit=ERROR_TOP_SCREENS
                 )
                 top_msgs = await event_crud.count_by_property(
-                    self.db, "error_message", screen_conds, limit=5
+                    self.db, "error_message", screen_conds, limit=ERROR_TOP_MESSAGES
                 )
                 error_types.append(
                     {
@@ -1030,44 +1037,38 @@ class AnalyticsCoreService:
         with create_service_span(
             "AnalyticsCoreService", "get_key_deep_dive", app_id=app_id
         ):
+            # Counts and distributions are aggregates over EVERY matching event; only the samples
+            # list is a bounded read (it was all computed from the newest 200 events, so a key
+            # seen 10,000 times read "200 occurrences").
             conditions = event_crud.time_conditions(hours, app_id)
-            events = await event_crud.get_events_with_property_key(
-                self.db, key_name, conditions, limit=200
+            total, unique_values, event_types = await event_crud.property_key_summary(
+                self.db, key_name, conditions
             )
-
-            value_counts: dict[str, int] = {}
+            top_values = await event_crud.count_by_property(
+                self.db, key_name, conditions, limit=KEY_TOP_VALUES
+            )
             value_by_event: dict[str, dict[str, int]] = {}
-            samples: list[dict[str, Any]] = []
-
-            for e in events:
-                # The query filters on properties ? key_name, so properties is never NULL here.
-                if e.properties is None:
-                    continue
-                val = str(e.properties.get(key_name, "null"))
-                value_counts[val] = value_counts.get(val, 0) + 1
-
-                if e.name not in value_by_event:
-                    value_by_event[e.name] = {}
-                value_by_event[e.name][val] = value_by_event[e.name].get(val, 0) + 1
-
-                if len(samples) < 20:
-                    samples.append(
-                        {
-                            "event_name": e.name,
-                            "key_value": val,
-                            "properties": e.properties,
-                            "received_at": e.received_at,
-                            "user_id": e.user_id,
-                        }
-                    )
-
+            for name, value, count in await event_crud.property_values_by_name(
+                self.db, key_name, conditions, limit=KEY_VALUES_BY_EVENT
+            ):
+                value_by_event.setdefault(name, {})[str(value)] = count
+            recent = await event_crud.get_events_with_property_key(
+                self.db, key_name, conditions, limit=KEY_SAMPLES
+            )
+            samples = [
+                {
+                    "event_name": e.name,
+                    "key_value": str((e.properties or {}).get(key_name, "null")),
+                    "received_at": e.received_at,
+                }
+                for e in recent
+            ]
             return {
                 "key_name": key_name,
-                "total_occurrences": len(events),
-                "unique_values": len(value_counts),
-                "top_values": sorted(
-                    value_counts.items(), key=lambda x: x[1], reverse=True
-                ),
+                "total_occurrences": total,
+                "unique_values": unique_values,
+                "event_type_count": event_types,
+                "top_values": top_values,
                 "value_by_event_type": value_by_event,
                 "samples": samples,
             }

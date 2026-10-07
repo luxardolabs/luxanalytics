@@ -648,6 +648,32 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.scalars().all())
 
+    async def property_key_summary(
+        self, db: AsyncSession, key: str, conditions: Conditions
+    ) -> Row[int, int, int]:
+        """Over every event carrying `key`: how many, distinct values, distinct event names."""
+        value = Event.properties[key].astext
+        query = select(
+            func.count(Event.id),
+            func.count(func.distinct(value)),
+            func.count(func.distinct(Event.name)),
+        ).where(and_(true(), *conditions), Event.properties.has_key(key))
+        return (await db.execute(query)).one()
+
+    async def property_values_by_name(
+        self, db: AsyncSession, key: str, conditions: Conditions, limit: int
+    ) -> list[Row[str, str | None, int]]:
+        """(event name, value of `key`, count), commonest first."""
+        value = Event.properties[key].astext
+        query = (
+            select(Event.name, value, func.count().label("cnt"))
+            .where(and_(true(), *conditions), Event.properties.has_key(key))
+            .group_by(Event.name, value)
+            .order_by(desc("cnt"))
+            .limit(limit)
+        )
+        return list((await db.execute(query)).all())
+
     async def get_events_with_property_key(
         self, db: AsyncSession, key: str, conditions: Conditions, limit: int = 200
     ) -> list[Event]:

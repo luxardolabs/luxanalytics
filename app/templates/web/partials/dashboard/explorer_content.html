@@ -6,7 +6,6 @@
 {% from "macros/buttons.html" import button, copy_button %}
 
 {# ── Summary ── #}
-{% set avg_keys = ((most_common_keys | sum(attribute=1)) / total_events) | round(1) if total_events > 0 else 0 %}
 {% call stat_grid(columns=4, class="mb-6") %}
     {{ stat_card("Events Analyzed", total_events | number_format, icon_name="magnifying-glass", color="brand") }}
     {{ stat_card("Unique Keys", all_keys | length, icon_name="key", color="blue") }}
@@ -23,32 +22,32 @@
 {% endif %}
 
 {# ── All Keys with counts — the discovery table ── #}
-{% if most_common_keys %}
+{% if key_rows %}
 <div class="mb-6">
 {% call analytics_card("All Properties Keys") %}
     {% call data_table(["Key", {"label": "Occurrences", "class": "text-right"}, {"label": "% of Events", "class": "text-right"}, "Types", "Example Values", {"label": "", "class": "w-12"}]) %}
-                {% for key, count in most_common_keys %}
+                {% for row in key_rows %}
                 <tr class="hover:bg-surface-10/50 transition-colors">
                     {% call td() %}
-                        <span class="font-mono text-xs text-fg font-medium">{{ key }}</span>
+                        <span class="font-mono text-xs text-fg font-medium">{{ row.key }}</span>
                     {% endcall %}
-                    {% call td(class="text-right tabular-nums") %}{{ count | number_format }}{% endcall %}
+                    {% call td(class="text-right tabular-nums") %}{{ row.count | number_format }}{% endcall %}
                     {% call td(class="text-right tabular-nums") %}
-                        {{ ((count / total_events * 100) | round(1)) if total_events > 0 else 0 }}%
+                        {{ row.pct }}%
                     {% endcall %}
                     {% call td() %}
-                        {% for t in key_types[key] %}
+                        {% for t in row.types %}
                         {{ badge(t, variant="default") }}
                         {% endfor %}
                     {% endcall %}
                     {% call td() %}
                         <span class="text-xs text-slate-500 truncate max-w-[200px] inline-block">
-                            {{ key_examples[key][:3] | join(', ') | truncate(60) }}
+                            {{ row.examples | join(', ') | truncate(60) }}
                         </span>
                     {% endcall %}
                     {% call td() %}
-                        {{ button("", variant="icon-square-primary", icon_left="magnifying-glass", title="Deep dive into " ~ key,
-                                  hx_get=key_urls[key],
+                        {{ button("", variant="icon-square-primary", icon_left="magnifying-glass", title="Deep dive into " ~ row.key,
+                                  hx_get=row.url,
                                   hx_target="#panel-container", hx_swap="innerHTML") }}
                     {% endcall %}
                 </tr>
@@ -59,27 +58,27 @@
 {% endif %}
 
 {# ── Event Patterns — which event types send which keys ── #}
-{% if event_patterns %}
+{% if patterns %}
 <div class="mb-6">
 {% call analytics_card("Event Type Patterns") %}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {% for ename, pattern in event_patterns.items() %}
+        {% for pattern in patterns %}
         <div class="bg-surface-10/50 border border-surface-20 rounded-lg p-4">
             <div class="flex items-center justify-between mb-3">
                 <div>
-                    <h4 class="text-sm font-medium text-fg">{{ ename | friendly_name }}</h4>
+                    <h4 class="text-sm font-medium text-fg">{{ pattern.name | friendly_name }}</h4>
                     <span class="text-xs text-slate-500">{{ pattern.count }} events</span>
                 </div>
-                {{ badge((pattern.json_keys | length | string) ~ " keys", variant="default") }}
+                {{ badge((pattern["keys"] | length | string) ~ " keys", variant="default") }}
             </div>
 
             {# Keys this event type sends #}
             <div class="mb-3">
-                <h5 class="text-xs text-slate-500 uppercase tracking-wider mb-2">JSON Keys ({{ pattern.json_keys | length }}):</h5>
+                <h5 class="text-xs text-slate-500 uppercase tracking-wider mb-2">JSON Keys ({{ pattern["keys"] | length }}):</h5>
                 <div class="flex flex-wrap gap-1">
-                    {% for key in pattern.json_keys %}
-                    {{ button(key, variant='neutral', size='xs', extra_classes='font-mono',
-                              hx_get=key_urls[key], hx_target='#panel-container', hx_swap='innerHTML') }}
+                    {% for k in pattern["keys"] %}
+                    {{ button(k.key, variant='neutral', size='xs', extra_classes='font-mono',
+                              hx_get=k.url, hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% endfor %}
                 </div>
             </div>

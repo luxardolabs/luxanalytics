@@ -21,10 +21,10 @@
                     data-chart-config='{{ {
                         "type": "bar",
                         "data": {
-                            "labels": error_timeline | map(attribute="hour") | list,
+                            "labels": error_timeline_labels,
                             "datasets": [{
                                 "label": "Errors",
-                                "data": error_timeline | map(attribute="count") | list,
+                                "data": error_timeline_counts,
                                 "backgroundColor": "rgba(217, 74, 74, 0.6)",
                                 "borderColor": "#d94a4a",
                                 "borderWidth": 1
@@ -65,12 +65,12 @@
                     {% call td() %}<span class="font-medium text-red-400">{{ error.type }}</span>{% endcall %}
                     {% call td(class="text-right tabular-nums") %}{{ error.count }}{% endcall %}
                     {% call td() %}
-                        {% for screen, cnt in error.top_screens[:3] %}
+                        {% for screen, cnt in error.top_screens %}
                         <span class="text-xs">{{ screen }} ({{ cnt }})</span>{% if not loop.last %}, {% endif %}
                         {% endfor %}
                     {% endcall %}
                     {% call td() %}
-                        {% for msg, cnt in error.top_messages[:2] %}
+                        {% for msg, cnt in error.top_messages %}
                         <span class="text-xs text-slate-500">{{ msg | truncate(60) }}</span>{% if not loop.last %}<br>{% endif %}
                         {% endfor %}
                     {% endcall %}

@@ -176,3 +176,39 @@ async def test_user_profile_errors_and_screens_span_the_whole_history(
     assert [e.name for e in profile["errors"]] == ["error_occurred"]
     assert profile["total_errors"] == 1
     assert profile["screens_visited"] == ["settings"]
+
+
+@pytest.mark.asyncio
+async def test_key_deep_dive_counts_every_event_not_a_sample(db: AsyncSession) -> None:
+    """Occurrences, unique values and the distribution are aggregates over every matching
+    event (they were computed from the newest 200, so this key read "200 occurrences")."""
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from sqlalchemy import insert
+
+    from app.models.event_model import Event
+    from app.services.core.analytics_core_service import KEY_SAMPLES
+
+    now = datetime.now(UTC)
+    rows = [
+        {
+            "id": uuid4(),
+            "app_id": "test_app",
+            "name": "purchase" if i % 3 else "trial_started",
+            "timestamp": now,
+            "received_at": now,
+            "properties": {"plan": "pro" if i % 2 else "basic"},
+        }
+        for i in range(210)
+    ]
+    await db.execute(insert(Event), rows)
+
+    dive = await AnalyticsCoreService(db).get_key_deep_dive("plan", app_id="test_app")
+
+    assert dive["total_occurrences"] == 210
+    assert dive["unique_values"] == 2
+    assert dive["event_type_count"] == 2
+    assert dict(dive["top_values"]) == {"pro": 105, "basic": 105}
+    assert sum(sum(v.values()) for v in dive["value_by_event_type"].values()) == 210
+    assert len(dive["samples"]) == KEY_SAMPLES

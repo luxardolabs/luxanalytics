@@ -4,17 +4,12 @@
 {% from "macros/badges.html" import badge, info_box %}
 {% from "macros/tables.html" import th, td, data_table %}
 
-{# ── Computed values ── #}
-{% set events_per_device = (total_events / unique_devices) | round(1) if unique_devices > 0 else 0 %}
-{% set tf_total = testflight_vs_appstore.testflight + testflight_vs_appstore.appstore %}
-{% set tf_pct = (testflight_vs_appstore.testflight / tf_total * 100) | round(1) if tf_total > 0 else 0 %}
-
 {# ── Summary Stats ── #}
 {% call stat_grid(columns=4, class="mb-6") %}
     {{ stat_card("Unique Devices", unique_devices, icon_name="device-phone-mobile", color="brand") }}
     {{ stat_card("Total Events", total_events | number_format, icon_name="signal", color="blue") }}
     {{ stat_card("Events/Device", events_per_device, icon_name="chart-bar", color="green") }}
-    {{ stat_card("TestFlight", (tf_pct | string) ~ "%", icon_name="paper-airplane", color="orange") }}
+    {{ stat_card("TestFlight", (testflight_pct | string) ~ "%", icon_name="paper-airplane", color="orange") }}
 {% endcall %}
 
 {# ── Insights ── #}

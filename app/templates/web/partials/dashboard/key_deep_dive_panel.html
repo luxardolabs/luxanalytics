@@ -15,22 +15,21 @@
             {% call stat_grid(columns=3, gap=3) %}
                 {{ stat_card_compact("Occurrences", total_occurrences | number_format, color="brand") }}
                 {{ stat_card_compact("Unique Values", unique_values, color="blue") }}
-                {{ stat_card_compact("Event Types", value_by_event_type | length, color="green") }}
+                {{ stat_card_compact("Event Types", event_type_count, color="green") }}
             {% endcall %}
 
             {# Top Values #}
-            {% if top_values %}
+            {% if value_rows %}
             {% call detail_section("Value Distribution") %}
                 <div class="space-y-2">
-                    {% for value, count in top_values[:15] %}
+                    {% for row in value_rows %}
                     <div class="flex items-center justify-between text-sm">
-                        <span class="text-fg font-mono text-xs truncate mr-3 max-w-[300px]">{{ value }}</span>
+                        <span class="text-fg font-mono text-xs truncate mr-3 max-w-[300px]">{{ row.value }}</span>
                         <div class="flex items-center gap-2 shrink-0">
-                            {% set pct = (count / total_occurrences * 100) | round(1) if total_occurrences else 0 %}
                             <div class="w-20 h-1.5 bg-surface-20 rounded-full overflow-hidden">
-                                <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ pct }}%"></div>
+                                <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ row.pct }}%"></div>
                             </div>
-                            <span class="text-slate-500 text-xs tabular-nums w-16 text-right">{{ count }} ({{ pct }}%)</span>
+                            <span class="text-slate-500 text-xs tabular-nums w-16 text-right">{{ row.count }} ({{ row.pct }}%)</span>
                         </div>
                     </div>
                     {% endfor %}
