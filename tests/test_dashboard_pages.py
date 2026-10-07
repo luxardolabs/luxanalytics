@@ -58,8 +58,13 @@ async def test_every_dashboard_page_renders(
     )
     assert login.status_code == 303
 
+    # Every content partial also under the "All" time pill (hours=0): the overview divided by
+    # it, and "All" with no app built an empty and_() that SQLAlchemy is removing.
+    all_time = [
+        f"{p}{'&' if '?' in p else '?'}hours=0" for p in PAGES if "/content" in p
+    ]
     failures = {}
-    for path in PAGES:
+    for path in [*PAGES, *all_time]:
         response = await client.get(path)
         if response.status_code != 200:
             failures[path] = response.status_code

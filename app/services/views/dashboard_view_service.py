@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import build_pagination, skip_limit
 from app.core.tracing import create_service_span
+from app.schemas.event_schema import EventInDB
 from app.services.core.analytics_core_service import AnalyticsCoreService
 from app.web.template_filters import friendly_name
 
@@ -25,6 +26,7 @@ APP_CONTEXT_COOKIE = "analytics_app_id"
 # A text search shows one page of this many matches instead of the paged list.
 SEARCH_LIMIT = 50
 TOP_SCREENS_CHARTED = 10
+SESSION_TYPES_SHOWN = 5
 
 # Rows per page of the events list.
 EVENTS_PER_PAGE = 50
@@ -77,6 +79,21 @@ class DashboardViewService:
         kept = {k: v for k, v in (query or {}).items() if v not in (None, "")}
         return f"{path}?{urlencode(kept)}" if kept else path
 
+    def _event_row(self, event: EventInDB) -> Context:
+        """One event as a list row: the event plus its panel links, resolved here."""
+        return {
+            "event": event,
+            "user_url": self._path("user_profile_panel", user_id=event.user_id)
+            if event.user_id
+            else None,
+            "session_url": self._path(
+                "session_detail_panel", session_id=event.session_id
+            )
+            if event.session_id
+            else None,
+            "detail_url": self._path("event_detail_panel", event_id=str(event.id)),
+        }
+
     def _detail_urls(self, ids: Iterable[object]) -> dict[str, str]:
         return {str(i): self._path("event_detail_panel", event_id=str(i)) for i in ids}
 
@@ -121,12 +138,28 @@ class DashboardViewService:
                 "top_screens": self._path("overview_top_screens", scope),
                 "recent_events": self._path("events_content", scope),
             }
-            event_urls = {
-                e["name"]: self._path("events_page", {"event_name": e["name"], **scope})
-                for e in stats.get("top_events", [])
-            }
+            total = stats["total_events"]
+            top_events = [
+                {
+                    "name": e["name"],
+                    "count": e["count"],
+                    "url": self._path(
+                        "events_page", {"event_name": e["name"], **scope}
+                    ),
+                    "pct": round(e["count"] / total * 100, 1) if total else 0,
+                }
+                for e in stats["top_events"]
+            ]
             return self._filtered(
-                app_id, hours, {**stats, "urls": urls, "event_urls": event_urls}
+                app_id,
+                hours,
+                {
+                    **stats,
+                    "top_events": top_events,
+                    # hours=0 is "All": a per-hour rate over an unbounded window means nothing.
+                    "events_per_hour": round(total / hours, 1) if hours > 0 else None,
+                    "urls": urls,
+                },
             )
 
     async def timeline_context(self, app_id: str | None, hours: int) -> Context:
@@ -207,7 +240,6 @@ class DashboardViewService:
             return {
                 "app_id": app_id,
                 "hours": hours,
-                "events": events,
                 "pagination": pagination,
                 "columns": columns,
                 "event_name": event_name,
@@ -223,9 +255,7 @@ class DashboardViewService:
                     }.items()
                     if v not in (None, "")
                 },
-                "user_urls": self._user_urls(e.user_id for e in events),
-                "session_urls": self._session_urls(e.session_id for e in events),
-                "detail_urls": self._detail_urls(e.id for e in events),
+                "rows": [self._event_row(e) for e in events],
             }
 
     async def event_detail_context(self, event_id: str) -> Context:
@@ -274,8 +304,14 @@ class DashboardViewService:
             "DashboardViewService", "feedback_context", app_id=app_id
         ):
             data = await self._core.get_feedback_analytics(app_id=app_id, hours=hours)
-            detail_urls = self._detail_urls(fb.id for fb in data["recent_feedback"])
-            return self._filtered(app_id, hours, {**data, "detail_urls": detail_urls})
+            rows = [
+                {
+                    "event": fb,
+                    "detail_url": self._path("event_detail_panel", event_id=str(fb.id)),
+                }
+                for fb in data["recent_feedback"]
+            ]
+            return self._filtered(app_id, hours, {**data, "feedback_rows": rows})
 
     async def journey_context(self, app_id: str | None, hours: int) -> Context:
         """Journeys need one app: a cross-app Sankey flow is meaningless."""
@@ -336,10 +372,18 @@ class DashboardViewService:
             "DashboardViewService", "user_profile_context", user_id=user_id
         ):
             profile = await self._core.get_user_profile(user_id)
-            session_urls = self._session_urls(
-                s["session_id"] for s in profile.get("sessions", [])
-            )
-            return {**profile, "session_urls": session_urls}
+            sessions = [
+                {
+                    **s,
+                    "url": self._path(
+                        "session_detail_panel", session_id=s["session_id"]
+                    ),
+                    "types_shown": s["event_types"][:SESSION_TYPES_SHOWN],
+                    "types_more": max(0, len(s["event_types"]) - SESSION_TYPES_SHOWN),
+                }
+                for s in profile["sessions"]
+            ]
+            return {**profile, "sessions": sessions}
 
     async def session_detail_context(self, session_id: str) -> Context:
         """A session with no events renders the panel's empty state, not a stats grid of

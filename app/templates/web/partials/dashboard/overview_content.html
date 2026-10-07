@@ -6,7 +6,7 @@
 {% call stat_grid(columns=4, class="mb-6") %}
     {{ stat_card("Total Events", total_events | number_format, icon_name="signal", color="brand") }}
     {{ stat_card("Unique Users", unique_users | number_format, icon_name="users", color="blue") }}
-    {{ stat_card("Events/Hour", ((total_events) / (hours)) | round(1), icon_name="clock", color="green") }}
+    {{ stat_card("Events/Hour", events_per_hour if events_per_hour is not none else "—", icon_name="clock", color="green") }}
     {{ stat_card("Event Types", top_events | length, icon_name="squares-2x2", color="purple") }}
 {% endcall %}
 
@@ -44,14 +44,13 @@
         <div class="space-y-2.5">
             {% for event in top_events %}
             <div class="flex items-center justify-between text-sm">
-                <a href="{{ event_urls[event.name] }}"
+                <a href="{{ event.url }}"
                    class="text-slate-300 hover:text-brand-500 transition-colors truncate mr-3">
                     {{ event.name | friendly_name }}
                 </a>
                 <div class="flex items-center gap-2 shrink-0">
-                    {% set pct = (event.count / total_events * 100) if total_events else 0 %}
                     <div class="w-16 h-1.5 bg-surface-20 rounded-full overflow-hidden">
-                        <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ pct | round(1) }}%"></div>
+                        <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ event.pct }}%"></div>
                     </div>
                     <span class="text-slate-500 text-xs tabular-nums w-10 text-right">{{ event.count | number_format }}</span>
                 </div>

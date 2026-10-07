@@ -16,6 +16,7 @@ from sqlalchemy import (
     literal_column,
     select,
     text,
+    true,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
@@ -40,12 +41,16 @@ class EventCRUD:
     # ── Counts ────────────────────────────────────────────────────────────
 
     async def count(self, db: AsyncSession, conditions: Conditions) -> int:
-        result = await db.execute(select(func.count(Event.id)).where(and_(*conditions)))
+        result = await db.execute(
+            select(func.count(Event.id)).where(and_(true(), *conditions))
+        )
         return result.scalar() or 0
 
     async def count_unique_users(self, db: AsyncSession, conditions: Conditions) -> int:
         result = await db.execute(
-            select(func.count(func.distinct(Event.user_id))).where(and_(*conditions))
+            select(func.count(func.distinct(Event.user_id))).where(
+                and_(true(), *conditions)
+            )
         )
         return result.scalar() or 0
 
@@ -54,7 +59,7 @@ class EventCRUD:
     ) -> int:
         result = await db.execute(
             select(func.count(func.distinct(Event.device_id))).where(
-                and_(*conditions), Event.device_id.isnot(None)
+                and_(true(), *conditions), Event.device_id.isnot(None)
             )
         )
         return result.scalar() or 0
@@ -85,7 +90,7 @@ class EventCRUD:
             conditions.append(Event.name.icontains(event_name, autoescape=True))
         if user_id:
             conditions.append(Event.user_id == user_id)
-        where = and_(*conditions)
+        where = and_(true(), *conditions)
         total = (
             await db.execute(select(func.count(Event.id)).where(where))
         ).scalar() or 0
@@ -125,7 +130,7 @@ class EventCRUD:
     ) -> list[dict[str, Any]]:
         query = (
             select(Event.name, func.count(Event.id).label("count"))
-            .where(and_(*conditions))
+            .where(and_(true(), *conditions))
             .group_by(Event.name)
             .order_by(desc("count"))
             .limit(limit)
@@ -143,7 +148,7 @@ class EventCRUD:
         """GROUP BY a promoted column. Returns [(value, count)], NULLs excluded."""
         query = (
             select(column, func.count().label("cnt"))
-            .where(and_(*conditions), column.isnot(None))
+            .where(and_(true(), *conditions), column.isnot(None))
             .group_by(column)
             .order_by(desc("cnt"))
             .limit(limit)
@@ -158,7 +163,7 @@ class EventCRUD:
         prop_expr = Event.properties[key].astext
         query = (
             select(prop_expr.label("val"), func.count().label("cnt"))
-            .where(and_(*conditions), Event.properties.has_key(key))
+            .where(and_(true(), *conditions), Event.properties.has_key(key))
             .group_by(prop_expr)
             .order_by(desc("cnt"))
             .limit(limit)
@@ -176,7 +181,7 @@ class EventCRUD:
         """The newest events with one of `names`, newest first."""
         query = (
             select(Event)
-            .where(and_(*conditions), Event.name.in_(names))
+            .where(and_(true(), *conditions), Event.name.in_(names))
             .order_by(desc(Event.received_at))
             .limit(limit)
         )
@@ -189,7 +194,7 @@ class EventCRUD:
         """Get events that have non-null properties."""
         query = (
             select(Event)
-            .where(and_(*conditions), Event.properties.isnot(None))
+            .where(and_(true(), *conditions), Event.properties.isnot(None))
             .order_by(desc(Event.received_at))
             .limit(limit)
         )
@@ -220,7 +225,7 @@ class EventCRUD:
                 literal_column(bucket_sql).label("bucket"),
                 func.count(Event.id).label("count"),
             )
-            .where(and_(*conditions))
+            .where(and_(true(), *conditions))
             .group_by(literal_column(bucket_sql))
             .order_by(literal_column(bucket_sql))
         )
@@ -233,7 +238,7 @@ class EventCRUD:
         bucket = func.date_trunc("hour", Event.received_at).label("hour")
         query = (
             select(bucket, func.count().label("cnt"))
-            .where(and_(*conditions))
+            .where(and_(true(), *conditions))
             .group_by(bucket)
             .order_by(bucket)
         )
@@ -266,7 +271,7 @@ class EventCRUD:
                 func.percentile_cont(0.95).within_group(duration_col).label("p95"),
                 func.percentile_cont(0.99).within_group(duration_col).label("p99"),
             )
-            .where(and_(*conditions), Event.properties.has_key("duration_ms"))
+            .where(and_(true(), *conditions), Event.properties.has_key("duration_ms"))
             .group_by(operation_col)
             .order_by(desc("total_count"))
         )
@@ -287,7 +292,7 @@ class EventCRUD:
             func.percentile_cont(0.9).within_group(duration_col).label("p90"),
             func.percentile_cont(0.95).within_group(duration_col).label("p95"),
             func.percentile_cont(0.99).within_group(duration_col).label("p99"),
-        ).where(and_(*conditions), Event.properties.has_key("duration_ms"))
+        ).where(and_(true(), *conditions), Event.properties.has_key("duration_ms"))
         return (await db.execute(query)).one()
 
     # ── Conditions builder ────────────────────────────────────────────────
@@ -330,7 +335,7 @@ class EventCRUD:
                 func.concat(screen_prop, " → ", button_prop).label("flow"),
                 func.count().label("cnt"),
             )
-            .where(and_(*conditions), Event.properties.has_key("button"))
+            .where(and_(true(), *conditions), Event.properties.has_key("button"))
             .group_by(screen_prop, button_prop)
             .order_by(desc("cnt"))
             .limit(limit)
@@ -344,7 +349,7 @@ class EventCRUD:
         """Get most recent events matching conditions."""
         query = (
             select(Event)
-            .where(and_(*conditions))
+            .where(and_(true(), *conditions))
             .order_by(desc(Event.received_at))
             .limit(limit)
         )
@@ -636,7 +641,7 @@ class EventCRUD:
         """Get events that have non-null properties for metadata analysis."""
         query = (
             select(Event)
-            .where(and_(*conditions), Event.properties.isnot(None))
+            .where(and_(true(), *conditions), Event.properties.isnot(None))
             .order_by(desc(Event.received_at))
             .limit(limit)
         )
@@ -649,7 +654,7 @@ class EventCRUD:
         """Get events that have a specific key in properties."""
         query = (
             select(Event)
-            .where(and_(*conditions), Event.properties.has_key(key))
+            .where(and_(true(), *conditions), Event.properties.has_key(key))
             .order_by(desc(Event.received_at))
             .limit(limit)
         )

@@ -822,7 +822,9 @@ class AnalyticsCoreService:
                 "categories": cat_list,
                 "top_features": feat_list,
                 "top_screens": screen_list,
-                "recent_feedback": recent_feedback,
+                "recent_feedback": [
+                    EventInDB.model_validate(e) for e in recent_feedback
+                ],
             }
 
     # ── User Profile ──────────────────────────────────────────────────────

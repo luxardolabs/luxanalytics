@@ -3,9 +3,10 @@
 {% from "macros/badges.html" import badge %}
 {% from "macros/buttons.html" import icon_view, button %}
 
-{% if events %}
+{% if rows %}
 {% call data_table(columns, bordered=true) %}
-            {% for event in events %}
+            {% for row in rows %}
+            {% set event = row.event %}
             <tr class="hover:bg-surface-10/50 transition-colors">
                 {% if not app_id %}
                 {% call td() %}
@@ -16,17 +17,17 @@
                     <span class="font-medium text-fg">{{ event.name | friendly_name }}</span>
                 {% endcall %}
                 {% call td() %}
-                    {% if event.user_id %}
+                    {% if row.user_url %}
                     {{ button(event.user_id | truncate(16), variant='link', size='xs', extra_classes='font-mono',
-                              hx_get=user_urls[event.user_id], hx_target='#panel-container', hx_swap='innerHTML') }}
+                              hx_get=row.user_url, hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% else %}
                     <span class="text-xs text-slate-500">—</span>
                     {% endif %}
                 {% endcall %}
                 {% call td() %}
-                    {% if event.session_id %}
+                    {% if row.session_url %}
                     {{ button(event.session_id | truncate(10), variant='link', size='xs', extra_classes='font-mono',
-                              hx_get=session_urls[event.session_id], hx_target='#panel-container', hx_swap='innerHTML') }}
+                              hx_get=row.session_url, hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% else %}
                     <span class="text-xs text-slate-500">—</span>
                     {% endif %}
@@ -73,7 +74,7 @@
                     <span class="text-xs {{ event.received_at | timeago_color }}">{{ event.received_at | timeago }}</span>
                 {% endcall %}
                 {% call td() %}
-                    {{ icon_view(hx_get=detail_urls[event.id | string], hx_target='#panel-container', hx_swap='innerHTML') }}
+                    {{ icon_view(hx_get=row.detail_url, hx_target='#panel-container', hx_swap='innerHTML') }}
                 {% endcall %}
             </tr>
             {% endfor %}

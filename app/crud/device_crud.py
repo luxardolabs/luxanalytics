@@ -1,11 +1,14 @@
 """Device CRUD — all device table queries."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import Row, and_, desc, func, select, true
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
+from app.crud.event_crud import Conditions
 from app.models.device_model import Device
 from app.models.event_model import Event
 
@@ -13,9 +16,9 @@ from app.models.event_model import Event
 class DeviceCRUD:
     """All database queries against the devices table."""
 
-    def _time_filters(self, hours: int = 0, app_id: str | None = None) -> list:
+    def _time_filters(self, hours: int = 0, app_id: str | None = None) -> Conditions:
         """Build WHERE conditions for devices table (last_seen based)."""
-        filters = []
+        filters: Conditions = []
         if hours and hours > 0:
             cutoff = datetime.now(UTC) - timedelta(hours=hours)
             filters.append(Device.last_seen >= cutoff)
@@ -23,32 +26,32 @@ class DeviceCRUD:
             filters.append(Device.app_id == app_id)
         return filters
 
-    async def count_by_field(
+    async def count_by_field[T](
         self,
         db: AsyncSession,
-        column,
+        column: InstrumentedAttribute[T | None],
         app_id: str | None = None,
         hours: int = 0,
         limit: int = 20,
-    ) -> list:
+    ) -> list[tuple[T, int]]:
         """GROUP BY a devices table column. Returns [(value, count)]."""
         filters = self._time_filters(hours, app_id) + [column.isnot(None)]
         query = (
             select(column, func.count().label("cnt"))
-            .where(and_(*filters))
+            .where(and_(true(), *filters))
             .group_by(column)
             .order_by(desc("cnt"))
             .limit(limit)
         )
         result = await db.execute(query)
-        return [(row[0], row[1]) for row in result.all()]
+        return [(value, count) for value, count in result.all() if value is not None]
 
     async def testflight_stats(
         self,
         db: AsyncSession,
         app_id: str | None = None,
         hours: int = 0,
-    ) -> dict:
+    ) -> dict[str, int]:
         filters = self._time_filters(hours, app_id)
         query = select(
             func.count().filter(Device.is_testflight.is_(True)).label("testflight"),
@@ -57,7 +60,7 @@ class DeviceCRUD:
             .label("appstore"),
         )
         if filters:
-            query = query.where(and_(*filters))
+            query = query.where(and_(true(), *filters))
         result = (await db.execute(query)).one()
         return {"testflight": result.testflight, "appstore": result.appstore}
 
@@ -67,10 +70,10 @@ class DeviceCRUD:
         app_id: str | None = None,
         hours: int = 0,
         limit: int = 50,
-    ) -> list:
-        """Device details joined with event counts."""
+    ) -> list[Row[Device, int | None, int | None]]:
+        """Device details joined with event counts (None for a device with no events in range)."""
         # Event counts subquery — also filtered by time
-        event_filters = [Event.device_id.isnot(None)]
+        event_filters: Conditions = [Event.device_id.isnot(None)]
         if hours and hours > 0:
             cutoff = datetime.now(UTC) - timedelta(hours=hours)
             event_filters.append(Event.received_at >= cutoff)
@@ -83,7 +86,7 @@ class DeviceCRUD:
                 func.count(Event.id).label("total_events"),
                 func.count(func.distinct(Event.name)).label("event_types"),
             )
-            .where(and_(*event_filters))
+            .where(and_(true(), *event_filters))
             .group_by(Event.device_id)
             .subquery()
         )
@@ -100,11 +103,11 @@ class DeviceCRUD:
             .limit(limit)
         )
         if device_filters:
-            query = query.where(and_(*device_filters))
+            query = query.where(and_(true(), *device_filters))
         result = await db.execute(query)
         return list(result.all())
 
-    async def upsert(self, db: AsyncSession, device_data: dict) -> None:
+    async def upsert(self, db: AsyncSession, device_data: dict[str, Any]) -> None:
         stmt = pg_insert(Device).values(**device_data)
         stmt = stmt.on_conflict_do_update(
             index_elements=["device_id"],

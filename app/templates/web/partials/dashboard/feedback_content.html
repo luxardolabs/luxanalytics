@@ -75,10 +75,11 @@
 {% endcall %}
 
 {# ── Recent Feedback ── #}
-{% if recent_feedback %}
+{% if feedback_rows %}
 {% call analytics_card("Recent Feedback") %}
     {% call data_table(["User", "Category", "Content Preview", "Time", {"label": "", "class": "w-12"}]) %}
-                {% for fb in recent_feedback %}
+                {% for row in feedback_rows %}
+                {% set fb = row.event %}
                 <tr class="hover:bg-surface-10/50 transition-colors">
                     {% call td() %}
                         <span class="font-mono text-xs">{{ fb.user_id | default('—', true) | truncate(16) }}</span>
@@ -99,7 +100,7 @@
                         <span class="text-xs {{ fb.received_at | timeago_color }}">{{ fb.received_at | timeago }}</span>
                     {% endcall %}
                     {% call td() %}
-                        {{ icon_view(hx_get=detail_urls[fb.id | string], hx_target='#panel-container', hx_swap='innerHTML') }}
+                        {{ icon_view(hx_get=row.detail_url, hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% endcall %}
                 </tr>
                 {% endfor %}

@@ -62,7 +62,7 @@
                 <div class="py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
                     <div class="flex items-center justify-between">
                         {{ button(s.session_id | truncate(12), variant='link', size='sm', extra_classes='font-mono',
-                                  hx_get=session_urls[s.session_id], hx_target='#panel-container', hx_swap='innerHTML') }}
+                                  hx_get=s.url, hx_target='#panel-container', hx_swap='innerHTML') }}
                         <div class="flex items-center gap-3 text-xs text-slate-500">
                             <span class="tabular-nums">{{ s.event_count }} events</span>
                             <span class="tabular-nums">{{ s.duration_seconds | duration }}</span>
@@ -71,13 +71,13 @@
                     <div class="text-xs text-slate-500 mt-0.5">
                         {{ s.first_event | datetime('friendly') }}
                     </div>
-                    {% if s.event_types %}
+                    {% if s.types_shown %}
                     <div class="flex flex-wrap gap-1 mt-1">
-                        {% for et in s.event_types[:5] %}
+                        {% for et in s.types_shown %}
                         {{ badge(et | friendly_name, variant="default") }}
                         {% endfor %}
-                        {% if s.event_types | length > 5 %}
-                        <span class="text-xs text-slate-500">+{{ s.event_types | length - 5 }} more</span>
+                        {% if s.types_more %}
+                        <span class="text-xs text-slate-500">+{{ s.types_more }} more</span>
                         {% endif %}
                     </div>
                     {% endif %}
