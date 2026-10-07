@@ -12,3 +12,8 @@ app = "app"
 # the dashboard session dependency and the three ingest credentials.
 [auth]
 deps = ["require_auth", "verify_hmac_signature", "extract_app_from_dsn", "verify_project_dsn"]
+
+# Every registered route is requested by the suite (luxarch --playbook route-smoke); the
+# asserter is the luxarch:route-smoke block at the end of tests/conftest.py.
+[route_smoke]
+enabled = true
