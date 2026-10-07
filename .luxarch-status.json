@@ -360,12 +360,12 @@
         },
         {
           "rule": "fw.selects_accessible",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.1.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.no_redundant_commit",
@@ -684,12 +684,12 @@
         },
         {
           "rule": "fw.component_registry",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.15.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.layout",
@@ -711,9 +711,9 @@
         },
         {
           "rule": "fw.no_hand_rolled_pagination",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.29.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -774,9 +774,9 @@
         },
         {
           "rule": "fw.web_templates_at_fleet_path",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.46.0",
-          "violations": 49,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -801,12 +801,12 @@
         },
         {
           "rule": "fw.template_refs_resolve",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.54.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.no_orphan_pages",
@@ -815,7 +815,7 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+          "inert_reason": "this app renders a page by a computed name (a non-literal TemplateResponse), so an unreferenced page can't be proven dead. Orphan detection runs only when every render uses a literal template name."
         },
         {
           "rule": "fw.tenant_route_reachability",
@@ -828,12 +828,12 @@
         },
         {
           "rule": "fw.state_changing_get",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.56.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "set [csrf].enabled = true to turn on the static GET/HEAD-mutation reachability check (the SameSite=Lax CSRF stance); until then it does not run. See --playbook state-changing-get."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.enum_not_native_pg",
@@ -846,12 +846,12 @@
         },
         {
           "rule": "fw.route_smoke_wired",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.64.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "route-smoke catches a dependency deprecation one release before the pin makes it fatal, but it's off here. To turn it ON: set [route_smoke].enabled = true, then `luxarch --emit route-smoke` into tests/conftest.py (this rule then enforces the asserter is committed)."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.session_minted_in_owner",
@@ -932,7 +932,7 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+          "inert_reason": "this app renders a template by a non-literal TemplateResponse, or includes one by a computed name with no pinnable literal prefix ({% include some_var %}), so an unreferenced partial can't be proven dead. (A computed include WITH a literal prefix \u2014 {% include 'x/' ~ v %}, or a var set to one \u2014 is scoped to that subtree, not a global stand-down.) Run `--sweep orphan-templates` to LIST the no-static-reference partials for review (NOT a clearance)."
         },
         {
           "rule": "fw.mutating_route_authenticated",
@@ -1008,12 +1008,12 @@
         },
         {
           "rule": "fw.template_role_placement",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.99.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.api_routers_dont_import_views",
@@ -1080,18 +1080,18 @@
         },
         {
           "rule": "fw.no_nested_session",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.111.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "opt-in \u2014 declare [session].no_nesting = true to turn on the static nested-session double-lock check (off until then)"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.jinja_strict_undefined",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.112.0",
-          "violations": 2,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1125,12 +1125,12 @@
         },
         {
           "rule": "fw.url_assembly_in_view",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.132.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.url_builder_not_in_template",
@@ -1215,21 +1215,21 @@
         },
         {
           "rule": "fw.template_context_complete",
-          "status": "PASS",
+          "status": "INERT",
           "since": "0.174.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "2 render site(s) of a template that uses the pagination contract could not be judged (app/web/routers/dashboard_router.py:104 (context not readable), app/web/routers/dashboard_router.py:120 (context not readable)). NOT a clearance. For an unreadable context: build it as a dict, a local dict with `ctx[\"k\"] = \u2026`, or a view method returning one. For a name needed only inside an `{% if %}` include: supply it, or guard the include with `is defined`"
+        },
+        {
+          "rule": "fw.asserter_current",
+          "status": "PASS",
+          "since": "0.188.0",
           "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
-        },
-        {
-          "rule": "fw.asserter_current",
-          "status": "INERT",
-          "since": "0.188.0",
-          "violations": 0,
-          "deferred": false,
-          "inert": true,
-          "inert_reason": "no luxarch asserter is committed \u2014 whether one SHOULD be is the wiring rules' question (fw.route_smoke_wired); there is no version to compare"
         },
         {
           "rule": "fw.broad_except_is_logged",
@@ -1278,9 +1278,9 @@
         },
         {
           "rule": "fw.committed_artifacts_declared",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.226.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1377,20 +1377,137 @@
         },
         {
           "rule": "fw.generated_assets_built_in_image",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.262.0",
-          "violations": 2,
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "obs.method_span",
+          "status": "FAIL",
+          "since": "0.10.0",
+          "violations": 60,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "obs.span_name_matches_class",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.record_exception",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.route_enrich_user",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no route handler annotates a parameter with matches `CurrentUser` \u2014 set `[observability.markers].current_user_type` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.no_router_span",
+          "status": "PASS",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "obs.client_span_kind",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no external-client service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.no_silent_suppress",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no function calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.job_root_span",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no function is decorated with matches `scheduled_job` \u2014 set `[observability.markers].job_decorator` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.record_before_raise",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no except handler calls matches `record_exception_in_span` \u2014 set `[observability.markers].record_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.enrich_early",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no route handler both annotates and calls matches `CurrentUser + enrich_span_from_user` \u2014 set `[observability.markers].current_user_type/enrich_user_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.entity_id_forwarded",
+          "status": "INERT",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+        },
+        {
+          "rule": "obs.metric_label_cardinality",
+          "status": "PASS",
+          "since": "0.10.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "obs.no_dead_metric",
+          "status": "PASS",
+          "since": "0.10.0",
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
         }
       ],
       "summary": {
-        "PASS": 112,
-        "FAIL": 7,
+        "PASS": 128,
+        "FAIL": 3,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 34
+        "INERT": 35
       }
     }
   ],
@@ -1758,9 +1875,9 @@
       },
       {
         "rule": "repo.compose_conventions",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.37.0",
-        "violations": 2,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1785,9 +1902,9 @@
       },
       {
         "rule": "repo.compose_project_name",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.72.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1920,20 +2037,20 @@
       }
     ],
     "summary": {
-      "PASS": 52,
-      "FAIL": 3,
+      "PASS": 54,
+      "FAIL": 1,
       "XFAIL": 0,
       "XPASS": 0,
       "INERT": 3
     }
   },
   "summary": {
-    "PASS": 164,
-    "FAIL": 10,
+    "PASS": 182,
+    "FAIL": 4,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 37
+    "INERT": 38
   },
-  "commit": "1093ad5a9c1fcb30cd9b0320cc8df359a2eec780",
-  "generated_at": "2026-10-07T05:00:43Z"
+  "commit": "30949f8edc2c1243efabb2e60c0e0df2144a6866",
+  "generated_at": "2026-10-07T07:06:19Z"
 }
