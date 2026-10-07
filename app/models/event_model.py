@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import DateTime, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -35,11 +36,14 @@ class Event(Base, UUIDMixin):
     app_version: Mapped[str | None] = mapped_column(String)
     platform: Mapped[str | None] = mapped_column(String, default="ios")
 
-    # Flexible event-specific data (JSONB with GIN index for key queries)
-    properties: Mapped[dict | None] = mapped_column(JSONB)
+    # Flexible event-specific data (JSONB with GIN index for key queries). Keys are whatever the SDK
+    # caller sends per event name, so explicitly dict[str, Any].
+    properties: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     # Legacy column — kept during dual-write transition, will be dropped in Phase 6
-    event_metadata: Mapped[dict | None] = mapped_column("event_metadata", JSONB)
+    event_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        "event_metadata", JSONB
+    )
 
     __table_args__ = (
         # Primary query patterns
@@ -79,5 +83,5 @@ class Event(Base, UUIDMixin):
         ),
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Event(id={self.id}, app_id={self.app_id}, name={self.name})>"

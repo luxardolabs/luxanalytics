@@ -1,22 +1,22 @@
-"""DashboardService — facade for dashboard routes.
+"""DashboardViewService — facade for dashboard routes.
 
-Delegates to AnalyticsService (core business logic).
+Delegates to AnalyticsCoreService (core business logic).
 View services are thin wrappers that format data for templates.
-Architecture: Router → DashboardService → AnalyticsService → CRUD → DB
+Architecture: Router → DashboardViewService → AnalyticsCoreService → CRUD → DB
 """
 
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.analytics_service import AnalyticsService
+from app.services.core.analytics_core_service import AnalyticsCoreService
 
 
-class DashboardService:
+class DashboardViewService:
     """Thin facade — routes call this, it calls the core analytics service."""
 
     def __init__(self, db: AsyncSession):
-        self._svc = AnalyticsService(db)
+        self._svc = AnalyticsCoreService(db)
 
     async def get_apps_with_stats(self) -> list[dict[str, Any]]:
         return await self._svc.get_apps_with_stats()

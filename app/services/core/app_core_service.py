@@ -10,7 +10,7 @@ from app.models.app_model import App
 from app.schemas.app_schema import AppCreate, AppUpdate
 
 
-class AppService:
+class AppCoreService:
     def __init__(self, db: AsyncSession):
         self.db = db
 

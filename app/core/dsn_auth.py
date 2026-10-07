@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.services.app_service import AppService
+from app.services.core.app_core_service import AppCoreService
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ async def extract_app_from_dsn(
             raise HTTPException(status_code=401, detail="Invalid authorization format")
 
         # Look up app by public_id
-        app_service = AppService(db)
+        app_service = AppCoreService(db)
         app = await app_service.get_app_by_public_id(public_id)
 
         if not app:

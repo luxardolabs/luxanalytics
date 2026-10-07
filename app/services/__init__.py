@@ -1,4 +1,1 @@
-from .dashboard import DashboardService
-from .event_service import EventService
-
-__all__ = ["EventService", "DashboardService"]
+"""Services: core/ (business logic) and views/ (the web seam). Import from the module itself."""

@@ -14,7 +14,7 @@ from app.schemas.event_schema import EventCreate
 event_write_crud = EventWriteCRUD()
 
 
-class EventService:
+class EventCoreService:
     def __init__(self, db: AsyncSession):
         self.db = db
 

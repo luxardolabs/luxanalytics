@@ -44,7 +44,7 @@ When you do ask: **one decision per message**, the evidence that makes it answer
 ## Architecture
 
 ```
-Router → View Service (DashboardService) → Core Service (AnalyticsService) → CRUD → DB
+Router → View Service (DashboardViewService) → Core Service (AnalyticsCoreService) → CRUD → DB
 ```
 
 - **Routers** call view services only — never touch CRUD directly
@@ -112,11 +112,12 @@ app/
 │   ├── app_crud.py          # App CRUD
 │   └── analytics_crud.py    # Shared analytics query helpers
 ├── services/
-│   ├── analytics_service.py # Core business logic (~500 lines)
-│   ├── event_service.py     # Ingest: splits metadata → promoted cols + properties
-│   ├── app_service.py       # App management
-│   └── dashboard/
-│       └── service.py       # Thin facade for dashboard routes
+│   ├── core/                          # Business logic, transport-agnostic (*_core_service.py)
+│   │   ├── analytics_core_service.py  # AnalyticsCoreService
+│   │   ├── event_core_service.py      # EventCoreService: ingest splits metadata → promoted cols + properties
+│   │   └── app_core_service.py        # AppCoreService: app management
+│   └── views/                         # The web seam: shapes template context (*_view_service.py)
+│       └── dashboard_view_service.py  # DashboardViewService
 ├── templates/
 │   ├── layouts/base.html    # Unified layout (Tailwind, HTMX, Alpine, Chart.js, ECharts)
 │   ├── components/nav.html  # Top nav with HTMX app dropdown

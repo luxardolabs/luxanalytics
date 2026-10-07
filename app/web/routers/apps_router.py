@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import require_auth
 from app.db.database import get_db
 from app.schemas.app_schema import AppCreate, AppUpdate
-from app.services.app_service import AppService
+from app.services.core.app_core_service import AppCoreService
 from app.web.templates import templates
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ async def apps_page(request: Request):
 @router.get("/list", response_class=HTMLResponse)
 async def apps_list(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
     """Apps list partial — loaded by HTMX on page load and search."""
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
     if q:
         apps = await app_service.search_apps(q)
     else:
@@ -75,7 +75,7 @@ async def edit_app_panel(
     request: Request, app_id: str, db: AsyncSession = Depends(get_db)
 ):
     """Edit app form — slider panel."""
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
     app = await app_service.get_app_by_app_id(app_id)
     if not app:
         raise HTTPException(404, "App not found")
@@ -89,7 +89,7 @@ async def app_detail_panel(
     request: Request, app_id: str, db: AsyncSession = Depends(get_db)
 ):
     """App detail — slider panel with DSN, stats."""
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
     app = await app_service.get_app_by_app_id(app_id)
     if not app:
         raise HTTPException(404, "App not found")
@@ -114,7 +114,7 @@ async def create_app(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new app, then refresh the list."""
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
 
     existing = await app_service.get_app_by_app_id(app_id)
     if existing:
@@ -166,7 +166,7 @@ async def update_app(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an app."""
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
     app_update = AppUpdate(
         name=name,
         organization=organization,
@@ -207,7 +207,7 @@ async def update_app(
 @router.delete("/{app_id}", response_class=HTMLResponse)
 async def delete_app(request: Request, app_id: str, db: AsyncSession = Depends(get_db)):
     """Delete an app."""
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
     app = await app_service.get_app_by_app_id(app_id)
     if not app:
         raise HTTPException(404, "App not found")
@@ -245,7 +245,7 @@ async def delete_app(request: Request, app_id: str, db: AsyncSession = Depends(g
 
 @router.get("/export/json")
 async def export_apps_json(db: AsyncSession = Depends(get_db)):
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
     apps = await app_service.get_all_apps(include_inactive=True)
     data = [
         {

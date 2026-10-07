@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
 from app.db.database import get_db
-from app.services.dashboard import DashboardService
+from app.services.views.dashboard_view_service import DashboardViewService
 from app.web.templates import templates
 
 router = APIRouter(dependencies=[Depends(require_auth)])
@@ -28,7 +28,7 @@ async def apps_dropdown(
     db: AsyncSession = Depends(get_db),
 ):
     """Apps dropdown for nav — loaded via HTMX on every page."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     apps = await svc.get_apps_for_dropdown()
     current_app_id = request.cookies.get("analytics_app_id", "")
     return templates.TemplateResponse(
@@ -49,7 +49,7 @@ async def overview_page(
     hours: int = Query(24),
 ):
     """Full overview page."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     stats = await svc.get_stats_overview(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -66,7 +66,7 @@ async def overview_content(
     hours: int = Query(24),
 ):
     """Overview content partial — swapped by time filter."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     stats = await svc.get_stats_overview(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -83,7 +83,7 @@ async def overview_timeline(
     hours: int = Query(24),
 ):
     """Timeline chart partial — lazy loaded."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     timeline_data = await svc.get_timeline_data(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -100,7 +100,7 @@ async def overview_event_types(
     hours: int = Query(24),
 ):
     """Event type breakdown chart — lazy loaded."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     stats = await svc.get_stats_overview(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -117,7 +117,7 @@ async def overview_top_screens(
     hours: int = Query(24),
 ):
     """Top screens chart — lazy loaded."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     features = await svc.get_feature_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -139,7 +139,7 @@ async def events_page(
     page: int = Query(1),
 ):
     """Full events page."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     result = await svc.get_filtered_events(
         app_id=app_id,
         event_name=event_name,
@@ -169,7 +169,7 @@ async def events_content(
     page: int = Query(1),
 ):
     """Events list partial — swapped by filters."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     if search_q:
         events = await svc.search_events(
             query=search_q, search_type="event_name", limit=50
@@ -206,7 +206,7 @@ async def event_detail_panel(
     db: AsyncSession = Depends(get_db),
 ):
     """Event detail slider panel."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     event = await svc.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -228,7 +228,7 @@ async def devices_page(
     hours: int = Query(24),
 ):
     """Full devices page."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_device_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -245,7 +245,7 @@ async def devices_content(
     hours: int = Query(24),
 ):
     """Devices content partial."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_device_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -265,7 +265,7 @@ async def errors_page(
     hours: int = Query(24),
 ):
     """Full errors page."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_error_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -282,7 +282,7 @@ async def errors_content(
     hours: int = Query(24),
 ):
     """Errors content partial."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_error_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -302,7 +302,7 @@ async def performance_page(
     hours: int = Query(24),
 ):
     """Full performance page."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_performance_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -319,7 +319,7 @@ async def performance_content(
     hours: int = Query(24),
 ):
     """Performance content partial."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_performance_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -338,7 +338,7 @@ async def features_page(
     app_id: str | None = Depends(get_app_id),
     hours: int = Query(24),
 ):
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_feature_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -354,7 +354,7 @@ async def features_content(
     app_id: str | None = Depends(get_app_id),
     hours: int = Query(24),
 ):
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_feature_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -379,7 +379,7 @@ async def journey_page(
             "pages/dashboard/journey.html",
             {"app_id": app_id, "hours": hours, "requires_app": True},
         )
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_user_journey_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -401,7 +401,7 @@ async def journey_content(
             "partials/dashboard/journey_content.html",
             {"app_id": app_id, "hours": hours, "requires_app": True},
         )
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_user_journey_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -420,7 +420,7 @@ async def feedback_page(
     app_id: str | None = Depends(get_app_id),
     hours: int = Query(24),
 ):
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_feedback_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -436,7 +436,7 @@ async def feedback_content(
     app_id: str | None = Depends(get_app_id),
     hours: int = Query(24),
 ):
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analytics = await svc.get_feedback_analytics(app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -458,7 +458,7 @@ async def explorer_page(
     hours: int = Query(24),
     event_name: str | None = Query(None),
 ):
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analysis = await svc.get_metadata_analysis(
         app_id=app_id, hours=hours, event_name=event_name
     )
@@ -477,7 +477,7 @@ async def explorer_content(
     hours: int = Query(24),
     event_name: str | None = Query(None),
 ):
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analysis = await svc.get_metadata_analysis(
         app_id=app_id, hours=hours, event_name=event_name
     )
@@ -496,7 +496,7 @@ async def key_deep_dive_panel(
     app_id: str | None = Depends(get_app_id),
     hours: int = Query(24),
 ):
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     analysis = await svc.get_key_deep_dive(key_name, app_id=app_id, hours=hours)
     return templates.TemplateResponse(
         request,
@@ -515,7 +515,7 @@ async def user_profile_panel(
     db: AsyncSession = Depends(get_db),
 ):
     """User profile slider panel."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     profile = await svc.get_user_profile(user_id)
     return templates.TemplateResponse(
         request,
@@ -534,7 +534,7 @@ async def session_detail_panel(
     db: AsyncSession = Depends(get_db),
 ):
     """Session detail slider panel."""
-    svc = DashboardService(db)
+    svc = DashboardViewService(db)
     detail = await svc.get_session_detail(session_id)
     return templates.TemplateResponse(
         request,

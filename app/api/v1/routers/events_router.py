@@ -11,8 +11,8 @@ from app.core.security import verify_hmac_signature
 from app.crud.event_crud import event_crud
 from app.db.database import get_db
 from app.schemas.event_schema import BatchEventRequest, EventCreate, EventResponse
-from app.services.app_service import AppService
-from app.services.event_service import EventService
+from app.services.core.app_core_service import AppCoreService
+from app.services.core.event_core_service import EventCoreService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -86,7 +86,7 @@ async def _process_events(
         else:
             raise HTTPException(status_code=400, detail="Invalid payload format")
 
-        event_service = EventService(db)
+        event_service = EventCoreService(db)
         created_events = await event_service.create_events(app_id, events)
 
         logger.info(
@@ -159,7 +159,7 @@ async def create_events_by_project_id(
     - PROJECT_ID (16 digits) is used for routing
     """
     # Look up app by project_id (from URL)
-    app_service = AppService(db)
+    app_service = AppCoreService(db)
     app = await app_service.get_app_by_project_id(project_id)
 
     if not app:

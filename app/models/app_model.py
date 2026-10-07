@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import Boolean, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -27,7 +29,10 @@ class App(UUIDBaseModel):
         Boolean, default=True, nullable=False, index=True
     )
 
-    app_metadata: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    # Free-form per-app settings: arbitrary JSON keys, so explicitly dict[str, Any].
+    app_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
 
     @property
     def dsn(self):

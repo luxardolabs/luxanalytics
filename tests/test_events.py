@@ -6,13 +6,13 @@ import pytest
 
 from app.models.device_model import Device
 from app.schemas.event_schema import EventCreate
-from app.services.event_service import EventService
+from app.services.core.event_core_service import EventCoreService
 
 
 @pytest.mark.asyncio
 async def test_create_single_event_promotes_columns(db):
     """Event creation should populate promoted columns from metadata."""
-    svc = EventService(db)
+    svc = EventCoreService(db)
 
     event_data = EventCreate(
         name="screen_view",
@@ -62,7 +62,7 @@ async def test_create_single_event_promotes_columns(db):
 @pytest.mark.asyncio
 async def test_create_batch_events(db):
     """Batch event creation should handle multiple events."""
-    svc = EventService(db)
+    svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
 
     events = [
@@ -85,7 +85,7 @@ async def test_device_upsert_on_ingest(db):
     """Ingesting events with device_id should create/update device records."""
     from sqlalchemy import select
 
-    svc = EventService(db)
+    svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
 
     event1 = EventCreate(
@@ -137,7 +137,7 @@ async def test_device_upsert_on_ingest(db):
 
 @pytest.mark.asyncio
 async def test_platform_defaults_to_ios(db):
-    svc = EventService(db)
+    svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
     event = EventCreate(name="screen_view", timestamp=now, metadata={"screen": "home"})
     created = await svc.create_events("test_app", [event])
@@ -146,7 +146,7 @@ async def test_platform_defaults_to_ios(db):
 
 @pytest.mark.asyncio
 async def test_platform_from_metadata(db):
-    svc = EventService(db)
+    svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
     event = EventCreate(
         name="screen_view", timestamp=now, metadata={"platform": "android"}
@@ -160,7 +160,7 @@ async def test_event_without_device_id(db):
     """Events without device_id should work — no device upsert."""
     from sqlalchemy import func, select
 
-    svc = EventService(db)
+    svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
 
     before = (await db.execute(select(func.count(Device.device_id)))).scalar()

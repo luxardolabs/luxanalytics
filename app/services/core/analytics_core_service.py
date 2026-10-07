@@ -13,7 +13,7 @@ from app.models.device_model import Device
 from app.models.event_model import Event
 
 
-class AnalyticsService:
+class AnalyticsCoreService:
     """Core business logic for analytics queries."""
 
     def __init__(self, db: AsyncSession):
