@@ -2,6 +2,8 @@
 import asyncio
 import sys
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
@@ -94,6 +96,36 @@ async def wait_for_database():
     sys.exit(1)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Startup (wait for the database, migrate to head), then shutdown (close DB + Redis).
+
+    The lifespan handler replaces the deprecated on_event hooks; the bodies are unchanged.
+    """
+    logger.info(
+        "🚀 Starting Analytics Collector API with Dashboard",
+        version=settings.APP_VERSION,
+        build_timestamp=settings.BUILD_TIMESTAMP,
+    )
+    await wait_for_database()
+    await run_migrations()
+    logger.info("✅ Application startup completed successfully!")
+
+    yield
+
+    logger.info("Shutting down Analytics Collector API")
+    await async_engine.dispose()
+    logger.info("Database connections closed")
+    try:
+        redis = await get_redis_client()
+        if redis:
+            await redis.close()
+            logger.info("Redis connection closed")
+    except (RedisError, OSError) as e:
+        # Shutdown proceeds either way; record that the close failed instead of hiding it.
+        logger.warning("Redis close failed during shutdown", error=str(e))
+
+
 def create_application() -> FastAPI:
     """Create and configure FastAPI application."""
 
@@ -104,6 +136,7 @@ def create_application() -> FastAPI:
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
+        lifespan=lifespan,
     )
 
     # Setup OpenTelemetry
@@ -236,37 +269,6 @@ def create_application() -> FastAPI:
 
         metrics_data = get_prometheus_metrics()
         return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
-
-    @app.on_event("startup")
-    async def startup_event():
-        """Application startup tasks."""
-        logger.info(
-            "🚀 Starting Analytics Collector API with Dashboard",
-            version=settings.APP_VERSION,
-            build_timestamp=settings.BUILD_TIMESTAMP,
-        )
-
-        # Wait for database to be ready
-        await wait_for_database()
-
-        # Run migrations
-        await run_migrations()
-
-        logger.info("✅ Application startup completed successfully!")
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        logger.info("Shutting down Analytics Collector API")
-        await async_engine.dispose()
-        logger.info("Database connections closed")
-        try:
-            redis = await get_redis_client()
-            if redis:
-                await redis.close()
-                logger.info("Redis connection closed")
-        except (RedisError, OSError) as e:
-            # Shutdown proceeds either way; record that the close failed instead of hiding it.
-            logger.warning("Redis close failed during shutdown", error=str(e))
 
     return app
 

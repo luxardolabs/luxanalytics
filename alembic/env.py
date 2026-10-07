@@ -10,9 +10,10 @@ import sys
 from logging.config import fileConfig
 from os.path import abspath, dirname
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from alembic import context
 
 # Ensure app modules are importable
 sys.path.insert(0, dirname(dirname(abspath(__file__))))
@@ -30,20 +31,25 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def _get_url() -> str:
-    """Get sync database URL from application settings."""
+def _settings_url() -> str:
+    """The app's own database URL — used only when no caller supplied one."""
     from app.core.config import settings
-    return getattr(settings, "DATABASE_URL_SYNC", None) or settings.DATABASE_URL
+
+    return settings.DATABASE_URL
 
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode — generates SQL without connecting."""
-    url = _get_url()
+    # The caller's URL wins (the test harness and db-verify pass a throwaway DB); alembic.ini
+    # carries none, so a bare `alembic upgrade head` falls back to the app's DATABASE_URL.
+    url = config.get_main_option("sqlalchemy.url") or _settings_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+        compare_server_default=True,
     )
 
     with context.begin_transaction():
@@ -52,7 +58,12 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection):
     """Run migrations using the given connection."""
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        compare_server_default=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -61,7 +72,10 @@ def do_run_migrations(connection):
 async def run_async_migrations() -> None:
     """Run migrations via new async engine (CLI only)."""
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = _get_url()
+    # The caller's URL wins (repo.alembic_env_honors_caller_url): env.py runs AFTER the test
+    # harness / db-verify set it, so the Config is consulted first and settings only as fallback.
+    url = config.get_main_option("sqlalchemy.url") or _settings_url()
+    configuration["sqlalchemy.url"] = url
 
     connectable = async_engine_from_config(
         configuration,

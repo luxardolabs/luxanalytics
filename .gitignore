@@ -51,3 +51,6 @@ Thumbs.db
 
 # Database dumps (make backup / make prod-backup) — production data, never committed
 backups/
+
+# make test: lock-keyed test-image stamp
+.test-image.stamp

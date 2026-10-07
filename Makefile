@@ -68,7 +68,7 @@ export TLS_CERTS_DIR
 .DEFAULT_GOAL := help
 
 .PHONY: help check guard-version-check guard-upgrade guard-registry honest lint mypy format test arch plan \
-        arch-rule arch-file lint-file mypy-file status \
+        arch-rule arch-file lint-file mypy-file status test-db-up test-db-down db-verify \
         audit gitleaks gitleaks-staged onboard-check \
         build build-fast up down restart logs logs-app logs-db shell shell-db test-local migrate migrate-down \
         migrate-create clean stack-status health ps backup restore work quick css css-watch check-env \
@@ -79,7 +79,7 @@ export TLS_CERTS_DIR
 
 # THE fleet gate — byte-identical composition across every app repo. Make stops at the FIRST
 # failing step; for every architecture red at once, run `make plan`.
-check: guard-version-check honest lint mypy test arch audit gitleaks ## THE fleet gate — run before every commit
+check: guard-version-check honest lint mypy test arch audit gitleaks db-verify ## THE fleet gate — run before every commit
 
 guard-registry:
 	@[ -n "$(REGISTRY)" ] || { echo "REGISTRY unset — copy Makefile.local.example to Makefile.local"; exit 1; }
@@ -128,8 +128,46 @@ mypy: guard-registry ## mypy (fleet typed deps baked, mount-only)
 format: guard-registry ## Auto-fix + format Python and Markdown via luxlint (writes back)
 	@docker run --rm --user $$(id -u):$$(id -g) -e HOME=/tmp -v $(PWD):/repo $(LUXLINT) --format
 
-test: ## Run the test suite (in the running app container)
-	docker compose exec luxanalytics_app pytest tests/ -v
+# ── The test harness: a THROWAWAY Postgres, never the dev database (FLEET-MAKEFILE-STANDARD) ──
+# `make test` starts it, migrates it from the chain (the conftest does `alembic upgrade head`),
+# runs the FULL suite under the canonical pytest config, and wipes it on every exit path. A skipped
+# DB suite therefore cannot read as a pass: the database is always there.
+TEST_IMAGE   := luxanalytics:test
+TEST_DB      := luxanalytics_testdb
+TEST_NET     := luxanalytics_testnet
+TEST_PG      ?= postgres:16-alpine
+TEST_DB_URL  := postgresql+asyncpg://test:test@$(TEST_DB):5432/test
+# Settings the app requires to import. Values are throwaway; the suite only talks to TEST_DB.
+TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
+            -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e SECRET_KEY=test-only -e APP_VERSION=test \
+            -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost -e DASHBOARD_SESSION_SECRET=test-only \
+            -e 'HMAC_KEYS={"test_app": "test-only-hmac-secret"}'
+
+# The lean test image, rebuilt only when the lock / Dockerfile change; source is over-mounted.
+.test-image.stamp: Dockerfile pyproject.toml poetry.lock
+	docker build -q --target test -t $(TEST_IMAGE) . >/dev/null
+	@touch $@
+
+test-db-up: ## Start the throwaway test Postgres (tmpfs data, own network)
+	@docker network inspect $(TEST_NET) >/dev/null 2>&1 || docker network create $(TEST_NET) >/dev/null
+	@docker rm -fv $(TEST_DB) >/dev/null 2>&1 || true
+	@docker run -d --name $(TEST_DB) --network $(TEST_NET) --tmpfs /var/lib/postgresql/data \
+	  -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test $(TEST_PG) >/dev/null
+	@until docker exec -e PGPASSWORD=test $(TEST_DB) psql -h 127.0.0.1 -U test -d test -tAc 'select 1' >/dev/null 2>&1; do sleep 1; done
+	@echo "test-db-up: $(TEST_DB) ready on $(TEST_NET)"
+
+test-db-down: ## Stop and wipe the throwaway test Postgres
+	@docker rm -fv $(TEST_DB) >/dev/null 2>&1 || true
+	@docker network rm $(TEST_NET) >/dev/null 2>&1 || true
+
+test: test-db-up .test-image.stamp guard-registry ## Full pytest suite against the throwaway DB, canonical luxlint pytest config
+	@set +e; C=$$(mktemp); trap 'rm -f "$$C"; $(MAKE) -s test-db-down' EXIT INT TERM; \
+	docker image inspect $(TEST_IMAGE) >/dev/null 2>&1 || { rm -f .test-image.stamp; $(MAKE) -s .test-image.stamp || exit 1; }; \
+	$(GUARD_RUN) $(LUXLINT) --emit-config pytest > "$$C"; \
+	docker run --rm --network $(TEST_NET) $(TEST_ENV) -e PYTHONPATH=/app \
+	  -v $(PWD):/app -v "$$C":/pytest.ini:ro -w /app $(TEST_IMAGE) \
+	  pytest -c /pytest.ini --rootdir /app -p no:cacheprovider; rc=$$?; \
+	exit $$rc
 
 arch: guard-registry ## Architecture conformance via luxarch (reads .luxarch.toml)
 	@$(GUARD_RUN) $(LUXARCH)
@@ -176,6 +214,72 @@ status: guard-registry ## Regenerate committed guard-status files (.lux*-status.
 	$(GUARD_RUN) -e LUXARCH_STATUS_WRITE=1 $(LUXARCH) --json > "$$J" || true; $(STAMP) "$$J" .luxarch-status.json luxarch; \
 	$(GUARD_RUN) $(LUXAUDIT) --json > "$$J" || true; $(STAMP) "$$J" .luxaudit-status.json luxaudit; \
 	echo "wrote .lux*-status.json at $$SHA — commit them"
+
+# db-verify settings (the emitted block below reads these; set ABOVE it, as it says).
+DBV_PG_IMAGE  := postgres:16-alpine
+DBV_EXTRA_ENV := -e DATABASE_URL_SYNC=unused -e SECRET_KEY=db-verify-only -e APP_VERSION=db-verify
+
+# luxarch:db-verify asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
+# ── The migration-chain gate ────────────────────────────────────────────────────────────────────
+# Emitted by `luxarch --emit db-verify`. Drop in verbatim and set the five variables above it.
+#
+# WHY THIS IS EMITTED. FLEET-MAKEFILE-STANDARD used to print this target as a SKELETON —
+# `<create a FRESH empty DB>`, `<run alembic upgrade head>` — so every repo invented the shell
+# itself. A survey found SEVENTEEN different db-verify implementations across the fleet: some
+# `compose exec` into the test stack, some build a throwaway image, some ran a mutable `:dev` tag
+# that nothing rebuilt. That divergence was not drift; it was commissioned by a fill-in-the-blanks
+# template for the one target that has to orchestrate Docker, Postgres and alembic at once.
+#
+# WHAT IT PROVES. The suite builds its schema from the chain, so "does the chain run" is answered
+# there. What is ONLY answered here is whether the chain's RESULT MATCHES THE MODELS: it migrates a
+# genuinely empty database to head and diffs the result against `Base.metadata`, failing on ANY
+# structural difference — additive included. A missing table shows up as `add_table`, which a
+# destructive-only check (`--emit schema-drift`) waves straight through.
+#
+# NEVER point this at the create_all test DB: both sides would derive from the same metadata and
+# the check goes near-vacuous.
+
+DBV_DB        ?= $(shell basename $(CURDIR))_migverify
+DBV_NET       ?= $(DBV_DB)_net
+DBV_IMAGE     ?= $(DBV_DB):verify
+DBV_PG_IMAGE  ?= postgres:17-alpine
+# Any env the app's Settings REQUIRES to import. Values are irrelevant here — this never serves
+# traffic — but a missing required setting fails at import and reads as a migration error.
+DBV_EXTRA_ENV ?=
+
+# v2 — IT LEAKED A VOLUME EVERY RUN, AND THE DISK FILLED. The postgres image declares a VOLUME, so
+# `docker run` minted an anonymous ~58 MB data volume each time, and `docker rm -f` (no `-v`) left it
+# behind. Measured: `--rm` does not save it either when the container is force-removed. And every
+# recipe line is its own shell, so a FAILING upgrade or verify stopped `make` before the cleanup
+# lines ran, leaking the container and network too. ~850 such volumes (~49 GB) filled the build host
+# on 2026-10-01. Now: the data directory is a tmpfs (nothing to leak, and faster), and the whole
+# target is ONE shell whose `trap` removes the container and network on every exit path.
+#
+# The image is BUILT, never a registry tag: `:dev`/`:latest` are MOVING pointers, so with the tree
+# mounted you would verify today's migrations against yesterday's interpreter and dependencies, which
+# fails on correct code and passes on broken code (repo.db_verify_image_is_current). PYTHONPATH=/app,
+# not just -w: python puts the SCRIPT's directory on sys.path, not the working dir, so a mounted
+# verifier cannot import the models it exists to diff against.
+db-verify: ## PROVE the chain builds the schema from EMPTY, no drift vs models
+	@set -e; \
+	cleanup() { docker rm -fv $(DBV_DB) >/dev/null 2>&1 || true; docker network rm $(DBV_NET) >/dev/null 2>&1 || true; }; \
+	trap cleanup EXIT INT TERM; cleanup; \
+	docker network create $(DBV_NET) >/dev/null; \
+	docker run -d --name $(DBV_DB) --network $(DBV_NET) --tmpfs /var/lib/postgresql/data \
+	  -e POSTGRES_USER=$(DBV_DB) -e POSTGRES_PASSWORD=$(DBV_DB) -e POSTGRES_DB=$(DBV_DB) \
+	  $(DBV_PG_IMAGE) >/dev/null; \
+	until docker exec -e PGPASSWORD=$(DBV_DB) $(DBV_DB) \
+	  psql -h 127.0.0.1 -U $(DBV_DB) -d $(DBV_DB) -tAc 'select 1' >/dev/null 2>&1; do sleep 1; done; \
+	docker build -q -t $(DBV_IMAGE) . >/dev/null; \
+	echo "db-verify: alembic upgrade head (empty -> head)"; \
+	docker run --rm --network $(DBV_NET) $(DBV_EXTRA_ENV) \
+	  -e DATABASE_URL="postgresql+asyncpg://$(DBV_DB):$(DBV_DB)@$(DBV_DB):5432/$(DBV_DB)" \
+	  $(DBV_IMAGE) alembic upgrade head; \
+	echo "db-verify: diff the migrated schema against the models"; \
+	docker run --rm --network $(DBV_NET) -w /app -v $(CURDIR)/scripts:/scripts:ro \
+	  -e PYTHONPATH=/app $(DBV_EXTRA_ENV) \
+	  -e DATABASE_URL="postgresql+asyncpg://$(DBV_DB):$(DBV_DB)@$(DBV_DB):5432/$(DBV_DB)" \
+	  $(DBV_IMAGE) python /scripts/verify_migration_chain.py
 
 # The machine gate for "is this repo ONBOARDED": wiring + honesty, NOT green.
 # See luxarch --doc FLEET-ONBOARDING-STANDARD §5.

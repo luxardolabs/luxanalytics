@@ -143,8 +143,8 @@ make logs             # Tail all logs
 make logs-app         # Tail app logs only
 make shell            # Bash into app container
 make shell-db         # psql into database
-make test             # Run pytest in container
-make test-local       # Run pytest locally (cd src)
+make test             # Full suite against a throwaway Postgres (test-db-up/down), canonical pytest config
+make db-verify        # Migrate an EMPTY DB to head and diff it against the models
 make migrate          # Run Alembic migrations
 make migrate-create   # Create new migration (interactive)
 make css              # Build Tailwind CSS
@@ -210,7 +210,7 @@ make prod-release
 
 - **Python 3.14** with Poetry
 - **FastAPI** + **uvicorn** (port 4000)
-- **PostgreSQL 16** (async via psycopg3 + SQLAlchemy 2.0)
+- **PostgreSQL 16** (async via asyncpg + SQLAlchemy 2.1 — the fleet driver; `pool_pre_ping` stays on, it is what catches stale pooled connections)
 - **Redis 7** (rate limiting, sessions)
 - **Alembic** (migrations)
 - **Tailwind CSS** (compiled, not CDN) with orange brand palette (#ffa500)
@@ -256,7 +256,7 @@ make prod-release
 
 See `deploy/prod/.env.prod` for production values. Key ones:
 
-- `DATABASE_URL` — must use `postgresql+psycopg://` driver
+- `DATABASE_URL` — `postgresql+asyncpg://` (the fleet driver; the emitted test harness and `make db-verify` assume it)
 - `DASHBOARD_PASSWORD` — change from default
 - `HMAC_KEYS` / `API_KEYS` — JSON strings
 - `EXTERNAL_URL` — `https://analytics.luxardolabs.com`

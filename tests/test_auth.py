@@ -23,11 +23,13 @@ async def test_hmac_auth_valid(client):
     key_id = next(iter(hmac_keys))
     secret = hmac_keys[key_id]
 
-    body = json.dumps({
-        "name": "test_event",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "metadata": {},
-    }).encode()
+    body = json.dumps(
+        {
+            "name": "test_event",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "metadata": {},
+        }
+    ).encode()
 
     timestamp = str(int(time.time()))
     message = body + timestamp.encode()
@@ -52,11 +54,13 @@ async def test_hmac_auth_valid(client):
 @pytest.mark.asyncio
 async def test_hmac_auth_invalid_signature(client):
     """Invalid HMAC signature should be rejected."""
-    body = json.dumps({
-        "name": "test_event",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "metadata": {},
-    }).encode()
+    body = json.dumps(
+        {
+            "name": "test_event",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "metadata": {},
+        }
+    ).encode()
 
     timestamp = str(int(time.time()))
 
@@ -85,11 +89,13 @@ async def test_hmac_auth_expired_timestamp(client):
     key_id = next(iter(hmac_keys))
     secret = hmac_keys[key_id]
 
-    body = json.dumps({
-        "name": "test_event",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "metadata": {},
-    }).encode()
+    body = json.dumps(
+        {
+            "name": "test_event",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "metadata": {},
+        }
+    ).encode()
 
     # 10 minutes ago — outside 5-minute window
     timestamp = str(int(time.time()) - 600)
@@ -112,11 +118,13 @@ async def test_hmac_auth_expired_timestamp(client):
 @pytest.mark.asyncio
 async def test_dsn_auth_valid(client, sample_app):
     """Valid DSN basic auth should be accepted."""
-    body = json.dumps({
-        "name": "test_event",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "metadata": {},
-    }).encode()
+    body = json.dumps(
+        {
+            "name": "test_event",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "metadata": {},
+        }
+    ).encode()
 
     auth_string = f"{sample_app.public_id}:"
     auth_header = "Basic " + b64encode(auth_string.encode()).decode()
@@ -135,11 +143,13 @@ async def test_dsn_auth_valid(client, sample_app):
 @pytest.mark.asyncio
 async def test_dsn_auth_invalid_project(client):
     """Invalid project_id should return 404."""
-    body = json.dumps({
-        "name": "test_event",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "metadata": {},
-    }).encode()
+    body = json.dumps(
+        {
+            "name": "test_event",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "metadata": {},
+        }
+    ).encode()
 
     response = await client.post(
         "/api/v1/events/nonexistent_project",
@@ -153,5 +163,7 @@ async def test_dsn_auth_invalid_project(client):
 async def test_dashboard_requires_auth(client):
     """Dashboard pages should require authentication."""
     response = await client.get("/dashboard/overview", follow_redirects=False)
-    # Should redirect to login or return 401/403
-    assert response.status_code in (302, 401, 403)
+    # require_auth answers an anonymous GET with 303 See Other to the login page, carrying the
+    # requested path as `next` — assert exactly that, not "some non-200".
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login?next=/dashboard/overview"

@@ -6,27 +6,32 @@ from app.services.dashboard import DashboardService
 
 
 @pytest.mark.asyncio
-async def test_stats_overview(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_stats_overview(db, sample_events):
+    svc = DashboardService(db)
     stats = await svc.get_stats_overview(app_id="test_app", hours=24)
 
     assert stats["total_events"] == 4
     assert stats["unique_users"] == 2
     assert len(stats["top_events"]) > 0
-    assert stats["top_events"][0]["name"] in {"screen_view", "button_tapped", "error_occurred", "performance_measured"}
+    assert stats["top_events"][0]["name"] in {
+        "screen_view",
+        "button_tapped",
+        "error_occurred",
+        "performance_measured",
+    }
 
 
 @pytest.mark.asyncio
-async def test_stats_overview_all_apps(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_stats_overview_all_apps(db, sample_events):
+    svc = DashboardService(db)
     stats = await svc.get_stats_overview(hours=24)
 
     assert stats["total_events"] >= 4
 
 
 @pytest.mark.asyncio
-async def test_device_analytics(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_device_analytics(db, sample_events):
+    svc = DashboardService(db)
     analytics = await svc.get_device_analytics(app_id="test_app", hours=24)
 
     assert analytics["unique_devices"] == 2
@@ -44,8 +49,8 @@ async def test_device_analytics(db_session, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_error_analytics(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_error_analytics(db, sample_events):
+    svc = DashboardService(db)
     analytics = await svc.get_error_analytics(app_id="test_app", hours=24)
 
     assert analytics["total_errors"] >= 1
@@ -56,8 +61,8 @@ async def test_error_analytics(db_session, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_performance_analytics(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_performance_analytics(db, sample_events):
+    svc = DashboardService(db)
     analytics = await svc.get_performance_analytics(app_id="test_app", hours=24)
 
     assert analytics["total_measurements"] >= 1
@@ -72,18 +77,23 @@ async def test_performance_analytics(db_session, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_filtered_events(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_filtered_events(db, sample_events):
+    svc = DashboardService(db)
 
     # Filter by event name
-    events = await svc.get_filtered_events(app_id="test_app", event_name="screen_view", hours=24)
-    assert len(events) >= 1
-    assert all(e.name == "screen_view" for e in events)
+    result = await svc.get_filtered_events(
+        app_id="test_app", event_name="screen_view", hours=24
+    )
+    # The service returns the paginated envelope the dashboard renders: {"events": [...], "pagination": {...}}.
+    # The seed holds exactly one screen_view for test_app, so assert exactly that.
+    events = result["events"]
+    assert [e.name for e in events] == ["screen_view"]
+    assert result["pagination"]["total"] == 1
 
 
 @pytest.mark.asyncio
-async def test_timeline_data(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_timeline_data(db, sample_events):
+    svc = DashboardService(db)
     timeline = await svc.get_timeline_data(app_id="test_app", hours=24)
 
     assert len(timeline) > 0
@@ -92,8 +102,8 @@ async def test_timeline_data(db_session, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_search_events(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_search_events(db, sample_events):
+    svc = DashboardService(db)
     results = await svc.search_events(query="screen", search_type="event_name")
 
     assert len(results) >= 1
@@ -101,8 +111,8 @@ async def test_search_events(db_session, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_feature_analytics(db_session, sample_events):
-    svc = DashboardService(db_session)
+async def test_feature_analytics(db, sample_events):
+    svc = DashboardService(db)
     analytics = await svc.get_feature_analytics(app_id="test_app", hours=24)
 
     assert analytics["total_events"] >= 1

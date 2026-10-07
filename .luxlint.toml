@@ -3,8 +3,8 @@
 # Run via `make lint` / `make mypy`; schema: `luxlint --doc REFERENCE`.
 
 [source]
-# tests/ and alembic/ are first-party code we maintain, so they are style-held like app/.
-paths = ["app", "tests", "alembic"]
+# tests/, alembic/ and scripts/ are first-party code we maintain, so they are style-held like app/.
+paths = ["app", "tests", "alembic", "scripts"]
 
 # Python 3.14 app (Dockerfile: python:3.14-slim) — check ruff/mypy at 3.14.
 [python]

@@ -1,9 +1,8 @@
 # mypy: disable-error-code="call-overload"
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config import settings
 
@@ -14,18 +13,18 @@ class EventBase(BaseModel):
         min_length=1,
         max_length=255,
         description="Event name",
-        example="screen_view",
+        examples=["screen_view"],
     )
     timestamp: str = Field(
-        ..., description="ISO8601 timestamp string", example="2025-06-02T15:00:00Z"
+        ..., description="ISO8601 timestamp string", examples=["2025-06-02T15:00:00Z"]
     )
-    user_id: Optional[str] = Field(
-        None, max_length=255, description="User identifier", example="user123"
+    user_id: str | None = Field(
+        None, max_length=255, description="User identifier", examples=["user123"]
     )
-    session_id: Optional[str] = Field(
-        None, max_length=255, description="Session identifier", example="session456"
+    session_id: str | None = Field(
+        None, max_length=255, description="Session identifier", examples=["session456"]
     )
-    metadata: Dict[str, str] = Field(
+    metadata: dict[str, str] = Field(
         default_factory=dict, description="Event metadata as string-to-string map"
     )
 
@@ -46,10 +45,10 @@ class EventBase(BaseModel):
 
             # Ensure timezone-aware
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
 
             # Check not too far in future (configurable tolerance for clock skew)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             tolerance = settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE
             if dt > now + timedelta(seconds=tolerance):
                 raise ValueError(
@@ -62,8 +61,8 @@ class EventBase(BaseModel):
 
 
 class EventCreate(EventBase):
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "screen_view",
                 "timestamp": "2025-06-02T15:00:00Z",
@@ -75,7 +74,8 @@ class EventCreate(EventBase):
                     "app_version": "1.0.0",
                 },
             }
-        }
+        },
+    )
 
 
 class EventInDB(BaseModel):
@@ -83,26 +83,25 @@ class EventInDB(BaseModel):
     app_id: str
     name: str
     timestamp: datetime
-    user_id: Optional[str]
-    session_id: Optional[str]
-    event_metadata: Dict[str, str]
+    user_id: str | None
+    session_id: str | None
+    event_metadata: dict[str, str]
     received_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EventResponse(BaseModel):
-    status: str = Field(example="success")
-    events_received: int = Field(example=1)
-    message: Optional[str] = Field(example="Successfully processed 1 analytics events")
+    status: str = Field(examples=["success"])
+    events_received: int = Field(examples=[1])
+    message: str | None = Field(examples=["Successfully processed 1 analytics events"])
 
 
 class BatchEventRequest(BaseModel):
-    events: List[EventCreate] = Field(..., min_items=1, max_items=1000)
+    events: list[EventCreate] = Field(..., min_length=1, max_length=1000)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "events": [
                     {
@@ -121,7 +120,8 @@ class BatchEventRequest(BaseModel):
                     },
                 ]
             }
-        }
+        },
+    )
 
     @field_validator("events")
     def validate_events(cls, v):

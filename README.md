@@ -230,8 +230,8 @@ curl -X GET "http://localhost:8000/api/v1/events/stats" \
 All configuration is managed through environment variables:
 
 ```bash
-# Database (use psycopg3 driver for better stability)
-DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/analytics
+# Database (asyncpg; keep DB_POOL_PRE_PING=true — it detects stale pooled connections)
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/analytics
 DATABASE_URL_SYNC=postgresql://user:password@localhost:5432/analytics
 
 # Database Connection Pool Settings (Production Optimized)
@@ -439,7 +439,6 @@ The application includes:
 
    - **"password authentication failed" errors** (usually stale connections):
      - This is NOT actually a password issue - it's stale connections in the pool
-     - Switch to psycopg3 driver: `postgresql+psycopg://` instead of `postgresql+asyncpg://`
      - Set `DB_POOL_RECYCLE=120` (or less than your network/DB timeout)
      - Ensure `DB_POOL_PRE_PING=true` is enabled
      - Apply PostgreSQL config with proper TCP keepalive settings
@@ -540,7 +539,7 @@ The following environment variables have been added or modified for production:
 
 ### Database Driver Change
 
-- **IMPORTANT**: Database URLs must use `postgresql+psycopg://` instead of `postgresql+asyncpg://`
+- **Driver**: Database URLs use `postgresql+asyncpg://` (the fleet driver)
 - This change resolves stale connection issues that manifest as authentication errors
 - Both `DATABASE_URL` and `DATABASE_URL_SYNC` must be updated
 

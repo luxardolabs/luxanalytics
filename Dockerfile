@@ -1,4 +1,5 @@
-FROM python:3.14-slim
+# ---- app: the shared base — runtime deps from the lock + the application ----
+FROM python:3.14-slim AS app
 
 WORKDIR /app
 
@@ -26,8 +27,18 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 
-# Non-root user
+# Non-root user (switched to in the production stage)
 RUN useradd -m -u 1000 luxanalytics && chown -R luxanalytics:luxanalytics /app
+
+# ---- test: the shipped app layers + the dev group, from the SAME lock ----
+# Built LOCALLY by `make test` (bare luxanalytics:test, never pushed). Source is over-mounted at
+# run time, so this rebuilds only when the lock changes (FLEET-BUILD-DEPLOY-STANDARD, "Lint & test
+# images"). Runs as root so the over-mounted checkout's ownership doesn't matter.
+FROM app AS test
+RUN poetry install --no-root --with dev
+
+# ---- production: what ships (the default — last — stage) ----
+FROM app AS production
 USER luxanalytics
 
 # Health check
