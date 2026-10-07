@@ -10,7 +10,7 @@
       - neutral (default, inactive, secondary)
 
     Usage:
-        {% from "macros/badges.html" import badge, badge_link, status_badge, role_badge, status_dot, info_box, collector_status_badge, health_indicator %}
+        {% from "macros/badges.html" import badge, info_box %}
 #}
 
 
@@ -33,68 +33,12 @@
 
 
 {# Clickable badge link — pill-shaped HTMX or href link #}
-{# Use for preset chips, filter pills, quick-action tags #}
-{% macro badge_link(text, variant="default", href=none, hx_get=none, hx_target=none, hx_swap=none, icon=none) %}
-{% from "macros/icons.html" import icon as icon_macro %}
-{% set variants = {
-    'default': 'bg-surface-20/50 border-surface-20 text-slate-300 hover:bg-surface-20/80 hover:text-white hover:border-surface-20/50',
-    'brand': 'bg-brand-500/20 border-brand-500/30 text-brand-500 hover:bg-brand-500/30 hover:border-brand-500/50',
-    'primary': 'bg-brand-500/20 border-brand-500/30 text-brand-500 hover:bg-brand-500/30 hover:border-brand-500/50',
-    'success': 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 hover:border-emerald-400/50',
-    'warning': 'bg-amber-500/20 border-amber-500/30 text-amber-400 hover:bg-amber-500/30 hover:border-amber-400/50',
-    'danger': 'bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30 hover:border-red-400/50',
-    'info': 'bg-brand-500/20 border-brand-500/30 text-brand-500 hover:bg-brand-500/30 hover:border-brand-500/50'
-} %}
-<a {% if href %}href="{{ href }}"{% endif %}
-   {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
-   {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
-   {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
-   class="inline-flex items-center text-xs px-2 py-0.5 rounded-full border {{ variants.get(variant, variants.default) }} cursor-pointer transition-colors">
-    {% if icon %}{{ icon_macro(icon, 'w-3 h-3 mr-1') }}{% endif %}{{ text }}
-</a>
-{% endmacro %}
 
 
 {# Role badge - Uses brand tints for hierarchy (not random colors!) #}
-{# Owner = prominent (brand-500), Admin = standard (brand-500), Member = subtle (brand-200) #}
-{% macro role_badge(role) %}
-{% set role_config = {
-    'owner': {'text': 'Owner', 'bg': 'bg-brand-500/20', 'text_color': 'text-brand-500', 'border': 'border-brand-500/30'},
-    'admin': {'text': 'Admin', 'bg': 'bg-brand-500/15', 'text_color': 'text-brand-500', 'border': 'border-brand-500/20'},
-    'member': {'text': 'Member', 'bg': 'bg-brand-200/10', 'text_color': 'text-brand-500', 'border': 'border-brand-200/20'}
-} %}
-{% set config = role_config.get(role, {'text': role|title, 'bg': 'bg-surface-20/50', 'text_color': 'text-slate-500', 'border': ''}) %}
-<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ config.bg }} {{ config.text_color }} {% if config.border %}border {{ config.border }}{% endif %}">
-    {{ config.text }}
-</span>
-{% endmacro %}
 
 
 {# Status dot - Semantic colors for system status #}
-{# online/active = success, warning/pending = warning, offline/error = danger #}
-{% macro status_dot(status, show_label=false, size='sm') %}
-{% set size_class = {'xs': 'h-2 w-2', 'sm': 'h-2.5 w-2.5', 'md': 'h-3 w-3'}[size] or 'h-2.5 w-2.5' %}
-{% set status_config = {
-    'online': {'color': 'bg-emerald-500', 'label': 'Online'},
-    'active': {'color': 'bg-emerald-500', 'label': 'Active'},
-    'healthy': {'color': 'bg-emerald-500', 'label': 'Healthy'},
-    'enabled': {'color': 'bg-emerald-500', 'label': 'Enabled'},
-    'pending': {'color': 'bg-amber-500', 'label': 'Pending'},
-    'warning': {'color': 'bg-amber-500', 'label': 'Warning'},
-    'degraded': {'color': 'bg-amber-500', 'label': 'Degraded'},
-    'offline': {'color': 'bg-red-500', 'label': 'Offline'},
-    'error': {'color': 'bg-red-500', 'label': 'Error'},
-    'stale': {'color': 'bg-red-500', 'label': 'Stale'},
-    'disabled': {'color': 'bg-surface-20', 'label': 'Disabled'},
-    'inactive': {'color': 'bg-surface-20', 'label': 'Inactive'},
-    'unknown': {'color': 'bg-surface-20', 'label': 'Unknown'}
-} %}
-{% set config = status_config.get(status, {'color': 'bg-surface-20', 'label': status|title}) %}
-<span class="inline-flex items-center" title="{{ config.label }}">
-    <span class="{{ size_class }} rounded-full {{ config.color }}"></span>
-    {% if show_label %}<span class="ml-1.5 text-xs text-slate-500">{{ config.label }}</span>{% endif %}
-</span>
-{% endmacro %}
 
 
 {# Info box - Brand-tinted callout for informational content with hover glow #}
@@ -129,100 +73,4 @@
         </div>
     </div>
 </div>
-{% endmacro %}
-
-
-{# Active/Inactive status badge #}
-{% macro status_badge(is_active) %}
-{% if is_active %}
-{{ badge("Active", "success") }}
-{% else %}
-{{ badge("Inactive", "default") }}
-{% endif %}
-{% endmacro %}
-
-
-{# Collector status badge #}
-{% macro collector_status_badge(status) %}
-{% set status_map = {
-    'pending': {'text': 'Pending', 'variant': 'warning'},
-    'active': {'text': 'Active', 'variant': 'success'},
-    'suspended': {'text': 'Suspended', 'variant': 'danger'},
-    'revoked': {'text': 'Revoked', 'variant': 'default'}
-} %}
-{% set config = status_map.get(status, {'text': status, 'variant': 'default'}) %}
-{{ badge(config.text, config.variant) }}
-{% endmacro %}
-
-
-{# Collector health indicator #}
-{% macro health_indicator(health_status) %}
-{% set health_map = {
-    'healthy': {'color': 'bg-green-400', 'text': 'Healthy', 'text_color': 'text-green-400'},
-    'warning': {'color': 'bg-yellow-400', 'text': 'Warning', 'text_color': 'text-yellow-400'},
-    'stale': {'color': 'bg-red-400', 'text': 'Stale', 'text_color': 'text-red-400'},
-    'inactive': {'color': 'bg-surface-20', 'text': 'Inactive', 'text_color': 'text-slate-500'},
-    'unknown': {'color': 'bg-surface-20', 'text': 'Unknown', 'text_color': 'text-slate-500'}
-} %}
-{% set config = health_map.get(health_status, health_map.unknown) %}
-<span class="inline-flex items-center" title="{{ config.text }}">
-    <span class="h-2 w-2 rounded-full {{ config.color }}"></span>
-    <span class="ml-1.5 text-xs {{ config.text_color }}">{{ config.text }}</span>
-</span>
-{% endmacro %}
-
-
-{# Subscription status badge #}
-{% macro subscription_badge(status) %}
-{% set status_map = {
-    'active': {'text': 'Active', 'variant': 'success'},
-    'trialing': {'text': 'Trial', 'variant': 'info'},
-    'canceled': {'text': 'Canceled', 'variant': 'danger'},
-    'past_due': {'text': 'Past Due', 'variant': 'warning'},
-    'incomplete': {'text': 'Incomplete', 'variant': 'warning'}
-} %}
-{% set config = status_map.get(status, {'text': status|title, 'variant': 'default'}) %}
-{{ badge(config.text, config.variant) }}
-{% endmacro %}
-
-
-{# Invoice status badge #}
-{% macro invoice_status_badge(status) %}
-{% set status_map = {
-    'paid': {'text': 'Paid', 'variant': 'success'},
-    'payment_failed': {'text': 'Failed', 'variant': 'danger'},
-    'open': {'text': 'Open', 'variant': 'warning'},
-    'void': {'text': 'Void', 'variant': 'default'},
-    'draft': {'text': 'Draft', 'variant': 'default'},
-    'uncollectible': {'text': 'Uncollectible', 'variant': 'danger'}
-} %}
-{% set config = status_map.get(status, {'text': status|title, 'variant': 'default'}) %}
-{{ badge(config.text, config.variant) }}
-{% endmacro %}
-
-
-{# Subscription tier badge - VIP, Pro, Free with status context #}
-{% macro tier_badge(tier, status=none) %}
-{% from "macros/icons.html" import icon %}
-{% if tier == 'vip' %}
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-amber-300 border border-amber-500/30"
-      style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(234, 179, 8, 0.1));">
-    {{ icon('star', 'w-3 h-3 mr-1 text-amber-400') }}
-    VIP
-</span>
-{% elif tier == 'pro' %}
-    {% if status == 'active' %}
-    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400">Pro</span>
-    {% elif status == 'trialing' %}
-    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-500/20 text-brand-500">Pro Trial</span>
-    {% elif status == 'canceled' %}
-    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400">Pro &mdash; Canceled</span>
-    {% elif status == 'past_due' %}
-    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400">Pro &mdash; Past Due</span>
-    {% else %}
-    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-surface-20/50 text-slate-300">Pro &mdash; {{ status|title if status else '' }}</span>
-    {% endif %}
-{% else %}
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-surface-20/50 text-slate-500">Free Tier</span>
-{% endif %}
 {% endmacro %}

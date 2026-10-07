@@ -2,7 +2,7 @@
     Icon Macros - Heroicons and Weather Icons for LuxAnalytics templates.
 
     Usage:
-        {% from "macros/icons.html" import icon, weather_icon, icon_box %}
+        {% from "macros/icons.html" import icon, icon_box %}
 #}
 
 
@@ -48,48 +48,6 @@
     {{ icon(icon_name, final_icon_size ~ ' ' ~ c.text) }}
 </div>
 {% endmacro %}
-
-
-{# ============================================================================
-   LIVE PING INDICATOR
-   Animated ping dot for live/active status indicators.
-
-   Parameters:
-     - size: 'sm' (2x2), 'md' (3x3), 'lg' (4x4) - default 'sm'
-     - color: 'green', 'brand', 'cyan', 'red', 'white', etc. - default 'green'
-     - dot_class: additional classes for the inner dot (e.g., 'border-2 shadow-lg')
-
-   Usage:
-     {{ live_ping() }}                    - small green (default)
-     {{ live_ping('md', 'cyan') }}        - medium cyan
-     {{ live_ping('lg', 'brand') }}       - large brand color
-     {{ live_ping('sm', item.color) }}    - dynamic color from variable
-     {{ live_ping('md', 'white', 'border-2 border-surface-0 shadow-lg') }}
-   ============================================================================ #}
-
-{% macro live_ping(size='sm', color='green', dot_class='') %}
-{% set sizes = {
-    'sm': 'h-2 w-2',
-    'md': 'h-3 w-3',
-    'lg': 'h-4 w-4'
-} %}
-{% set colors = {
-    'green': {'ping': 'bg-green-400', 'dot': 'bg-green-500'},
-    'brand': {'ping': 'bg-brand-500', 'dot': 'bg-brand-500'},
-    'cyan': {'ping': 'bg-cyan-400', 'dot': 'bg-cyan-500'},
-    'red': {'ping': 'bg-red-400', 'dot': 'bg-red-500'},
-    'amber': {'ping': 'bg-amber-400', 'dot': 'bg-amber-500'},
-    'purple': {'ping': 'bg-purple-400', 'dot': 'bg-purple-500'},
-    'blue': {'ping': 'bg-blue-400', 'dot': 'bg-blue-500'},
-    'white': {'ping': 'bg-white', 'dot': 'bg-white'}
-} %}
-{% set s = sizes.get(size, sizes.sm) %}
-{% set c = colors.get(color, colors.green) %}
-<span class="relative flex {{ s }}">
-    <span class="animate-ping absolute inline-flex h-full w-full rounded-full {{ c.ping }} opacity-75"></span>
-    <span class="relative inline-flex rounded-full {{ s }} {{ c.dot }} {{ dot_class }}"></span>
-</span>
-{%- endmacro %}
 
 
 {# ============================================================================
@@ -139,76 +97,3 @@
 {%- set icon_path = 'icons/hero/' ~ icon_dir ~ '/' ~ resolved_name ~ '.svg' -%}
 <span class="inline-flex items-center justify-center shrink-0 [&>svg]:w-full [&>svg]:h-full {{ class }}" aria-hidden="true">{%- include icon_path ignore missing -%}</span>
 {%- endmacro %}
-
-
-{# ============================================================================
-   WEATHER ICONS
-   Maps WeatherFlow icon codes to local weather-icons SVG files.
-   Uses Erik Flowers' Weather Icons: https://github.com/erikflowers/weather-icons
-   SVGs are inlined so CSS color classes can apply via currentColor.
-   ============================================================================ #}
-
-{# Weather icon component - maps WeatherFlow codes to local SVGs #}
-{% macro weather_icon(code, class="w-16 h-16", alt="") %}
-{# Official WeatherFlow Forecast Icon Values (19 total) + UI extras
-   Source: WeatherFlow API documentation
-   Extras: sunrise, sunset, hail, tornado, hurricane
-   Unmapped codes fall back to 'wi-na' (N/A icon) #}
-{% set icon_map = {
-    'clear-day': 'wi-day-sunny',
-    'clear-night': 'wi-night-clear',
-    'cloudy': 'wi-cloudy',
-    'foggy': 'wi-fog',
-    'partly-cloudy-day': 'wi-day-cloudy',
-    'partly-cloudy-night': 'wi-night-alt-cloudy',
-    'possibly-rainy-day': 'wi-day-showers',
-    'possibly-rainy-night': 'wi-night-alt-showers',
-    'possibly-sleet-day': 'wi-day-sleet',
-    'possibly-sleet-night': 'wi-night-alt-sleet',
-    'possibly-snow-day': 'wi-day-snow',
-    'possibly-snow-night': 'wi-night-alt-snow',
-    'possibly-thunderstorm-day': 'wi-day-storm-showers',
-    'possibly-thunderstorm-night': 'wi-night-alt-storm-showers',
-    'rainy': 'wi-rain',
-    'sleet': 'wi-sleet',
-    'snow': 'wi-snow',
-    'thunderstorm': 'wi-thunderstorm',
-    'windy': 'wi-windy',
-    'sunrise': 'wi-sunrise',
-    'sunset': 'wi-sunset',
-    'hail': 'wi-hail',
-    'tornado': 'wi-tornado',
-    'hurricane': 'wi-hurricane'
-} %}
-{# Color classes for weather icon styling #}
-{% set color_map = {
-    'clear-day': 'wi-sunny',
-    'clear-night': 'wi-night',
-    'cloudy': 'wi-cloudy',
-    'foggy': 'wi-fog',
-    'partly-cloudy-day': 'wi-cloudy',
-    'partly-cloudy-night': 'wi-night',
-    'possibly-rainy-day': 'wi-rain',
-    'possibly-rainy-night': 'wi-rain',
-    'possibly-sleet-day': 'wi-snow',
-    'possibly-sleet-night': 'wi-snow',
-    'possibly-snow-day': 'wi-snow',
-    'possibly-snow-night': 'wi-snow',
-    'possibly-thunderstorm-day': 'wi-storm',
-    'possibly-thunderstorm-night': 'wi-storm',
-    'rainy': 'wi-rain',
-    'sleet': 'wi-snow',
-    'snow': 'wi-snow',
-    'thunderstorm': 'wi-storm',
-    'windy': 'wi-wind',
-    'sunrise': 'wi-sunny',
-    'sunset': 'wi-sunny',
-    'hail': 'wi-storm',
-    'tornado': 'wi-storm',
-    'hurricane': 'wi-storm'
-} %}
-{% set icon_file = icon_map.get(code, 'wi-na') %}
-{% set color_class = color_map.get(code, '') %}
-{% set icon_path = 'icons/weather/' ~ icon_file ~ '.svg' %}
-<span class="inline-flex items-center justify-center shrink-0 [&>svg]:w-full [&>svg]:h-full {{ class }} {{ color_class }}" role="img" aria-label="{{ alt or code or 'Weather' }}">{%- include icon_path ignore missing -%}</span>
-{% endmacro %}

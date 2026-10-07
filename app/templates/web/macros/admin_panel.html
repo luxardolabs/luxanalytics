@@ -43,14 +43,3 @@
 {% endmacro %}
 
 
-{# Panel footer with custom actions (left side) and close (right side) #}
-{% macro panel_footer_actions() %}
-<div class="flex-shrink-0 px-6 py-4 border-t border-surface-20 bg-surface-0" >
-    <div class="flex items-center justify-between gap-3">
-        <div class="flex gap-2">
-            {{ caller() }}
-        </div>
-        {{ btn_close(alpine_click="show = false; setTimeout(() => document.getElementById('panel-container').innerHTML = '', 300)") }}
-    </div>
-</div>
-{% endmacro %}

@@ -308,30 +308,6 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
 {% endif %}
 {% endmacro %}
 
-{# Icon presets for common actions #}
-{% macro icon_arrow_right() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-</svg>
-{% endmacro %}
-
-{% macro icon_check() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-</svg>
-{% endmacro %}
-
-{% macro icon_plus() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-</svg>
-{% endmacro %}
-
-{% macro icon_trash() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-</svg>
-{% endmacro %}
 
 {% macro icon_edit() %}
 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -339,118 +315,11 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
 </svg>
 {% endmacro %}
 
-{% macro icon_external() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-</svg>
-{% endmacro %}
-
-{% macro icon_close() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-</svg>
-{% endmacro %}
-
-{% macro icon_save() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
-</svg>
-{% endmacro %}
-
-{% macro icon_download() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-</svg>
-{% endmacro %}
-
-{% macro icon_upload() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-</svg>
-{% endmacro %}
-
-{# Convenience macros for common button patterns #}
-
-{% macro btn_primary(text, size='md', type='button', full_width=false, disabled=false, loading=false, onclick=None, id=None, hx_get=None, hx_post=None, hx_target=None, hx_swap=None, icon_left=None, icon_right=None) %}
-    {{ button(text=text, variant='primary', size=size, type=type, full_width=full_width, disabled=disabled, loading=loading, onclick=onclick, id=id, hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap, icon_left=icon_left, icon_right=icon_right) }}
-{% endmacro %}
-
-{% macro btn_secondary(text, size='md', type='button', full_width=false, disabled=false, loading=false, onclick=None, id=None, hx_get=None, hx_post=None, hx_target=None, hx_swap=None, icon_left=None, icon_right=None) %}
-    {{ button(text=text, variant='secondary', size=size, type=type, full_width=full_width, disabled=disabled, loading=loading, onclick=onclick, id=id, hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap, icon_left=icon_left, icon_right=icon_right) }}
-{% endmacro %}
-
-{% macro btn_danger(text, size='md', type='button', full_width=false, disabled=false, loading=false, onclick=None, id=None, hx_get=None, hx_post=None, hx_target=None, hx_swap=None, icon_left=None, icon_right=None) %}
-    {{ button(text=text, variant='danger', size=size, type=type, full_width=full_width, disabled=disabled, loading=loading, onclick=onclick, id=id, hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap, icon_left=icon_left, icon_right=icon_right) }}
-{% endmacro %}
-
-{% macro btn_success(text, size='md', type='button', full_width=false, disabled=false, loading=false, onclick=None, id=None, hx_get=None, hx_post=None, hx_target=None, hx_swap=None, icon_left=None, icon_right=None) %}
-    {{ button(text=text, variant='success', size=size, type=type, full_width=full_width, disabled=disabled, loading=loading, onclick=onclick, id=id, hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap, icon_left=icon_left, icon_right=icon_right) }}
-{% endmacro %}
-
-{% macro btn_submit(text='Submit', size='md', full_width=false, disabled=false, loading=false, loading_text=None, id=None, name=None, value=None, icon_left=None, icon_right=None) %}
-    {{ button(text=text, variant='primary', type='submit', size=size, full_width=full_width, disabled=disabled, loading=loading, loading_text=loading_text, id=id, name=name, value=value, icon_left=icon_left, icon_right=icon_right) }}
-{% endmacro %}
 
 {% macro btn_cancel(text='Cancel', size='md', full_width=false, onclick=None, alpine_click=None, id=None, hx_post=None, hx_swap=None, extra_classes=None, extra_attrs=None) %}
     {{ button(text=text, variant='secondary', size=size, full_width=full_width, onclick=onclick, alpine_click=alpine_click, id=id, hx_post=hx_post, hx_swap=hx_swap, extra_classes=extra_classes, extra_attrs=extra_attrs) }}
 {% endmacro %}
 
-{% macro btn_delete(text='Delete', size='md', type='button', full_width=false, onclick=None, id=None, hx_get=None, hx_post=None, hx_target=None, hx_swap=None) %}
-    {# Ghost-danger for reversible/soft deletes - use btn_delete_permanent for irreversible #}
-    {{ button(text=text, variant='ghost-danger', size=size, type=type, full_width=full_width, onclick=onclick, id=id, icon_left='trash', hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro btn_delete_permanent(text='Delete Permanently', size='md', type='button', full_width=false, onclick=None, id=None, hx_get=None, hx_post=None, hx_target=None, hx_swap=None) %}
-    {# Solid danger for IRREVERSIBLE destructive actions only #}
-    {{ button(text=text, variant='danger', size=size, type=type, full_width=full_width, onclick=onclick, id=id, icon_left='trash', hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro btn_save(text='Save', size='md', full_width=false, disabled=false, loading=false, id=None) %}
-    {{ button(text=text, variant='primary', type='submit', size=size, full_width=full_width, disabled=disabled, loading=loading, id=id, icon_left='check') }}
-{% endmacro %}
-
-{% macro btn_link(text, href, variant='primary', size='md', target=None, full_width=false, icon_left=None, icon_right=None, extra_classes='') %}
-    {{ button(text=text, href=href, variant=variant, size=size, target=target, full_width=full_width, icon_left=icon_left, icon_right=icon_right, extra_classes=extra_classes) }}
-{% endmacro %}
-
-{# ═══════════════════════════════════════════════════════════════════════════
-   SEMANTIC ACTION MACROS - Use these for consistent action buttons
-   ═══════════════════════════════════════════════════════════════════════════ #}
-
-{% macro btn_approve(text='Approve', size='md', hx_post=None, hx_target=None, hx_swap=None) %}
-    {# Solid success for positive state changes #}
-    {{ button(text=text, variant='success', size=size, icon_left='check-circle', hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro btn_reactivate(text='Reactivate', size='md', hx_post=None, hx_target=None, hx_swap=None) %}
-    {# Solid success for enabling/restoring #}
-    {{ button(text=text, variant='success', size=size, icon_left='play-circle', hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro btn_revoke(text='Revoke', size='md', hx_post=None, hx_target=None, hx_swap=None) %}
-    {# Ghost-danger for reversible disabling #}
-    {{ button(text=text, variant='ghost-danger', size=size, icon_left='x-circle', hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro btn_suspend(text='Suspend', size='md', hx_post=None, hx_target=None, hx_swap=None) %}
-    {# Ghost-warning for temporary disabling #}
-    {{ button(text=text, variant='ghost-warning', size=size, icon_left='pause-circle', hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro btn_regenerate(text='Regenerate', size='md', hx_get=None, hx_post=None, hx_target=None, hx_swap=None) %}
-    {# Ghost-warning for regenerate/reset actions #}
-    {{ button(text=text, variant='ghost-warning', size=size, icon_left='key', hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro btn_refresh(text='Refresh', size='md', hx_get=None, hx_target=None, hx_swap=None, hx_include=None) %}
-    {# Secondary for non-destructive refresh #}
-    {{ button(text=text, variant='secondary', size=size, icon_left='arrow-path', hx_get=hx_get, hx_target=hx_target, hx_swap=hx_swap, hx_include=hx_include) }}
-{% endmacro %}
-
-{% macro btn_done(text='Done', size='md', alpine_click=None, onclick=None) %}
-    {# Primary for completing/finishing actions #}
-    {{ button(text=text, variant='primary', size=size, alpine_click=alpine_click, onclick=onclick) }}
-{% endmacro %}
 
 {% macro btn_close(text='Close', size='md', alpine_click=None, onclick=None) %}
     {# Secondary for dismissive actions #}
@@ -471,35 +340,6 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
     {{ button('', variant='icon-square-primary', icon_left='pencil-square', title=title, hx_get=hx_get, hx_target=hx_target, hx_swap=hx_swap) }}
 {% endmacro %}
 
-{% macro icon_approve(hx_post=None, hx_target=None, hx_swap=None, title='Approve') %}
-    {# Success for positive state changes #}
-    {{ button('', variant='icon-square-success', icon_left='check-circle', title=title, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro icon_regenerate(hx_get=None, hx_post=None, hx_target=None, hx_swap=None, title='Regenerate') %}
-    {# Warning for regenerate/reset #}
-    {{ button('', variant='icon-square-warning', icon_left='key', title=title, hx_get=hx_get, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro icon_suspend(hx_post=None, hx_target=None, hx_swap=None, title='Suspend') %}
-    {# Orange for pause/suspend #}
-    {{ button('', variant='icon-square-orange', icon_left='pause-circle', title=title, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro icon_revoke(hx_post=None, hx_target=None, hx_swap=None, title='Revoke') %}
-    {# Danger for disable/revoke #}
-    {{ button('', variant='icon-square-danger', icon_left='x-circle', title=title, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro icon_delete(hx_post=None, hx_target=None, hx_swap=None, title='Delete') %}
-    {# Danger for delete #}
-    {{ button('', variant='icon-square-danger', icon_left='trash', title=title, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
-
-{% macro icon_reactivate(hx_post=None, hx_target=None, hx_swap=None, title='Reactivate') %}
-    {# Success for enable/restore #}
-    {{ button('', variant='icon-square-success', icon_left='play-circle', title=title, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
-{% endmacro %}
 
 {% macro icon_close_modal(onclick=None, alpine_click=None, title='Close', extra_classes='') %}
     {# Standard modal close X button - muted style, larger icon
@@ -511,44 +351,9 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
     {{ button('', variant='icon-muted', icon_left='x-mark', onclick=effective_onclick, alpine_click=alpine_click, title=title, icon_size='w-6 h-6', extra_classes=extra_classes) }}
 {% endmacro %}
 
-{% macro btn_update_changes(label='Update', no_changes_label='No Changes', has_changes_var='hasChanges', extra_disabled=None, extra_classes='') %}
-    {# Submit button for forms with Alpine hasChanges tracking
-       Shows disabled "No Changes" when nothing changed, enabled label when changed
-
-       Parameters:
-         label: Text when there are changes (default: "Update")
-         no_changes_label: Text when disabled (default: "No Changes")
-         has_changes_var: Alpine.js variable name (default: "hasChanges")
-         extra_disabled: Additional Alpine disable condition (e.g., "quantity < 1")
-         extra_classes: Additional CSS classes
-    #}
-    {% set full_disabled = "!" ~ has_changes_var ~ (" || (" ~ extra_disabled ~ ")" if extra_disabled else "") %}
-    {{ button(no_changes_label, variant='primary', size='sm', type='submit', disabled=true,
-              alpine_show="!" ~ has_changes_var, extra_classes=extra_classes) }}
-    {{ button(label, variant='primary', size='sm', type='submit',
-              alpine_show=has_changes_var, alpine_disabled=extra_disabled if extra_disabled else None,
-              extra_classes=extra_classes) }}
-{% endmacro %}
-
-{# Double-click delete icon button - self-contained with its own Alpine scope
-   First click turns button solid red with glow, second click performs delete
-   Ghost style: transparent → fills red on arm → glows on confirm
-#}
-{% macro delete_icon_button(hx_post=None, hx_delete=None, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Delete') %}
-{% set method = 'DELETE' if hx_delete else 'POST' %}
-{% set url = hx_delete if hx_delete else hx_post %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { let t = '{{ hx_target }}'; htmx.ajax('{{ method }}', '{{ url }}', {target: t.startsWith('closest ') ? $el.closest(t.substring(8)) : t, swap: '{{ hx_swap }}'{% if hx_vals %}, values: {{ hx_vals }}{% endif %}}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-glow-error-lg'"
-        :title="confirm ? 'Click again to confirm' : '{{ title }}'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/trash.svg' %}</span>
-</button>
-{% endmacro %}
 
 {# Purge Icon Button - Double-click to purge (fire icon variant)
-   Same pattern as delete_icon_button but uses fire icon for cache purge actions.
+   Uses the fire icon for cache purge actions.
    First click activates confirmation state (glowing red), second click executes.
 #}
 {% macro purge_icon_button(hx_post=None, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Purge') %}
@@ -562,112 +367,6 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
 </button>
 {% endmacro %}
 
-{# Archive Icon Button - Double-click to archive (amber variant)
-   Same pattern as delete_icon_button but with amber/warning colors.
-   First click activates confirmation state (glowing amber), second click executes.
-#}
-{% macro archive_icon_button(hx_post=None, hx_delete=None, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Archive') %}
-{% set method = 'DELETE' if hx_delete else 'POST' %}
-{% set url = hx_delete if hx_delete else hx_post %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { let t = '{{ hx_target }}'; htmx.ajax('{{ method }}', '{{ url }}', {target: t.startsWith('closest ') ? $el.closest(t.substring(8)) : t, swap: '{{ hx_swap }}'{% if hx_vals %}, values: {{ hx_vals }}{% endif %}}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-amber-500 text-white border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.5)]' : 'bg-transparent text-amber-400 border-amber-500/50 hover:bg-amber-500 hover:text-white hover:border-amber-500 hover:shadow-[0_0_20px_rgba(245,158,11,0.5)]'"
-        :title="confirm ? 'Click again to confirm' : '{{ title }}'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/archive-box.svg' %}</span>
-</button>
-{% endmacro %}
-
-{# Revoke Icon Button - Double-click to revoke (red variant with x-circle icon)
-   Same pattern as delete_icon_button but uses x-circle icon for revoke actions.
-   First click activates confirmation state (glowing red), second click executes.
-#}
-{% macro revoke_icon_button(hx_post, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Revoke') %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('POST', '{{ hx_post }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'{% if hx_vals %}, values: {{ hx_vals }}{% endif %}}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-glow-error-lg'"
-        :title="confirm ? 'Click again to confirm' : '{{ title }}'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/x-circle.svg' %}</span>
-</button>
-{% endmacro %}
-
-{# Text Delete Button - Double-click to delete (text button variant)
-   Same double-click pattern but for text buttons instead of icon buttons.
-   First click arms (red glow), second click executes.
-#}
-{% macro btn_delete_confirm(text='Delete', hx_post=None, hx_delete=None, hx_target='body', hx_swap='outerHTML', size='sm', timeout=3000) %}
-{% set method = 'DELETE' if hx_delete else 'POST' %}
-{% set url = hx_delete if hx_delete else hx_post %}
-{% set size_classes = {
-    'xs': 'px-2.5 py-1.5 text-xs rounded-lg',
-    'sm': 'px-3 py-2 text-sm rounded-lg',
-    'md': 'px-4 py-2.5 text-sm rounded-lg'
-} %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('{{ method }}', '{{ url }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500'"
-        class="inline-flex items-center gap-2 border-2 font-medium transition-all duration-200 {{ size_classes[size] }}">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/trash.svg' %}</span>
-    <span x-text="confirm ? 'Click to confirm' : '{{ text }}'">{{ text }}</span>
-</button>
-{% endmacro %}
-
-{# Text Revoke Button - Double-click to revoke (text button variant)
-   Same double-click pattern but for text buttons.
-#}
-{% macro btn_revoke_confirm(text='Revoke', hx_post=None, hx_target='body', hx_swap='outerHTML', size='sm', timeout=3000) %}
-{% set size_classes = {
-    'xs': 'px-2.5 py-1.5 text-xs rounded-lg',
-    'sm': 'px-3 py-2 text-sm rounded-lg',
-    'md': 'px-4 py-2.5 text-sm rounded-lg'
-} %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('POST', '{{ hx_post }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500'"
-        class="inline-flex items-center gap-2 border-2 font-medium transition-all duration-200 {{ size_classes[size] }}">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/x-circle.svg' %}</span>
-    <span x-text="confirm ? 'Click to confirm' : '{{ text }}'">{{ text }}</span>
-</button>
-{% endmacro %}
-
-{# Cancel Icon Button - Double-click to cancel (orange variant with stop-circle icon)
-   For canceling running jobs, imports, exports, etc.
-   First click activates confirmation state (glowing orange), second click executes.
-#}
-{% macro cancel_icon_button(hx_post, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Cancel') %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('POST', '{{ hx_post }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'{% if hx_vals %}, values: {{ hx_vals }}{% endif %}}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-orange-500 text-white border-orange-500 shadow-glow-warning-lg' : 'bg-transparent text-orange-400 border-orange-500/50 hover:bg-orange-500 hover:text-white hover:border-orange-500 hover:shadow-glow-warning-lg'"
-        :title="confirm ? 'Click again to confirm' : '{{ title }}'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/stop-circle.svg' %}</span>
-</button>
-{% endmacro %}
-
-{# Text Cancel Button - Double-click to cancel (text button variant)
-   For canceling jobs, subscriptions, etc. Orange variant with stop-circle icon.
-#}
-{% macro btn_cancel_confirm(text='Cancel', hx_post=None, hx_target='body', hx_swap='outerHTML', size='sm', timeout=3000) %}
-{% set size_classes = {
-    'xs': 'px-2.5 py-1.5 text-xs rounded-lg',
-    'sm': 'px-3 py-2 text-sm rounded-lg',
-    'md': 'px-4 py-2.5 text-sm rounded-lg'
-} %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('POST', '{{ hx_post }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-orange-500 text-white border-orange-500 shadow-glow-warning-lg' : 'bg-transparent text-orange-400 border-orange-500/50 hover:bg-orange-500 hover:text-white hover:border-orange-500'"
-        class="inline-flex items-center gap-2 border-2 font-medium transition-all duration-200 {{ size_classes[size] }}">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/stop-circle.svg' %}</span>
-    <span x-text="confirm ? 'Click to confirm' : '{{ text }}'">{{ text }}</span>
-</button>
-{% endmacro %}
 
 {# Purge Icon Button - Double-click to purge cache/sessions (red with fire icon)
 #}
@@ -682,58 +381,6 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
 </button>
 {% endmacro %}
 
-{# Text Purge Button - Double-click to purge (text button variant)
-#}
-{% macro btn_purge_confirm(text='Purge', hx_post=None, hx_target='body', hx_swap='outerHTML', size='sm', timeout=3000) %}
-{% set size_classes = {
-    'xs': 'px-2.5 py-1.5 text-xs rounded-lg',
-    'sm': 'px-3 py-2 text-sm rounded-lg',
-    'md': 'px-4 py-2.5 text-sm rounded-lg'
-} %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('POST', '{{ hx_post }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500'"
-        class="inline-flex items-center gap-2 border-2 font-medium transition-all duration-200 {{ size_classes[size] }}">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/fire.svg' %}</span>
-    <span x-text="confirm ? 'Click to confirm' : '{{ text }}'">{{ text }}</span>
-</button>
-{% endmacro %}
-
-{# Text Disconnect Button - Double-click to disconnect (text button variant)
-   For disconnecting accounts, integrations, etc.
-#}
-{% macro btn_disconnect_confirm(text='Disconnect', hx_post=None, hx_target='body', hx_swap='outerHTML', size='sm', timeout=3000) %}
-{% set size_classes = {
-    'xs': 'px-2.5 py-1.5 text-xs rounded-lg',
-    'sm': 'px-3 py-2 text-sm rounded-lg',
-    'md': 'px-4 py-2.5 text-sm rounded-lg'
-} %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('POST', '{{ hx_post }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500'"
-        class="inline-flex items-center gap-2 border-2 font-medium transition-all duration-200 {{ size_classes[size] }}">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/link-slash.svg' %}</span>
-    <span x-text="confirm ? 'Click to confirm' : '{{ text }}'">{{ text }}</span>
-</button>
-{% endmacro %}
-
-{# Remove Icon Button - Double-click to remove item from list (red with x-circle icon)
-   For removing items from collections (stations from groups, coupons from tenants, etc.)
-#}
-{% macro remove_icon_button(hx_post=None, hx_delete=None, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Remove') %}
-{% set method = 'DELETE' if hx_delete else 'POST' %}
-{% set url = hx_delete if hx_delete else hx_post %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { htmx.ajax('{{ method }}', '{{ url }}', {target: '{{ hx_target }}', swap: '{{ hx_swap }}'{% if hx_vals %}, values: {{ hx_vals }}{% endif %}}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-glow-error-lg'"
-        :title="confirm ? 'Click again to confirm' : '{{ title }}'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/x-circle.svg' %}</span>
-</button>
-{% endmacro %}
 
 {# ═══════════════════════════════════════════════════════════════════════════
    COPY BUTTON MACROS - Clipboard copy with visual feedback
@@ -770,140 +417,4 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
     {{ icon('clipboard-document', 'w-4 h-4') }}
     <span x-text="copied ? '{{ success_text }}' : '{{ text }}'">{{ text }}</span>
 </button>
-{% endmacro %}
-
-{# Icon Copy Button - Icon-only copy button with clipboard/check icon swap
-   Matches icon-square-* styling pattern: w-8 h-8, rounded-lg, border-2
-
-   Parameters:
-     target_id: ID of the element to copy from (required)
-     timeout: Time in ms before reset (default: 2000)
-     use_inner_text: Set true if copying from a <code> or element with innerText instead of input.value
-     title: Tooltip text (default: "Copy to clipboard")
-
-   Example usage:
-     {{ icon_copy('api-key-value', use_inner_text=true) }}
-     {{ icon_copy('my-input-id') }}
-#}
-{% macro icon_copy(target_id, timeout=2000, use_inner_text=false, title='Copy to clipboard') %}
-<button type="button"
-        x-data="{ copied: false }"
-        @click="navigator.clipboard.writeText(document.getElementById('{{ target_id }}').{% if use_inner_text %}innerText{% else %}value{% endif %}).then(() => { copied = true; setTimeout(() => copied = false, {{ timeout }}); })"
-        :class="copied ? 'bg-green-500 text-white border-green-500 shadow-[0_0_20px_rgba(22,163,74,0.4)]' : 'bg-transparent text-slate-500 border-surface-20 hover:text-brand-500 hover:border-brand-500 hover:bg-surface-10/50'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-        title="{{ title }}">
-    <template x-if="!copied">
-        {{ icon('clipboard-document', 'w-4 h-4') }}
-    </template>
-    <template x-if="copied">
-        {{ icon('check', 'w-4 h-4') }}
-    </template>
-</button>
-{% endmacro %}
-
-{# Icon Copy URL - Icon-only button that copies a URL string to clipboard
-   Same visual style as icon_copy but takes a URL directly instead of a target element ID.
-
-   Parameters:
-     url: The URL string to copy (required)
-     timeout: Time in ms before reset (default: 2000)
-     title: Tooltip text (default: "Copy link")
-
-   Example usage:
-     {{ icon_copy_url('/settings/kiosk/' ~ playlist.slug ~ '/launch') }}
-#}
-{% macro icon_copy_url(url, timeout=2000, title='Copy link') %}
-<button type="button"
-        x-data="{ copied: false }"
-        @click="navigator.clipboard.writeText(window.location.origin + '{{ url }}').then(() => { copied = true; setTimeout(() => copied = false, {{ timeout }}); })"
-        :class="copied ? 'bg-green-500 text-white border-green-500 shadow-[0_0_20px_rgba(22,163,74,0.4)]' : 'bg-transparent text-slate-500 border-surface-20 hover:text-brand-500 hover:border-brand-500 hover:bg-surface-10/50'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-        title="{{ title }}">
-    <template x-if="!copied">
-        {{ icon('link', 'w-4 h-4') }}
-    </template>
-    <template x-if="copied">
-        {{ icon('check', 'w-4 h-4') }}
-    </template>
-</button>
-{% endmacro %}
-
-{# Audio Guide Button - Museum template speaker button with speaking state toggle
-   Primary: Uses pre-generated Piper TTS audio files
-   Fallback: Uses Web Speech API via MuseumAudioGuide.js
-   Matches icon-square-* pattern: w-8 h-8, rounded-lg, border-2
-
-   Parameters:
-     excuse_text: The excuse text (used for Web Speech fallback)
-     item_id: The ClaimItem UUID
-     audio_urls: Optional dict of {style: url} for pre-generated audio (e.g. {"british": "/static/audio/..."})
-#}
-{% macro audio_guide_button(excuse_text, item_id, audio_urls=None) %}
-<button type="button"
-        class="audio-guide-btn justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-colors bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-700 shadow-none focus:ring-2 focus:ring-amber-500"
-        data-excuse-text="{{ excuse_text | e }}"
-        data-item-id="{{ item_id }}"
-        {% if audio_urls %}data-audio-urls='{{ audio_urls | tojson }}'{% endif %}
-        title="Play audio guide"
-        aria-pressed="false"
-        aria-label="Listen to this excuse">
-    {# Speak icon - visible when not speaking #}
-    <svg class="w-4 h-4 icon-speak" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <circle cx="9" cy="8" r="4" stroke-width="2"/>
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4"/>
-        <path stroke-linecap="round" stroke-width="2" d="M17 8.5c.5.5.8 1.2.8 2s-.3 1.5-.8 2"/>
-        <path stroke-linecap="round" stroke-width="2" d="M19.5 6c1 1 1.5 2.3 1.5 3.5s-.5 2.5-1.5 3.5"/>
-    </svg>
-    {# Stop icon - visible when speaking (hidden by default, shown via JS) #}
-    <svg class="w-4 h-4 icon-stop hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" stroke-width="2"/>
-        <rect x="9" y="9" width="6" height="6" rx="1" stroke-width="2"/>
-    </svg>
-</button>
-{% endmacro %}
-
-{# Voice Style Button - for audio guide voice selector #}
-{% macro voice_style_button(style_name, display_name, current_style_var='style') %}
-{{ button(
-    text=display_name,
-    variant='ghost',
-    size='xs',
-    alpine_click="window.MuseumAudioGuide?.setVoiceStyle('" ~ style_name ~ "'); " ~ current_style_var ~ " = '" ~ style_name ~ "'",
-    alpine_bind_class="{ 'bg-amber-100 text-amber-800 border-amber-300': " ~ current_style_var ~ " === '" ~ style_name ~ "' }",
-    extra_classes='border border-transparent'
-) }}
-{% endmacro %}
-
-
-{# ============================================================================
-   Icon Toggle — checkbox styled as icon-square button (matches icon-square-primary/muted)
-   Active: brand border + text + glow (icon-square-primary style)
-   Inactive: muted border + text (icon-square-muted style)
-   Usage: {{ icon_toggle('envelope', 'notify_email', checked=config.notify_email, title='Email') }}
-   ============================================================================ #}
-{% macro icon_toggle(icon_name, name, checked=false, title='', size='sm', disabled=false, disabled_title='') %}
-{% set sizes = {
-    'xs': {'box': 'w-6 h-6', 'icon': 'w-3 h-3'},
-    'sm': {'box': 'w-7 h-7', 'icon': 'w-3.5 h-3.5'},
-    'md': {'box': 'w-8 h-8', 'icon': 'w-4 h-4'},
-} %}
-{% set s = sizes[size] if size in sizes else sizes['sm'] %}
-{% if disabled %}
-<span class="inline-flex" title="{{ disabled_title or title }}">
-    <span class="{{ s.box }} rounded-lg border-2 inline-flex items-center justify-center
-                 border-surface-20/30 text-slate-500 bg-transparent cursor-not-allowed opacity-50">
-        <span class="{{ s.icon }} [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/' ~ icon_name ~ '.svg' %}</span>
-    </span>
-</span>
-{% else %}
-<label class="cursor-pointer inline-flex" title="{{ title }}">
-    <input type="checkbox" name="{{ name }}" {% if checked %}checked{% endif %} class="peer sr-only">
-    {# Active state matches icon-square-primary, inactive matches icon-square-muted #}
-    <span class="{{ s.box }} rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200
-                 peer-checked:border-brand-500 peer-checked:text-slate-900 peer-checked:bg-brand-500 peer-checked:shadow-[0_0_12px_rgba(255,165,0,0.3)] peer-checked:hover:shadow-glow-lg
-                 border-surface-20 text-slate-500 bg-transparent hover:bg-surface-20 hover:text-white hover:border-surface-20">
-        <span class="{{ s.icon }} [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/' ~ icon_name ~ '.svg' %}</span>
-    </span>
-</label>
-{% endif %}
 {% endmacro %}
