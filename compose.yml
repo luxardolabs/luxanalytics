@@ -1,4 +1,9 @@
-# Pinned project name: volumes and networks never track the checkout directory.
+# ONE stack for every environment (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD, "Compose: one way,
+# known"):   docker compose --env-file .env.<env> up -d
+# Environments differ only by .env.<env> (template: .env.example). The dev-only nginx runs under the
+# `dev` profile (COMPOSE_PROFILES=dev in .env.dev); prod sits behind the host's nginx instead.
+# Compose never builds: the app is the immutable image `make dev-deploy` / `make release` pushed,
+# pinned as TAG in .env.<env>. Logs are JSON on stdout (the fleet logging module).
 name: luxanalytics
 
 services:
@@ -6,9 +11,10 @@ services:
     image: postgres:16-alpine
     container_name: luxanalytics_db
     restart: unless-stopped
-    env_file:
-      - .env.dev
     environment:
+      POSTGRES_USER: luxanalytics
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.<env>}
+      POSTGRES_DB: luxanalytics
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
     volumes:
       - luxanalytics_postgres_data:/var/lib/postgresql/data
@@ -19,7 +25,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - luxanalytics_network
+      - luxardolabs
 
   luxanalytics_redis:
     image: redis:7-alpine
@@ -33,65 +39,59 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - luxanalytics_network
+      - luxardolabs
 
   luxanalytics_app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${REGISTRY:?set REGISTRY in .env.<env>}/luxardolabs/luxanalytics:${TAG:?make dev-deploy / make prod-deploy pins TAG in .env.<env>}
     container_name: luxanalytics_app
     restart: unless-stopped
     env_file:
-      - .env.dev
+      - .env.${DEPLOY_ENV:?set DEPLOY_ENV (dev|prod) in .env.<env>}
     expose:
       - "4000"
-    volumes:
-      - ./app:/app/app
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
-      - ./tests:/app/tests
     depends_on:
       luxanalytics_db:
         condition: service_healthy
       luxanalytics_redis:
         condition: service_healthy
-    command: >
-      sh -c "
-        uvicorn app.main:app --host 0.0.0.0 --port 4000 --reload
-      "
-    networks:
-      - luxanalytics_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - luxardolabs
 
-  nginx:
+  # Dev only: TLS on https://localhost:4000. A pass-through proxy; the app serves /static.
+  luxanalytics_nginx:
     image: nginx:alpine
     container_name: luxanalytics_nginx
+    profiles: ["dev"]
+    restart: unless-stopped
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./app/static:/usr/share/nginx/html/static:ro
-      # TLS certificates from the host: TLS_CERTS_DIR in Makefile.local (exported by make)
+      # TLS certificates from the host: TLS_CERTS_DIR in .env.dev
       - ${TLS_CERTS_DIR:-./nginx/ssl}:/etc/nginx/ssl:ro
     ports:
       - "4000:4000"
-    networks:
-      - luxanalytics_network
     depends_on:
       luxanalytics_app:
         condition: service_healthy
-    restart: unless-stopped
+    networks:
+      - luxardolabs
 
 volumes:
+  # External, named per environment: a typo can never mint an empty database.
   luxanalytics_postgres_data:
-    name: luxanalytics_postgres_data
+    name: ${POSTGRES_VOLUME:?set POSTGRES_VOLUME in .env.<env>}
     external: true
   luxanalytics_redis_data:
+    name: ${REDIS_VOLUME:?set REDIS_VOLUME in .env.<env>}
 
 networks:
-  luxanalytics_network:
-    driver: bridge
+  # The fleet's shared network (make network creates it on a fresh host).
+  luxardolabs:
+    name: luxardolabs
+    external: true

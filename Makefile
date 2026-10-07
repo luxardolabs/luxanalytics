@@ -55,7 +55,7 @@ export TLS_CERTS_DIR
 .PHONY: help check guard-version-check guard-upgrade guard-registry honest lint mypy format test arch plan \
         arch-rule arch-file lint-file mypy-file status test-db-up test-db-down db-verify \
         audit gitleaks gitleaks-staged onboard-check \
-        build build-fast up down restart logs logs-app logs-db shell shell-db test-local migrate migrate-down \
+        network up down restart logs logs-app logs-db shell shell-db migrate migrate-down \
         migrate-create clean stack-status health ps backup restore work quick css css-watch check-env \
         publish-sha release gh-release dev-deploy dev-pin test-build \
         buildx-setup version \
@@ -680,91 +680,89 @@ version: ## Show the version and the image refs this commit builds
 	@echo "This sha: $(SHA_IMAGE)"
 
 # =============================================================================
-# Development
+# Development — the ONE compose.yml with .env.dev (compose never builds: make dev-deploy)
 # =============================================================================
-build:
-	docker compose build --no-cache
+DEV_COMPOSE := docker compose --env-file .env.dev
 
-build-fast:
-	docker compose build
+network: ## Create the fleet's shared docker network (once per host)
+	@docker network inspect luxardolabs >/dev/null 2>&1 || docker network create luxardolabs
 
-up:
-	docker compose up -d
+up: network ## Start the dev stack (the TAG pinned in .env.dev)
+	$(DEV_COMPOSE) up -d
 	@echo "✅ LuxAnalytics is running at https://localhost:4000"
 
-dev:
-	docker compose up
+dev: network ## Start the dev stack in the foreground
+	$(DEV_COMPOSE) up
 
 down:
-	docker compose down
+	$(DEV_COMPOSE) down
 
 restart:
-	docker compose restart
+	$(DEV_COMPOSE) restart
 
 logs:
-	docker compose logs -f
+	$(DEV_COMPOSE) logs -f
 
 logs-app:
-	docker compose logs -f luxanalytics_app
+	$(DEV_COMPOSE) logs -f luxanalytics_app
 
 logs-db:
-	docker compose logs -f luxanalytics_db
+	$(DEV_COMPOSE) logs -f luxanalytics_db
 
 shell:
-	docker compose exec luxanalytics_app /bin/bash
+	$(DEV_COMPOSE) exec luxanalytics_app /bin/bash
 
 shell-db:
-	docker compose exec luxanalytics_db psql -U luxanalytics -d luxanalytics
-
-test-local:
-	cd src && pytest tests/ -v
+	$(DEV_COMPOSE) exec luxanalytics_db psql -U luxanalytics -d luxanalytics
 
 migrate:
-	docker compose exec luxanalytics_app alembic upgrade head
+	$(DEV_COMPOSE) exec luxanalytics_app alembic upgrade head
 
 migrate-down:
-	docker compose exec luxanalytics_app alembic downgrade -1
+	$(DEV_COMPOSE) exec luxanalytics_app alembic downgrade -1
 
-migrate-create:
+# Autogenerate runs in the test image with the checkout mounted, so the revision lands in
+# alembic/versions/ (the app container has no source mount). Against the dev DB.
+migrate-create: .test-image.stamp ## New alembic revision from the models (autogenerate — READ it)
 	@read -p "Enter migration message: " msg; \
-	docker compose exec luxanalytics_app alembic revision --autogenerate -m "$$msg"
+	docker run --rm --network luxardolabs --env-file .env.dev -v $(PWD):/app -w /app \
+	  $(TEST_IMAGE) alembic revision --autogenerate -m "$$msg"
 
 clean:
-	docker compose down -v
+	$(DEV_COMPOSE) down -v
 	rm -rf __pycache__ .pytest_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 stack-status: ## Container status + health of the local stack
 	@echo "🔍 LuxAnalytics v$(BUILD_VERSION)"
-	@docker compose ps
+	@$(DEV_COMPOSE) ps
 	@echo ""
-	@curl -sk https://localhost:4000/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "❌ API not responding"
+	@$(DEV_COMPOSE) exec -T luxanalytics_app curl -sf http://localhost:4000/health | python3 -m json.tool 2>/dev/null || echo "❌ API not responding"
 
 health:
-	@curl -sk https://localhost:4000/health | python3 -m json.tool || echo "❌ Service not responding"
+	@$(DEV_COMPOSE) exec -T luxanalytics_app curl -sf http://localhost:4000/health | python3 -m json.tool || echo "❌ Service not responding"
 
 ps:
-	docker compose ps
+	$(DEV_COMPOSE) ps
 
 backup:
 	@mkdir -p backups
-	@docker compose exec -T luxanalytics_db pg_dump -U luxanalytics luxanalytics > backups/luxanalytics_$$(date +%Y%m%d_%H%M%S).sql
+	@$(DEV_COMPOSE) exec -T luxanalytics_db pg_dump -U luxanalytics luxanalytics > backups/luxanalytics_$$(date +%Y%m%d_%H%M%S).sql
 	@echo "✅ Database backed up to backups/"
 
 restore:
 	@if [ -z "$(FILE)" ]; then echo "Usage: make restore FILE=backups/luxanalytics_YYYYMMDD_HHMMSS.sql"; exit 1; fi
-	@docker compose exec -T luxanalytics_db psql -U luxanalytics -d luxanalytics < $(FILE)
+	@$(DEV_COMPOSE) exec -T luxanalytics_db psql -U luxanalytics -d luxanalytics < $(FILE)
 	@echo "✅ Database restored from $(FILE)"
 
-work:
-	make build-fast
-	make up
-	make migrate
-	make logs
+work: ## Publish this commit, pin it in .env.dev, restart, migrate, tail logs
+	$(MAKE) dev-deploy
+	$(MAKE) migrate
+	$(MAKE) logs
 
 quick:
-	docker compose restart luxanalytics_app
-	docker compose logs -f luxanalytics_app
+	$(DEV_COMPOSE) restart luxanalytics_app
+	$(DEV_COMPOSE) logs -f luxanalytics_app
 
 css:
 	npm run build:css
@@ -787,11 +785,13 @@ PROD_JUMP ?=
 PROD_HOST ?=
 PROD_PATH ?= /opt/luxardolabs/luxanalytics
 PROD_SSH := ssh $(PROD_JUMP) "ssh $(PROD_HOST)
+# -f compose.yml: the node may still hold the retired compose.yaml, which compose would prefer.
+PROD_COMPOSE := docker compose -f compose.yml --env-file .env.prod
 
-prod-sync: ## Sync deploy/prod (compose + .env.prod + nginx conf) to the prod node
+prod-sync: ## Sync the stack (compose.yml, scripts/init.sql, .env.prod) to the prod node
 	@echo "Pushing deploy config to production..."
 	@# Streamed through both ssh hops: no staging file on any host.
-	@tar -czf - -C deploy/prod . | $(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf - -C $(PROD_PATH)/'"
+	@tar -czf - compose.yml scripts/init.sql -C deploy/prod .env.prod | $(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf - -C $(PROD_PATH)/'"
 	@echo "✅ Deploy config pushed to $(PROD_PATH)"
 
 # Prod runs a CUT release: the immutable :$(VERSION) that `make release` pushed, persisted as TAG= in
@@ -806,21 +806,21 @@ prod-pin: ## Point .env.prod at an ALREADY-RELEASED version (PROD_TAG, default V
 
 prod-deploy: prod-pin prod-sync ## Pin TAG, sync deploy/prod, pull + restart on the prod node
 	@echo "Deploying LuxAnalytics $(PROD_TAG) to production..."
-	@$(PROD_SSH) 'cd $(PROD_PATH) && docker compose --env-file .env.prod pull && docker compose --env-file .env.prod up -d'"
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) pull && $(PROD_COMPOSE) up -d'"
 	@echo "✅ Deployed $(PROD_TAG)"
 
 prod-restart:
 	@echo "Restarting LuxAnalytics on production..."
-	@$(PROD_SSH) 'cd $(PROD_PATH) && docker compose restart luxanalytics_app'"
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) restart luxanalytics_app'"
 	@echo "✅ Restarted"
 
 prod-stop:
 	@echo "Stopping LuxAnalytics on production..."
-	@$(PROD_SSH) 'cd $(PROD_PATH) && docker compose down'"
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) down'"
 	@echo "✅ Stopped"
 
 prod-logs:
-	@$(PROD_SSH) 'cd $(PROD_PATH) && docker compose logs --tail 50 luxanalytics_app'"
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) logs --tail 50 luxanalytics_app'"
 
 prod-status:
 	@$(PROD_SSH) 'docker ps --filter name=luxanalytics --format \"table {{.Names}}\t{{.Image}}\t{{.Status}}\"'"

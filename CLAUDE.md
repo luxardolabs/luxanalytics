@@ -136,7 +136,9 @@ app/
 ### Development
 
 ```bash
-make dev              # Start with logs (compose up)
+make network          # Create the shared luxardolabs docker network (once per host)
+make dev-deploy       # Build + push this commit (:sha-…), pin TAG in .env.dev, restart the dev stack
+make dev              # Start with logs (compose up --env-file .env.dev)
 make up               # Start detached
 make down             # Stop all
 make restart          # Restart
@@ -251,7 +253,7 @@ make prod-release
 - **Path**: `/opt/luxardolabs/luxanalytics`
 - **Registry**: `$(REGISTRY)/luxardolabs/luxanalytics` (host in `Makefile.local`); prod runs `${REGISTRY}/luxardolabs/luxanalytics:${TAG}` with both set in `deploy/prod/.env.prod`
 - **Nginx**: Reverse proxy config at `deploy/prod/analytics.luxardolabs.com.conf`
-- **Compose**: `deploy/prod/compose.yaml` with `.env.prod`
+- **Compose**: the ONE `compose.yml` (repo root) with `.env.prod` — `make prod-sync` ships `compose.yml`, `scripts/init.sql` and `deploy/prod/.env.prod` to the node; environments differ only by `.env.<env>` (template `.env.example`), the dev-only nginx is the `dev` profile, compose never builds
 - **Port mapping**: 4000:4000 (no mental remapping)
 
 ## Environment Variables
