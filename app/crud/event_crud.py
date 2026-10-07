@@ -18,6 +18,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.models.event_model import Event
 
@@ -67,12 +68,13 @@ class EventCRUD:
     async def get_filtered(
         self,
         db: AsyncSession,
+        *,
+        skip: int,
+        limit: int,
         app_id: str | None = None,
         event_name: str | None = None,
         user_id: str | None = None,
         hours: int = 24,
-        limit: int = 50,
-        offset: int = 0,
     ) -> tuple[list[Event], int]:
         """Returns (events, total_count)."""
         since = datetime.now(UTC) - timedelta(hours=hours)
@@ -92,7 +94,7 @@ class EventCRUD:
             .where(where)
             .order_by(desc(Event.received_at))
             .limit(limit)
-            .offset(offset)
+            .offset(skip)
         )
         result = await db.execute(query)
         return list(result.scalars().all()), total
@@ -131,10 +133,14 @@ class EventCRUD:
         result = await db.execute(query)
         return [{"name": row.name, "count": row.count} for row in result.all()]
 
-    async def count_by_column(
-        self, db: AsyncSession, column, conditions: Conditions, limit: int = 20
-    ) -> list[tuple[Any, int]]:
-        """GROUP BY a promoted column. Returns [(value, count)]."""
+    async def count_by_column[T](
+        self,
+        db: AsyncSession,
+        column: InstrumentedAttribute[T | None],
+        conditions: Conditions,
+        limit: int = 20,
+    ) -> list[tuple[T, int]]:
+        """GROUP BY a promoted column. Returns [(value, count)], NULLs excluded."""
         query = (
             select(column, func.count().label("cnt"))
             .where(and_(*conditions), column.isnot(None))
@@ -143,7 +149,7 @@ class EventCRUD:
             .limit(limit)
         )
         result = await db.execute(query)
-        return [(row[0], row[1]) for row in result.all()]
+        return [(value, count) for value, count in result.all() if value is not None]
 
     async def count_by_property(
         self, db: AsyncSession, key: str, conditions: Conditions, limit: int = 20
@@ -161,7 +167,11 @@ class EventCRUD:
         return [(row[0], row[1]) for row in result.all()]
 
     async def get_by_names(
-        self, db: AsyncSession, names: list, conditions: Conditions, limit: int = 2000
+        self,
+        db: AsyncSession,
+        names: list[str],
+        conditions: Conditions,
+        limit: int = 2000,
     ) -> list[Event]:
         """Get events filtered by event names."""
         query = (

@@ -4,11 +4,12 @@ View services call this. This calls CRUD. Never the other way around.
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.device_crud import device_crud
-from app.crud.event_crud import event_crud
+from app.crud.event_crud import Conditions, event_crud
 from app.models.device_model import Device
 from app.models.event_model import Event
 
@@ -21,7 +22,7 @@ class AnalyticsCoreService:
 
     # ── Events ────────────────────────────────────────────────────────────
 
-    async def get_event_by_id(self, event_id: str):
+    async def get_event_by_id(self, event_id: str) -> Event | None:
         return await event_crud.get_by_id(self.db, event_id)
 
     async def get_filtered_events(
@@ -32,20 +33,20 @@ class AnalyticsCoreService:
         hours: int = 24,
         page: int = 1,
         per_page: int = 50,
-    ) -> dict:
-        offset = (page - 1) * per_page
+    ) -> dict[str, Any]:
+        skip = (page - 1) * per_page
         events, total = await event_crud.get_filtered(
             self.db,
+            skip=skip,
+            limit=per_page,
             app_id=app_id,
             event_name=event_name,
             user_id=user_id,
             hours=hours,
-            limit=per_page,
-            offset=offset,
         )
         total_pages = max(1, (total + per_page - 1) // per_page)
-        start = offset + 1 if total > 0 else 0
-        end = min(offset + per_page, total)
+        start = skip + 1 if total > 0 else 0
+        end = min(skip + per_page, total)
         return {
             "events": events,
             "pagination": {
@@ -60,14 +61,14 @@ class AnalyticsCoreService:
 
     async def search_events(
         self, query: str, search_type: str = "event_name", limit: int = 50
-    ) -> list:
+    ) -> list[Event]:
         return await event_crud.search(self.db, query, search_type, limit)
 
     # ── Overview Stats ────────────────────────────────────────────────────
 
     async def get_stats_overview(
         self, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         conditions = event_crud.time_conditions(hours, app_id)
         total = await event_crud.count(self.db, conditions)
         unique_users = await event_crud.count_unique_users(self.db, conditions)
@@ -81,7 +82,7 @@ class AnalyticsCoreService:
 
     # ── Apps Dropdown ─────────────────────────────────────────────────────
 
-    async def get_apps_with_stats(self) -> list:
+    async def get_apps_with_stats(self) -> list[dict[str, Any]]:
         rows = await event_crud.get_apps_with_stats(self.db)
         return [
             {
@@ -93,7 +94,7 @@ class AnalyticsCoreService:
             for r in rows
         ]
 
-    async def get_apps_for_dropdown(self) -> list:
+    async def get_apps_for_dropdown(self) -> list[dict[str, Any]]:
         rows = await event_crud.get_apps_for_dropdown(self.db)
         return [{"app_id": r.app_id, "total_events": r.total_events} for r in rows]
 
@@ -101,7 +102,7 @@ class AnalyticsCoreService:
 
     async def get_timeline_data(
         self, app_id: str | None = None, hours: int = 24
-    ) -> list:
+    ) -> list[dict[str, Any]]:
         effective_hours = (
             hours if hours > 0 else 87600
         )  # All time = 10 years for bucketing
@@ -154,7 +155,7 @@ class AnalyticsCoreService:
         else:
             current = current.replace(minute=0, hour=0)
 
-        complete: list[dict] = []
+        complete: list[dict[str, Any]] = []
         end = datetime.now(UTC)
         while current <= end and len(complete) < 200:
             complete.append(
@@ -171,7 +172,7 @@ class AnalyticsCoreService:
 
     async def get_device_analytics(
         self, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         conditions = event_crud.time_conditions(hours, app_id)
 
         device_models = await event_crud.count_by_column(
@@ -243,11 +244,15 @@ class AnalyticsCoreService:
             "insights": insights,
         }
 
-    async def _bool_property_stats(self, db, key: str, conditions: list) -> dict:
-        rows = await event_crud.count_by_property(db, key, conditions)
-        return {val: cnt for val, cnt in rows}
+    async def _bool_property_stats(
+        self, db: AsyncSession, key: str, conditions: Conditions
+    ) -> dict[Any, int]:
+        """{property value: event count} for one JSONB properties key."""
+        return dict(await event_crud.count_by_property(db, key, conditions))
 
-    async def _format_device_details(self, app_id: str | None, hours: int = 0) -> list:
+    async def _format_device_details(
+        self, app_id: str | None, hours: int = 0
+    ) -> list[dict[str, Any]]:
         raw = await device_crud.get_details_with_event_counts(self.db, app_id, hours)
         details = []
         for row in raw:
@@ -272,8 +277,12 @@ class AnalyticsCoreService:
         return details
 
     def _build_device_insights(
-        self, unique_devices, device_models, testflight, app_versions
-    ) -> list:
+        self,
+        unique_devices: int,
+        device_models: list[tuple[str, int]],
+        testflight: dict[str, int],
+        app_versions: list[tuple[str, int]],
+    ) -> list[dict[str, str]]:
         insights = []
         if unique_devices > 1:
             insights.append(
@@ -314,7 +323,7 @@ class AnalyticsCoreService:
 
     async def get_feature_analytics(
         self, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         conditions = event_crud.time_conditions(hours, app_id)
         total = await event_crud.count(self.db, conditions)
 
@@ -370,7 +379,7 @@ class AnalyticsCoreService:
 
     async def get_error_analytics(
         self, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         conditions = event_crud.time_conditions(hours, app_id)
         error_conditions = conditions + [Event.name == "error_occurred"]
 
@@ -423,7 +432,7 @@ class AnalyticsCoreService:
 
     async def get_performance_analytics(
         self, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         conditions = event_crud.time_conditions(hours, app_id) + [
             Event.name == "performance_measured",
             Event.properties.isnot(None),
@@ -559,7 +568,7 @@ class AnalyticsCoreService:
 
     async def get_user_journey_analytics(
         self, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         conditions = event_crud.time_conditions(hours, app_id)
 
         screen_conds = conditions + [Event.name == "screen_viewed"]
@@ -585,7 +594,7 @@ class AnalyticsCoreService:
             feats = await event_crud.count_by_property(self.db, "feature", feat_conds)
             screen_details[screen_name] = {
                 "visits": visits,
-                "features": {f: c for f, c in feats},
+                "features": dict(feats),
             }
 
         journey_conds = conditions + [
@@ -701,7 +710,7 @@ class AnalyticsCoreService:
 
     async def get_feedback_analytics(
         self, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         conditions = event_crud.time_conditions(hours, app_id) + [
             Event.name == "feedback_submitted",
             Event.properties.isnot(None),
@@ -758,7 +767,7 @@ class AnalyticsCoreService:
 
     # ── User Profile ──────────────────────────────────────────────────────
 
-    async def get_user_profile(self, user_id: str) -> dict:
+    async def get_user_profile(self, user_id: str) -> dict[str, Any]:
         summary = await event_crud.get_user_summary(self.db, user_id)
         sessions = await event_crud.get_user_sessions(self.db, user_id)
         devices = await event_crud.get_user_devices(self.db, user_id)
@@ -823,7 +832,7 @@ class AnalyticsCoreService:
 
     # ── Session Detail ────────────────────────────────────────────────────
 
-    async def get_session_detail(self, session_id: str) -> dict:
+    async def get_session_detail(self, session_id: str) -> dict[str, Any]:
         events = await event_crud.get_events_by_session(self.db, session_id)
         if not events:
             return {"session_id": session_id, "events": [], "duration_seconds": 0}
@@ -879,7 +888,7 @@ class AnalyticsCoreService:
 
     async def get_metadata_analysis(
         self, app_id: str | None = None, hours: int = 24, event_name: str | None = None
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Comprehensive metadata/properties analysis — key discovery + event patterns."""
         conditions = event_crud.time_conditions(hours, app_id, event_name)
         events = await event_crud.get_events_with_properties(
@@ -888,9 +897,9 @@ class AnalyticsCoreService:
 
         all_keys = set()
         key_counts: dict[str, int] = {}
-        key_types: dict[str, list] = {}
-        key_examples: dict[str, list] = {}
-        event_patterns: dict[str, dict] = {}
+        key_types: dict[str, list[str]] = {}
+        key_examples: dict[str, list[Any]] = {}
+        event_patterns: dict[str, dict[str, Any]] = {}
 
         for e in events:
             props = e.properties
@@ -902,7 +911,7 @@ class AnalyticsCoreService:
                 event_patterns[ename] = {"count": 0, "json_keys": [], "examples": []}
             event_patterns[ename]["count"] += 1
 
-            for key in props.keys():
+            for key in props:
                 if key not in event_patterns[ename]["json_keys"]:
                     event_patterns[ename]["json_keys"].append(key)
             if len(event_patterns[ename]["examples"]) < 3:
@@ -926,7 +935,7 @@ class AnalyticsCoreService:
 
         return {
             "total_events": len(events),
-            "all_keys": sorted(list(all_keys)),
+            "all_keys": sorted(all_keys),
             "key_counts": key_counts,
             "key_types": key_types,
             "key_examples": key_examples,
@@ -938,7 +947,7 @@ class AnalyticsCoreService:
 
     async def get_key_deep_dive(
         self, key_name: str, app_id: str | None = None, hours: int = 24
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Deep dive into a specific properties key — values, distribution, timeline."""
         conditions = event_crud.time_conditions(hours, app_id)
         events = await event_crud.get_events_with_property_key(
@@ -947,7 +956,7 @@ class AnalyticsCoreService:
 
         value_counts: dict[str, int] = {}
         value_by_event: dict[str, dict[str, int]] = {}
-        samples: list[dict] = []
+        samples: list[dict[str, Any]] = []
 
         for e in events:
             # The query filters on properties ? key_name, so properties is never NULL here.
