@@ -3,7 +3,7 @@ name = "luxanalytics"
 version = "1.0.3"
 description = "Analytics Event Collector API"
 authors = ["LuxardoLabs <admin@luxardolabs.com>"]
-license = "Proprietary"
+license = "AGPL-3.0-only"
 readme = "README.md"
 packages = [{include = "app", from = "src"}]
 
