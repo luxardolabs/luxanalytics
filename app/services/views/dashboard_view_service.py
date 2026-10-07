@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 from fastapi import HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.pagination import build_pagination, skip_limit
 from app.services.core.analytics_core_service import AnalyticsCoreService
 
 # The cookie the nav app selector sets (POST /set-app-context).
@@ -20,6 +21,9 @@ APP_CONTEXT_COOKIE = "analytics_app_id"
 
 # A text search shows one page of this many matches instead of the paged list.
 SEARCH_LIMIT = 50
+
+# Rows per page of the events list.
+EVENTS_PER_PAGE = 50
 
 Context = dict[str, Any]
 
@@ -116,30 +120,44 @@ class DashboardViewService:
         page: int,
         search_q: str | None = None,
     ) -> Context:
-        """The events list: a text search shows one page of matches, otherwise the paged list."""
+        """The events list: a text search shows one page of matches, otherwise the paged list.
+        Page state is built ONCE here (build_pagination); the template only renders it."""
         if search_q:
             events = await self._core.search_events(
                 query=search_q, search_type="event_name", limit=SEARCH_LIMIT
             )
-            result: Context = {
-                "events": events,
-                "pagination": {
-                    "page": 1,
-                    "total_pages": 1,
-                    "total": len(events),
-                    "start": 1,
-                    "end": len(events),
-                    "per_page": SEARCH_LIMIT,
-                },
-            }
-        else:
-            result = await self._core.get_filtered_events(
-                app_id=app_id, event_name=event_name, hours=hours, page=page
+            pagination = build_pagination(
+                page=1, total=len(events), per_page=SEARCH_LIMIT
             )
-        events = result["events"]
+        else:
+            skip, limit = skip_limit(page, EVENTS_PER_PAGE)
+            events, total = await self._core.get_filtered_events(
+                skip=skip,
+                limit=limit,
+                app_id=app_id,
+                event_name=event_name,
+                hours=hours,
+            )
+            pagination = build_pagination(
+                page=page, total=total, per_page=EVENTS_PER_PAGE
+            )
         return {
-            **self._filtered(app_id, hours, result),
+            **self._filtered(
+                app_id, hours, {"events": events, "pagination": pagination}
+            ),
             "event_name": event_name,
+            # Page links go to the full events PAGE (it takes ?page= and the same filters); the
+            # content route is an HTMX fragment and must not be navigated to.
+            "pagination_base_url": self._path("events_page"),
+            "query_params": {
+                k: str(v)
+                for k, v in {
+                    "hours": hours,
+                    "app_id": app_id,
+                    "event_name": event_name,
+                }.items()
+                if v not in (None, "")
+            },
             "user_urls": self._user_urls(e.user_id for e in events),
             "session_urls": self._session_urls(e.session_id for e in events),
             "detail_urls": self._detail_urls(e.id for e in events),

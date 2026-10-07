@@ -1,4 +1,4 @@
-{% from "macros/tables.html" import th, td, pagination_bar %}
+{% from "macros/tables.html" import th, td, pagination_controls %}
 {% from "macros/layout.html" import empty_state %}
 {% from "macros/badges.html" import badge %}
 {% from "macros/buttons.html" import icon_view %}
@@ -98,9 +98,7 @@
             {% endfor %}
         </tbody>
     </table>
-    {% if pagination %}
-    {{ pagination_bar(pagination, '/dashboard/events/content', '#page-content', '&hours=' ~ hours ~ '&app_id=' ~ (app_id or '') ~ '&event_name=' ~ (event_name or '')) }}
-    {% endif %}
+    {{ pagination_controls(pagination, pagination_base_url, query_params) }}
 </div>
 {% else %}
 {{ empty_state("No events found", description="Try adjusting your filters or time range", icon_name="magnifying-glass") }}

@@ -93,15 +93,13 @@ async def test_filtered_events(
 ) -> None:
     svc = AnalyticsCoreService(db)
 
-    # Filter by event name
-    result = await svc.get_filtered_events(
-        app_id="test_app", event_name="screen_view", hours=24
+    # Filter by event name: one window of matches and the total. The seed holds exactly one
+    # screen_view for test_app, so assert exactly that.
+    events, total = await svc.get_filtered_events(
+        skip=0, limit=50, app_id="test_app", event_name="screen_view", hours=24
     )
-    # The service returns the paginated envelope the dashboard renders: {"events": [...], "pagination": {...}}.
-    # The seed holds exactly one screen_view for test_app, so assert exactly that.
-    events = result["events"]
     assert [e.name for e in events] == ["screen_view"]
-    assert result["pagination"]["total"] == 1
+    assert total == 1
 
 
 @pytest.mark.asyncio

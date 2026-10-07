@@ -22,70 +22,90 @@
 {% endmacro %}
 
 
-{# Pagination bar — pass pagination dict and HTMX config #}
-{% macro pagination_bar(pagination, hx_get, hx_target, extra_params='') %}
-{% if pagination.total_pages > 1 %}
-<div class="px-4 py-3 flex justify-between items-center border-t border-surface-20">
-    <span class="text-sm text-slate-500">
-        Showing {{ pagination.start }}–{{ pagination.end }} of {{ pagination.total | number_format }}
-    </span>
-    <div class="flex items-center gap-2">
-        {% if pagination.page > 1 %}
-        <button type="button"
-                class="px-3 py-1 text-sm border border-surface-20 rounded-md hover:bg-surface-20 text-slate-400 hover:text-white transition-colors"
-                hx-get="{{ hx_get }}?page={{ pagination.page - 1 }}{{ extra_params }}"
-                hx-target="{{ hx_target }}"
-                hx-swap="innerHTML">
-            Previous
-        </button>
-        {% endif %}
-        <span class="text-sm text-slate-500">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
-        {% if pagination.page < pagination.total_pages %}
-        <button type="button"
-                class="px-3 py-1 text-sm border border-surface-20 rounded-md hover:bg-surface-20 text-slate-400 hover:text-white transition-colors"
-                hx-get="{{ hx_get }}?page={{ pagination.page + 1 }}{{ extra_params }}"
-                hx-target="{{ hx_target }}"
-                hx-swap="innerHTML">
-            Next
-        </button>
-        {% endif %}
-    </div>
-</div>
-{% elif pagination.total > 0 %}
-<div class="px-4 py-3 border-t border-surface-20">
-    <span class="text-sm text-slate-500">{{ pagination.total | number_format }} events</span>
-</div>
-{% endif %}
-{% endmacro %}
+{# luxarch:pagination-macros macros v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit pagination-macros`. Its slug must equal the --emit name: v1 read `luxarch:pagination macros v1`, which resolved to the WRONG asset, and the claim that fw.template_pagination found it was never true of any code.
 
+   The canonical sortable-header + pagination-control macros. `luxarch --emit pagination-macros`.
+   Drop in at app/templates/web/macros/tables.html (merge with your existing table macros).
+   Python half: `luxarch --emit pagination`. Worked chain: `luxarch --emit pagination-example`.
 
-{# Sortable table header #}
-{% macro th_sortable(text, sort_key, current_sort=none, current_order='asc', class="") %}
-{% set is_active = current_sort == sort_key %}
-{% set next_order = 'desc' if is_active and current_order == 'asc' else 'asc' %}
-<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider {{ class }}">
-    <button type="button"
-            class="group inline-flex items-center gap-1 hover:text-slate-300"
-            hx-get="?sort={{ sort_key }}&order={{ next_order }}"
-            hx-push-url="true"
-            hx-target="#table-body"
-            hx-swap="innerHTML">
-        {{ text }}
-        <span class="{% if is_active %}text-white{% else %}text-slate-500 group-hover:text-slate-500{% endif %}">
-            {% if is_active and current_order == 'asc' %}
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            {% elif is_active and current_order == 'desc' %}
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-            </svg>
-            {% else %}
-            <svg class="h-4 w-4 opacity-0 group-hover:opacity-100" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-            </svg>
-            {% endif %}
-        </span>
-    </button>
+   WHY EMITTED: the playbook gave th_sortable/th_static as literal code but only NAMED
+   pagination_controls, so every repo invented that one — and invented it wrong in the same way:
+   taking total_pages as a PARAMETER (so each caller computes it) and doing `{% set start = (page-1)
+   * per_page + 1 %}` arithmetic in the template. Those are exactly fw.view_pagination and
+   fw.template_pagination. The control below takes ONE argument for state — the PaginationState from
+   build_pagination() — and does no arithmetic at all.
+
+   STYLING: classes here are utility-class placeholders. Reskin them for your brand; do not change
+   the STRUCTURE (one link per page via paginated_url, page reset on sort, no math in the template).
+#}
+
+{% macro th_sortable(label, key, sort_by, sort_order, base_url, query_params=None, default_desc=false) -%}
+{%- set is_active = sort_by == key -%}
+{%- if is_active -%}{%- set next_order = 'desc' if sort_order == 'asc' else 'asc' -%}
+{%- else -%}{%- set next_order = 'desc' if default_desc else 'asc' -%}{%- endif -%}
+<th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-left">
+    <a href="{{ paginated_url(base_url, query_params, sort_by=key, sort_order=next_order, page='1') }}"
+       class="group inline-flex items-center gap-1"
+       aria-sort="{{ 'ascending' if is_active and sort_order == 'asc' else 'descending' if is_active else 'none' }}">
+        <span>{{ label }}</span>
+        {%- if is_active and sort_order == 'asc' %}<i class="fas fa-sort-up" aria-hidden="true"></i>
+        {%- elif is_active and sort_order == 'desc' %}<i class="fas fa-sort-down" aria-hidden="true"></i>
+        {%- else %}<i class="fas fa-sort text-gray-400" aria-hidden="true"></i>{%- endif -%}
+    </a>
 </th>
-{% endmacro %}
+{%- endmacro %}
+
+
+{% macro th_static(label) -%}
+<th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-left">{{ label }}</th>
+{%- endmacro %}
+
+
+{# The prev/next/numbered control. ONE state argument (build_pagination()'s PaginationState) and
+   ZERO arithmetic: every number it prints and every window it walks was computed once, in Python.
+   If you find yourself adding a `{% set %}` with maths in here, the field belongs on the DTO. #}
+{% macro pagination_controls(pagination, base_url, query_params=None) -%}
+{%- if pagination.total_pages > 1 -%}
+<nav class="flex items-center justify-between border-t px-4 py-3 sm:px-6" aria-label="Pagination">
+    <p class="text-sm text-gray-600">
+        Showing <span class="font-medium">{{ pagination.range_start }}</span>
+        to <span class="font-medium">{{ pagination.range_end }}</span>
+        of <span class="font-medium">{{ pagination.total }}</span>
+    </p>
+    <ul class="inline-flex items-center gap-1">
+        <li>
+            {%- if pagination.has_prev %}
+            <a href="{{ paginated_url(base_url, query_params, page=pagination.prev_page) }}"
+               class="px-3 py-2 text-sm rounded hover:bg-gray-100" rel="prev">Previous</a>
+            {%- else %}
+            <span class="px-3 py-2 text-sm text-gray-400" aria-disabled="true">Previous</span>
+            {%- endif -%}
+        </li>
+        {%- set ns = namespace(last=0) -%}
+        {%- for p in pagination.pages %}
+        {#- a gap in the window renders as an ellipsis, never as a link to a page we skipped -#}
+        {%- if ns.last and p > ns.last + 1 %}
+        <li><span class="px-2 py-2 text-sm text-gray-400">&hellip;</span></li>
+        {%- endif %}
+        <li>
+            {%- if p == pagination.page %}
+            <span class="px-3 py-2 text-sm rounded bg-gray-900 text-white" aria-current="page">{{ p }}</span>
+            {%- else %}
+            <a href="{{ paginated_url(base_url, query_params, page=p) }}"
+               class="px-3 py-2 text-sm rounded hover:bg-gray-100">{{ p }}</a>
+            {%- endif -%}
+        </li>
+        {%- set ns.last = p -%}
+        {%- endfor %}
+        <li>
+            {%- if pagination.has_next %}
+            <a href="{{ paginated_url(base_url, query_params, page=pagination.next_page) }}"
+               class="px-3 py-2 text-sm rounded hover:bg-gray-100" rel="next">Next</a>
+            {%- else %}
+            <span class="px-3 py-2 text-sm text-gray-400" aria-disabled="true">Next</span>
+            {%- endif -%}
+        </li>
+    </ul>
+</nav>
+{%- endif -%}
+{%- endmacro %}

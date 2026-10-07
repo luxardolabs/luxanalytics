@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from fastapi.templating import Jinja2Templates
 
 from app.core.config import settings
+from app.core.pagination import paginated_url
 
 # Named format presets
 DATE_FORMATS = {
@@ -355,6 +356,8 @@ def register_filters(templates: Jinja2Templates) -> None:
     # One cache-bust token, from git (FLEET-BUILD-DEPLOY-STANDARD "Static asset cache-busting").
     templates.env.globals["static_version"] = static_version()
     templates.env.globals["now"] = lambda: datetime.now(UTC)
+    # Appends a query to a base URL it is GIVEN; owns no route knowledge (luxarch --emit pagination).
+    templates.env.globals["paginated_url"] = paginated_url
     # Date/time
     templates.env.filters["localtime"] = localtime
     templates.env.filters["format_datetime"] = format_datetime

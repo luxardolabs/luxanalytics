@@ -27,37 +27,24 @@ class AnalyticsCoreService:
 
     async def get_filtered_events(
         self,
+        *,
+        skip: int,
+        limit: int,
         app_id: str | None = None,
         event_name: str | None = None,
         user_id: str | None = None,
         hours: int = 24,
-        page: int = 1,
-        per_page: int = 50,
-    ) -> dict[str, Any]:
-        skip = (page - 1) * per_page
-        events, total = await event_crud.get_filtered(
+    ) -> tuple[list[Event], int]:
+        """One window of matching events (newest first) and the total that match."""
+        return await event_crud.get_filtered(
             self.db,
             skip=skip,
-            limit=per_page,
+            limit=limit,
             app_id=app_id,
             event_name=event_name,
             user_id=user_id,
             hours=hours,
         )
-        total_pages = max(1, (total + per_page - 1) // per_page)
-        start = skip + 1 if total > 0 else 0
-        end = min(skip + per_page, total)
-        return {
-            "events": events,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": total,
-                "total_pages": total_pages,
-                "start": start,
-                "end": end,
-            },
-        }
 
     async def search_events(
         self, query: str, search_type: str = "event_name", limit: int = 50

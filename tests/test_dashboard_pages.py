@@ -143,3 +143,50 @@ async def test_top_event_links_encode_the_event_name(
     response = await client.get("/dashboard/overview/content?app_id=test_app")
     assert response.status_code == 200
     assert "event_name=a%26b+c" in response.text
+
+
+@pytest.mark.db
+async def test_the_events_list_pages_through_the_full_page_with_its_filters(
+    client: AsyncClient, db: AsyncSession, sample_app: object
+) -> None:
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from app.models.event_model import Event
+
+    now = datetime.now(UTC)
+    for _ in range(60):  # more than one page (50)
+        db.add(
+            Event(
+                id=uuid4(),
+                app_id="test_app",
+                name="tick",
+                timestamp=now,
+                received_at=now,
+            )
+        )
+    await db.flush()
+
+    client.base_url = "https://test"
+    await client.post(
+        "/login",
+        data={
+            "username": settings.DASHBOARD_USERNAME,
+            "password": settings.DASHBOARD_PASSWORD,
+        },
+        headers={"X-Forwarded-For": "198.51.100.94"},
+        follow_redirects=False,
+    )
+    response = await client.get(
+        "/dashboard/events/content?app_id=test_app&event_name=tick"
+    )
+    assert response.status_code == 200
+    # Page links go to the full events PAGE (not the fragment), with the filters carried along.
+    assert (
+        'href="/dashboard/events?hours=24&amp;app_id=test_app&amp;event_name=tick&amp;page=2"'
+        in response.text
+    )
+    second = await client.get(
+        "/dashboard/events?hours=24&app_id=test_app&event_name=tick&page=2"
+    )
+    assert second.status_code == 200
