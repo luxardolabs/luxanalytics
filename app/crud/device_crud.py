@@ -1,7 +1,6 @@
 """Device CRUD — all device table queries."""
 
 from datetime import UTC, datetime, timedelta
-from typing import Optional
 
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -14,7 +13,7 @@ from app.models.event_model import Event
 class DeviceCRUD:
     """All database queries against the devices table."""
 
-    def _time_filters(self, hours: int = 0, app_id: Optional[str] = None) -> list:
+    def _time_filters(self, hours: int = 0, app_id: str | None = None) -> list:
         """Build WHERE conditions for devices table (last_seen based)."""
         filters = []
         if hours and hours > 0:
@@ -25,8 +24,12 @@ class DeviceCRUD:
         return filters
 
     async def count_by_field(
-        self, db: AsyncSession, column, app_id: Optional[str] = None,
-        hours: int = 0, limit: int = 20,
+        self,
+        db: AsyncSession,
+        column,
+        app_id: str | None = None,
+        hours: int = 0,
+        limit: int = 20,
     ) -> list:
         """GROUP BY a devices table column. Returns [(value, count)]."""
         filters = self._time_filters(hours, app_id) + [column.isnot(None)]
@@ -41,14 +44,17 @@ class DeviceCRUD:
         return [(row[0], row[1]) for row in result.all()]
 
     async def testflight_stats(
-        self, db: AsyncSession, app_id: Optional[str] = None, hours: int = 0,
+        self,
+        db: AsyncSession,
+        app_id: str | None = None,
+        hours: int = 0,
     ) -> dict:
         filters = self._time_filters(hours, app_id)
         query = select(
             func.count().filter(Device.is_testflight.is_(True)).label("testflight"),
-            func.count().filter(
-                Device.is_testflight.is_(False) | Device.is_testflight.is_(None)
-            ).label("appstore"),
+            func.count()
+            .filter(Device.is_testflight.is_(False) | Device.is_testflight.is_(None))
+            .label("appstore"),
         )
         if filters:
             query = query.where(and_(*filters))
@@ -56,8 +62,11 @@ class DeviceCRUD:
         return {"testflight": result.testflight, "appstore": result.appstore}
 
     async def get_details_with_event_counts(
-        self, db: AsyncSession, app_id: Optional[str] = None,
-        hours: int = 0, limit: int = 50,
+        self,
+        db: AsyncSession,
+        app_id: str | None = None,
+        hours: int = 0,
+        limit: int = 50,
     ) -> list:
         """Device details joined with event counts."""
         # Event counts subquery — also filtered by time
@@ -81,8 +90,12 @@ class DeviceCRUD:
 
         device_filters = self._time_filters(hours, app_id)
         query = (
-            select(Device, event_count_subq.c.total_events, event_count_subq.c.event_types)
-            .outerjoin(event_count_subq, Device.device_id == event_count_subq.c.device_id)
+            select(
+                Device, event_count_subq.c.total_events, event_count_subq.c.event_types
+            )
+            .outerjoin(
+                event_count_subq, Device.device_id == event_count_subq.c.device_id
+            )
             .order_by(desc(event_count_subq.c.total_events))
             .limit(limit)
         )
@@ -90,7 +103,6 @@ class DeviceCRUD:
             query = query.where(and_(*device_filters))
         result = await db.execute(query)
         return list(result.all())
-
 
     async def upsert(self, db: AsyncSession, device_data: dict) -> None:
         stmt = pg_insert(Device).values(**device_data)

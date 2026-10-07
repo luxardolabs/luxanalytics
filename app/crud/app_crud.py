@@ -1,7 +1,5 @@
 """App CRUD — all app table queries."""
 
-from typing import Optional
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,20 +8,19 @@ from app.models.event_model import Event
 
 
 class AppCRUD:
-
-    async def get_by_public_id(self, db: AsyncSession, public_id: str) -> Optional[App]:
+    async def get_by_public_id(self, db: AsyncSession, public_id: str) -> App | None:
         result = await db.execute(
             select(App).where(App.public_id == public_id, App.is_active)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_project_id(self, db: AsyncSession, project_id: str) -> Optional[App]:
+    async def get_by_project_id(self, db: AsyncSession, project_id: str) -> App | None:
         result = await db.execute(
             select(App).where(App.project_id == project_id, App.is_active)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_app_id(self, db: AsyncSession, app_id: str) -> Optional[App]:
+    async def get_by_app_id(self, db: AsyncSession, app_id: str) -> App | None:
         result = await db.execute(select(App).where(App.app_id == app_id))
         return result.scalar_one_or_none()
 
@@ -73,7 +70,11 @@ class AppCRUD:
             ).where(Event.app_id == app_id)
         )
         row = result.first()
-        return {"total_events": row.total_events, "unique_users": row.unique_users, "unique_sessions": row.unique_sessions}
+        return {
+            "total_events": row.total_events,
+            "unique_users": row.unique_users,
+            "unique_sessions": row.unique_sessions,
+        }
 
 
 app_crud = AppCRUD()

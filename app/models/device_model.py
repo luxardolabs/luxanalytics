@@ -44,9 +44,7 @@ class Device(Base):
         nullable=False,
     )
 
-    __table_args__ = (
-        Index("ix_devices_app_last_seen", "app_id", "last_seen"),
-    )
+    __table_args__ = (Index("ix_devices_app_last_seen", "app_id", "last_seen"),)
 
     def __repr__(self):
         return f"<Device(device_id={self.device_id[:12]}..., app_id={self.app_id})>"

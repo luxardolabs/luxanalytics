@@ -2,7 +2,6 @@
 
 import secrets
 import string
-from typing import List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,19 +35,19 @@ class AppService:
         )
         return await app_crud.create(self.db, app)
 
-    async def get_app_by_public_id(self, public_id: str) -> Optional[App]:
+    async def get_app_by_public_id(self, public_id: str) -> App | None:
         return await app_crud.get_by_public_id(self.db, public_id)
 
-    async def get_app_by_project_id(self, project_id: str) -> Optional[App]:
+    async def get_app_by_project_id(self, project_id: str) -> App | None:
         return await app_crud.get_by_project_id(self.db, project_id)
 
-    async def get_app_by_app_id(self, app_id: str) -> Optional[App]:
+    async def get_app_by_app_id(self, app_id: str) -> App | None:
         return await app_crud.get_by_app_id(self.db, app_id)
 
-    async def get_all_apps(self, include_inactive: bool = False) -> List[App]:
+    async def get_all_apps(self, include_inactive: bool = False) -> list[App]:
         return await app_crud.get_all(self.db, include_inactive)
 
-    async def update_app(self, app_id: str, app_update: AppUpdate) -> Optional[App]:
+    async def update_app(self, app_id: str, app_update: AppUpdate) -> App | None:
         app = await app_crud.get_by_app_id(self.db, app_id)
         if not app:
             return None
@@ -56,7 +55,7 @@ class AppService:
             setattr(app, field, value)
         return await app_crud.update(self.db, app)
 
-    async def regenerate_public_id(self, app_id: str) -> Optional[App]:
+    async def regenerate_public_id(self, app_id: str) -> App | None:
         app = await app_crud.get_by_app_id(self.db, app_id)
         if not app:
             return None
@@ -70,7 +69,7 @@ class AppService:
         await app_crud.delete(self.db, app)
         return True
 
-    async def search_apps(self, query: str) -> List[App]:
+    async def search_apps(self, query: str) -> list[App]:
         if not query:
             return await app_crud.get_all(self.db, include_inactive=True)
         return await app_crud.search(self.db, query)

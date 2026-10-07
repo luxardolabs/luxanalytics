@@ -4,9 +4,10 @@ Revision ID: 002_promoted_columns
 Revises: 001_baseline
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "002_promoted_columns"
 down_revision = "001_baseline"
@@ -31,31 +32,38 @@ def upgrade() -> None:
 
     # New composite indexes for the query patterns we actually use
     op.create_index(
-        "ix_events_app_name_received", "events",
+        "ix_events_app_name_received",
+        "events",
         ["app_id", "name", "received_at"],
     )
     op.create_index(
-        "ix_events_app_device_received", "events",
+        "ix_events_app_device_received",
+        "events",
         ["app_id", "device_id", "received_at"],
     )
     op.create_index(
-        "ix_events_app_user_received", "events",
+        "ix_events_app_user_received",
+        "events",
         ["app_id", "user_id", "received_at"],
     )
     op.create_index(
-        "ix_events_app_session_received", "events",
+        "ix_events_app_session_received",
+        "events",
         ["app_id", "session_id", "received_at"],
     )
 
     # GIN index on properties for JSONB key/value queries
     op.create_index(
-        "ix_events_properties_gin", "events",
+        "ix_events_properties_gin",
+        "events",
         ["properties"],
         postgresql_using="gin",
     )
 
     # --- Soft delete columns for apps ---
-    op.add_column("apps", sa.Column("deleted_at", sa.DateTime(timezone=True), index=True))
+    op.add_column(
+        "apps", sa.Column("deleted_at", sa.DateTime(timezone=True), index=True)
+    )
 
     # --- Devices table ---
     op.create_table(
@@ -77,7 +85,8 @@ def upgrade() -> None:
     )
 
     op.create_index(
-        "ix_devices_app_last_seen", "devices",
+        "ix_devices_app_last_seen",
+        "devices",
         ["app_id", "last_seen"],
     )
 

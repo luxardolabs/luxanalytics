@@ -2,7 +2,6 @@
 
 import uuid
 from datetime import UTC, datetime
-from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,8 +19,8 @@ class EventService:
         self.db = db
 
     async def create_events(
-        self, app_id: str, events: List[EventCreate]
-    ) -> List[Event]:
+        self, app_id: str, events: list[EventCreate]
+    ) -> list[Event]:
         """Create events with promoted columns, properties JSONB, and device upserts."""
         received_at = datetime.now(UTC)
         insert_data = []
@@ -38,26 +37,27 @@ class EventService:
             platform = metadata.get("platform", "ios")
 
             properties = {
-                k: v for k, v in metadata.items()
-                if k not in DEVICE_CONTEXT_KEYS
+                k: v for k, v in metadata.items() if k not in DEVICE_CONTEXT_KEYS
             }
 
-            insert_data.append({
-                "id": event_id,
-                "app_id": app_id,
-                "name": event_data.name,
-                "timestamp": event_data.timestamp,
-                "user_id": event_data.user_id,
-                "session_id": event_data.session_id,
-                "device_id": device_id,
-                "device_model": device_model,
-                "os_version": os_version,
-                "app_version": app_version,
-                "platform": platform,
-                "properties": properties or None,
-                "event_metadata": metadata,
-                "received_at": received_at,
-            })
+            insert_data.append(
+                {
+                    "id": event_id,
+                    "app_id": app_id,
+                    "name": event_data.name,
+                    "timestamp": event_data.timestamp,
+                    "user_id": event_data.user_id,
+                    "session_id": event_data.session_id,
+                    "device_id": device_id,
+                    "device_model": device_model,
+                    "os_version": os_version,
+                    "app_version": app_version,
+                    "platform": platform,
+                    "properties": properties or None,
+                    "event_metadata": metadata,
+                    "received_at": received_at,
+                }
+            )
 
             if device_id and device_id not in devices_to_upsert:
                 devices_to_upsert[device_id] = {

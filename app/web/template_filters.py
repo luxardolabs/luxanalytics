@@ -42,7 +42,6 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
-
 from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
@@ -88,7 +87,10 @@ DATETIME_FORMATS = {
 
 # ── Timezone ──────────────────────────────────────────────────────────────────
 
-def localtime(dt: datetime | date | None, tz: str | None = None) -> datetime | date | None:
+
+def localtime(
+    dt: datetime | date | None, tz: str | None = None
+) -> datetime | date | None:
     """Convert a datetime to the specified timezone."""
     if dt is None:
         return None
@@ -115,6 +117,7 @@ def tzname(dt: datetime | None) -> str:
 
 
 # ── Format helpers ────────────────────────────────────────────────────────────
+
 
 def _get_format(fmt: str, format_dict: dict[str, str]) -> str:
     return format_dict.get(fmt, fmt)
@@ -143,13 +146,20 @@ def format_time(dt: datetime | None, fmt: str = "default") -> str:
 # ── Relative time ─────────────────────────────────────────────────────────────
 
 _TIME_ABBREVIATIONS = [
-    (" seconds", "s"), (" second", "s"),
-    (" minutes", "m"), (" minute", "m"),
-    (" hours", "h"), (" hour", "h"),
-    (" days", "d"), (" day", "d"),
-    (" weeks", "w"), (" week", "w"),
-    (" months", "mo"), (" month", "mo"),
-    (" years", "y"), (" year", "y"),
+    (" seconds", "s"),
+    (" second", "s"),
+    (" minutes", "m"),
+    (" minute", "m"),
+    (" hours", "h"),
+    (" hour", "h"),
+    (" days", "d"),
+    (" day", "d"),
+    (" weeks", "w"),
+    (" week", "w"),
+    (" months", "mo"),
+    (" month", "mo"),
+    (" years", "y"),
+    (" year", "y"),
 ]
 
 
@@ -160,7 +170,9 @@ def _abbreviate_time(text: str) -> str:
     return text
 
 
-def timeago(dt: datetime | None, style: str = "short", now: datetime | None = None) -> str:
+def timeago(
+    dt: datetime | None, style: str = "short", now: datetime | None = None
+) -> str:
     """Format a datetime as relative time: '5m ago', '2h ago', etc."""
     if dt is None:
         return "--"
@@ -218,6 +230,7 @@ def timeago_color(dt: datetime | None, now: datetime | None = None) -> str:
 
 # ── Duration ──────────────────────────────────────────────────────────────────
 
+
 def duration(seconds: int | float | None, style: str = "short") -> str:
     """Format seconds as human-readable duration: '2h 15m', '3d 5h'."""
     if seconds is None:
@@ -263,6 +276,7 @@ def duration(seconds: int | float | None, style: str = "short") -> str:
 
 # ── Number formatting ─────────────────────────────────────────────────────────
 
+
 def num(value: float | int | None, decimals: int = 1) -> str:
     """Format number with fixed decimal places: {{ 72.5 | num }} -> '72.5'"""
     if value is None:
@@ -307,9 +321,9 @@ def month_name(dt: datetime | None, style: str = "short") -> str:
 # ── JSON with datetime support ────────────────────────────────────────────────
 
 
-
 def tojson_safe(value, indent=None) -> str:
     """JSON encode with datetime support."""
+
     def default(obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
@@ -322,7 +336,8 @@ def tojson_safe(value, indent=None) -> str:
 
 # ── Registration ──────────────────────────────────────────────────────────────
 
-def register_filters(templates: "Jinja2Templates") -> None:
+
+def register_filters(templates: Jinja2Templates) -> None:
     """Register all custom filters with a Jinja2Templates instance."""
     # Date/time
     templates.env.filters["localtime"] = localtime

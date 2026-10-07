@@ -50,14 +50,33 @@ class Event(Base, UUIDMixin):
         # GIN index on properties for JSONB key/value queries
         Index("ix_events_properties_gin", "properties", postgresql_using="gin"),
         # Analytics query indexes (partial — only relevant rows indexed)
-        Index("ix_events_perf_operation", text("(properties->>'operation')"),
-              postgresql_where=text("name = 'performance_measured' AND properties IS NOT NULL")),
-        Index("ix_events_screen_session", "session_id", "received_at",
-              postgresql_where=text("name = 'screen_viewed' AND properties->>'screen' IS NOT NULL")),
-        Index("ix_events_user_received", "user_id", text("received_at DESC"),
-              postgresql_where=text("user_id IS NOT NULL")),
-        Index("ix_events_session_received", "session_id", "received_at",
-              postgresql_where=text("session_id IS NOT NULL")),
+        Index(
+            "ix_events_perf_operation",
+            text("(properties->>'operation')"),
+            postgresql_where=text(
+                "name = 'performance_measured' AND properties IS NOT NULL"
+            ),
+        ),
+        Index(
+            "ix_events_screen_session",
+            "session_id",
+            "received_at",
+            postgresql_where=text(
+                "name = 'screen_viewed' AND properties->>'screen' IS NOT NULL"
+            ),
+        ),
+        Index(
+            "ix_events_user_received",
+            "user_id",
+            text("received_at DESC"),
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_events_session_received",
+            "session_id",
+            "received_at",
+            postgresql_where=text("session_id IS NOT NULL"),
+        ),
     )
 
     def __repr__(self):

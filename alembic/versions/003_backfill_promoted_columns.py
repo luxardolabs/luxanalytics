@@ -5,7 +5,6 @@ Revises: 002_promoted_columns
 """
 
 from alembic import op
-import sqlalchemy as sa
 
 revision = "003_backfill"
 down_revision = "002_promoted_columns"
@@ -14,9 +13,16 @@ depends_on = None
 
 # Device context keys to strip from properties
 DEVICE_CONTEXT_KEYS = {
-    "device_id", "device_model", "device_type", "system_version",
-    "app_version", "build_number", "screen_resolution", "locale",
-    "timezone", "is_testflight",
+    "device_id",
+    "device_model",
+    "device_type",
+    "system_version",
+    "app_version",
+    "build_number",
+    "screen_resolution",
+    "locale",
+    "timezone",
+    "is_testflight",
 }
 
 

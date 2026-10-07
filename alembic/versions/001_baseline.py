@@ -4,9 +4,10 @@ Revision ID: 001_baseline
 Revises: None
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "001_baseline"
 down_revision = None
@@ -30,15 +31,18 @@ def upgrade() -> None:
 
     # Original composite indexes
     op.create_index(
-        "ix_events_app_name_timestamp", "events",
+        "ix_events_app_name_timestamp",
+        "events",
         ["app_id", "name", "timestamp"],
     )
     op.create_index(
-        "ix_events_app_user_timestamp", "events",
+        "ix_events_app_user_timestamp",
+        "events",
         ["app_id", "user_id", "timestamp"],
     )
     op.create_index(
-        "ix_events_app_session_timestamp", "events",
+        "ix_events_app_session_timestamp",
+        "events",
         ["app_id", "session_id", "timestamp"],
     )
 
@@ -53,9 +57,21 @@ def upgrade() -> None:
         sa.Column("organization", sa.String(255)),
         sa.Column("description", sa.Text()),
         sa.Column("is_active", sa.Boolean(), nullable=False, default=True, index=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("app_metadata", postgresql.JSONB(), nullable=False, server_default="{}"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "app_metadata", postgresql.JSONB(), nullable=False, server_default="{}"
+        ),
     )
 
 

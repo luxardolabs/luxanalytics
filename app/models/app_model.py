@@ -23,7 +23,9 @@ class App(UUIDBaseModel):
     organization: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
 
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False, index=True
+    )
 
     app_metadata: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
@@ -32,7 +34,10 @@ class App(UUIDBaseModel):
         """Generate the DSN for this app (Sentry-style)."""
         from app.core.config import settings
 
-        base_url = getattr(settings, "EXTERNAL_URL", None) or "https://analytics.luxardolabs.com"
+        base_url = (
+            getattr(settings, "EXTERNAL_URL", None)
+            or "https://analytics.luxardolabs.com"
+        )
         host = base_url.replace("https://", "").replace("http://", "")
         protocol = "https" if "https" in base_url else "http"
         return f"{protocol}://{self.public_id}@{host}/api/v1/events/{self.project_id}"
