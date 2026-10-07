@@ -89,7 +89,7 @@ app/
 │   ├── dsn_auth.py          # DSN-based authentication
 │   ├── redis_client.py      # Redis connection
 │   ├── rate_limiter.py      # Rate limiting
-│   ├── logging.py           # Structured JSON logging
+│   ├── logging_config.py    # Fleet stdlib JSON logging (luxarch --emit logging)
 │   ├── telemetry.py         # OpenTelemetry + Prometheus
 │   ├── constants.py         # App constants
 │   └── middleware/
@@ -99,7 +99,7 @@ app/
 │   ├── database.py          # Async SQLAlchemy engine + sessions
 │   └── pool_monitor.py      # Connection pool monitoring
 ├── models/
-│   ├── base.py              # UUIDMixin, TimestampMixin, SoftDeleteMixin
+│   ├── base_model.py        # Base (canonical naming_convention), UUIDMixin, TimestampMixin, SoftDeleteMixin
 │   ├── event_model.py       # Event with promoted columns + properties JSONB
 │   ├── device_model.py      # Device table (upserted on ingest)
 │   └── app_model.py         # App registration (public_id, project_id)

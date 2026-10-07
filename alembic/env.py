@@ -21,7 +21,7 @@ sys.path.insert(0, dirname(dirname(abspath(__file__))))
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.models import App, Device, Event  # noqa: F401
-from app.models.base import Base
+from app.models.base_model import Base
 
 # Alembic Config object
 config = context.config

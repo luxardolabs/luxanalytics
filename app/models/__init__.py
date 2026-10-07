@@ -5,7 +5,7 @@ migration-chain verifier and the test harness all see every table.
 """
 
 from .app_model import App
-from .base import Base
+from .base_model import Base
 from .device_model import Device
 from .event_model import Event
 

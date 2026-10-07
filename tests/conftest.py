@@ -36,7 +36,7 @@ from app.db.database import get_db
 from app.main import create_application as create_app
 
 # «EDIT» — your declarative Base (with every model imported so metadata is complete)
-from app.models.base import Base  # noqa: F401  (adjust import)
+from app.models.base_model import Base  # noqa: F401  (adjust import)
 
 _APP_MAKER = "AsyncSessionLocal"
 

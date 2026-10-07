@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.db.pool_monitor import PoolMonitor
 
 # Re-export Base from models.base for backward compatibility
-from app.models.base import Base  # noqa: F401
+from app.models.base_model import Base  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from sqlalchemy import DateTime, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, UUIDMixin
+from app.models.base_model import Base, UUIDMixin
 
 
 class Event(Base, UUIDMixin):
