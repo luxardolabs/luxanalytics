@@ -1,12 +1,6 @@
 {% from "macros/layout.html" import empty_state_compact %}
 
-{% if screens %}
-{% set bar_data = [] %}
-{% set bar_labels = [] %}
-{% for s in screens[:10] %}
-{% set _ = bar_data.append(s.total) %}
-{% set _ = bar_labels.append(s.name | friendly_name) %}
-{% endfor %}
+{% if bar_data %}
 
 <div class="h-[250px]"
      data-echart-config='{{ {
@@ -14,10 +8,10 @@
          "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
          "grid": {"left": 120, "right": 20, "top": 10, "bottom": 20},
          "xAxis": {"type": "value", "axisLabel": {"color": "#64748b"}, "splitLine": {"lineStyle": {"color": "#282828"}}},
-         "yAxis": {"type": "category", "data": bar_labels | reverse | list, "axisLabel": {"color": "#94a3b8", "fontSize": 11}, "axisLine": {"show": false}, "axisTick": {"show": false}},
+         "yAxis": {"type": "category", "data": bar_labels, "axisLabel": {"color": "#94a3b8", "fontSize": 11}, "axisLine": {"show": false}, "axisTick": {"show": false}},
          "series": [{
              "type": "bar",
-             "data": bar_data | reverse | list,
+             "data": bar_data,
              "itemStyle": {"color": "#ffa500", "borderRadius": [0, 4, 4, 0]},
              "barWidth": "60%"
          }]

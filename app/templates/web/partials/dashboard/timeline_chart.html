@@ -1,16 +1,16 @@
 {% from "macros/layout.html" import empty_state_compact %}
 {% from "macros/panels.html" import no_data_message %}
 
-{% if timeline_data %}
+{% if timeline_counts %}
 <div class="h-[300px] relative">
     <canvas id="overview-timeline-chart"
             data-chart-config='{{ {
                 "type": "line",
                 "data": {
-                    "labels": timeline_data | map(attribute="hour") | list,
+                    "labels": timeline_labels,
                     "datasets": [{
                         "label": "Events",
-                        "data": timeline_data | map(attribute="count") | list,
+                        "data": timeline_counts,
                         "borderColor": "#ffa500",
                         "backgroundColor": "rgba(255, 165, 0, 0.08)",
                         "borderWidth": 2,

@@ -17,12 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.pagination import build_pagination, skip_limit
 from app.core.tracing import create_service_span
 from app.services.core.analytics_core_service import AnalyticsCoreService
+from app.web.template_filters import friendly_name
 
 # The cookie the nav app selector sets (POST /set-app-context).
 APP_CONTEXT_COOKIE = "analytics_app_id"
 
 # A text search shows one page of this many matches instead of the paged list.
 SEARCH_LIMIT = 50
+TOP_SCREENS_CHARTED = 10
 
 # Rows per page of the events list.
 EVENTS_PER_PAGE = 50
@@ -131,10 +133,10 @@ class DashboardViewService:
         with create_service_span(
             "DashboardViewService", "timeline_context", app_id=app_id
         ):
+            points = await self._core.get_timeline_data(app_id=app_id, hours=hours)
             return {
-                "timeline_data": await self._core.get_timeline_data(
-                    app_id=app_id, hours=hours
-                )
+                "timeline_labels": [p["hour"] for p in points],
+                "timeline_counts": [p["count"] for p in points],
             }
 
     async def event_types_context(self, app_id: str | None, hours: int) -> Context:
@@ -142,7 +144,12 @@ class DashboardViewService:
             "DashboardViewService", "event_types_context", app_id=app_id
         ):
             stats = await self._core.get_stats_overview(app_id=app_id, hours=hours)
-            return {"top_events": stats.get("top_events", [])}
+            return {
+                "pie_data": [
+                    {"name": friendly_name(e["name"]), "value": e["count"]}
+                    for e in stats["top_events"]
+                ]
+            }
 
     async def top_screens_context(self, app_id: str | None, hours: int) -> Context:
         with create_service_span(
@@ -151,7 +158,13 @@ class DashboardViewService:
             features = await self._core.get_feature_analytics(
                 app_id=app_id, hours=hours
             )
-            return {"screens": features.get("screens", [])}
+            # The ten busiest screens, busiest at the top: ECharts draws a category axis
+            # bottom-up, so the lists run least-busy first.
+            top = list(reversed(features["screens"][:TOP_SCREENS_CHARTED]))
+            return {
+                "bar_labels": [friendly_name(s["name"]) for s in top],
+                "bar_data": [s["total"] for s in top],
+            }
 
     # ── Events ───────────────────────────────────────────────────────────
 

@@ -1,10 +1,6 @@
 {% from "macros/layout.html" import empty_state_compact %}
 
-{% if top_events %}
-{% set pie_data = [] %}
-{% for e in top_events %}
-{% set _ = pie_data.append({"name": e.name | friendly_name, "value": e.count}) %}
-{% endfor %}
+{% if pie_data %}
 
 <div class="h-[250px]"
      data-echart-config='{{ {
