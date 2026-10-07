@@ -1,4 +1,5 @@
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -45,8 +46,8 @@ AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False)
 pool_monitor = PoolMonitor(async_engine)
 
 
-async def get_db() -> AsyncSession:  # type: ignore[misc]
-    """Get database session - auto-commits on success."""
+async def get_db() -> AsyncIterator[AsyncSession]:
+    """The REQUEST transaction owner (FastAPI dependency): commits on success, rolls back on error."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -57,8 +58,11 @@ async def get_db() -> AsyncSession:  # type: ignore[misc]
 
 
 @asynccontextmanager
-async def get_async_db_session():
-    """Get database session as async context manager."""
+async def get_db_context() -> AsyncIterator[AsyncSession]:
+    """The NON-REQUEST transaction owner (jobs, scripts): commits on clean exit, rolls back on error.
+
+    With get_db, the only two places a transaction is committed (luxarch --playbook db-mutations).
+    """
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -68,11 +72,13 @@ async def get_async_db_session():
             raise
 
 
-async def get_monitored_db() -> AsyncSession:  # type: ignore[misc]
+async def get_monitored_db() -> AsyncIterator[AsyncSession]:
     """Get database session with connection monitoring."""
-    async with pool_monitor.get_connection_with_metrics():
-        async with AsyncSessionLocal() as session:
-            try:
-                yield session
-            finally:
-                await session.close()
+    async with (
+        pool_monitor.get_connection_with_metrics(),
+        AsyncSessionLocal() as session,
+    ):
+        try:
+            yield session
+        finally:
+            await session.close()
