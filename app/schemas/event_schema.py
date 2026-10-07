@@ -1,5 +1,5 @@
-# mypy: disable-error-code="call-overload"
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -15,7 +15,8 @@ class EventBase(BaseModel):
         description="Event name",
         examples=["screen_view"],
     )
-    timestamp: str = Field(
+    # Sent as an ISO8601 string, held as an aware datetime (parse_timestamp).
+    timestamp: datetime = Field(
         ..., description="ISO8601 timestamp string", examples=["2025-06-02T15:00:00Z"]
     )
     user_id: str | None = Field(
@@ -29,35 +30,35 @@ class EventBase(BaseModel):
     )
 
     @field_validator("name")
-    def validate_name(cls, v):
+    @classmethod
+    def validate_name(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Event name cannot be empty")
         return v.strip()
 
-    @field_validator("timestamp")
-    def validate_timestamp(cls, v):
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def parse_timestamp(cls, v: object) -> datetime:
+        """ISO8601 strings only (the SDK's wire format); naive means UTC; bounded clock skew."""
+        if not isinstance(v, str):
+            raise ValueError("timestamp must be an ISO8601 string")
         try:
-            # Parse ISO8601 string to datetime
-            if v.endswith("Z"):
-                dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
-            else:
-                dt = datetime.fromisoformat(v)
-
-            # Ensure timezone-aware
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
-
-            # Check not too far in future (configurable tolerance for clock skew)
-            now = datetime.now(UTC)
-            tolerance = settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE
-            if dt > now + timedelta(seconds=tolerance):
-                raise ValueError(
-                    f"Event timestamp cannot be more than {tolerance} seconds in the future"
-                )
-
-            return dt  # Return datetime object for database
+            dt = datetime.fromisoformat(
+                v.removesuffix("Z") + "+00:00" if v.endswith("Z") else v
+            )
         except ValueError as e:
-            raise ValueError(f"Invalid timestamp format: {e}")
+            raise ValueError(f"Invalid timestamp format: {e}") from e
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+
+        # Not too far in the future (configurable tolerance for clock skew)
+        tolerance = settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE
+        if dt > datetime.now(UTC) + timedelta(seconds=tolerance):
+            raise ValueError(
+                f"Event timestamp cannot be more than {tolerance} seconds in the future"
+            )
+        return dt
 
 
 class EventCreate(EventBase):
@@ -92,9 +93,17 @@ class EventInDB(BaseModel):
 
 
 class EventResponse(BaseModel):
-    status: str = Field(examples=["success"])
+    status: Literal["success"] = Field(examples=["success"])
     events_received: int = Field(examples=[1])
     message: str | None = Field(examples=["Successfully processed 1 analytics events"])
+
+
+class AppStatsResponse(BaseModel):
+    """GET /api/v1/events/stats: the calling app's event total over the stats window."""
+
+    app_id: str
+    total_events: int
+    status: Literal["active"]
 
 
 class BatchEventRequest(BaseModel):
@@ -124,7 +133,8 @@ class BatchEventRequest(BaseModel):
     )
 
     @field_validator("events")
-    def validate_events(cls, v):
+    @classmethod
+    def validate_events(cls, v: list[EventCreate]) -> list[EventCreate]:
         if not v:
             raise ValueError("At least one event is required")
         return v

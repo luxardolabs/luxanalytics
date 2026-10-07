@@ -1,22 +1,77 @@
 """Event ingest service — business logic for event creation. Calls CRUD for DB access."""
 
+import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEVICE_CONTEXT_KEYS
 from app.crud.device_crud import device_crud
-from app.crud.event_crud import EventWriteCRUD
+from app.crud.event_crud import EventWriteCRUD, event_crud
 from app.models.event_model import Event
-from app.schemas.event_schema import EventCreate
+from app.schemas.event_schema import BatchEventRequest, EventCreate
+
+logger = logging.getLogger(__name__)
 
 event_write_crud = EventWriteCRUD()
 
+# GET /stats counts the last year of events.
+STATS_WINDOW_HOURS = 8760
+
+_EVENT_LIST = TypeAdapter(list[EventCreate])
+
+
+class InvalidEventPayload(ValueError):
+    """The decoded body is neither one event, {"events": [...]}, nor a list of events."""
+
+
+def events_from_payload(payload: object) -> list[EventCreate]:
+    """The three accepted ingest shapes, validated. Raises pydantic.ValidationError on a bad event."""
+    if isinstance(payload, dict):
+        if "events" in payload:
+            return BatchEventRequest.model_validate(payload).events
+        return [EventCreate.model_validate(payload)]
+    if isinstance(payload, list):
+        return _EVENT_LIST.validate_python(payload)
+    raise InvalidEventPayload(
+        'payload must be an event object, {"events": [...]}, or a list of events'
+    )
+
 
 class EventCoreService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def ingest(self, app_id: str, payload: object) -> list[Event]:
+        """Validate a decoded ingest payload and store its events (see events_from_payload)."""
+        events = events_from_payload(payload)
+        logger.debug(
+            "Analytics payload received",
+            extra={
+                "app_id": app_id,
+                "batch_size": len(events),
+                "event_names": [e.name for e in events],
+            },
+        )
+        created = await self.create_events(app_id, events)
+        logger.info(
+            "Analytics events processed",
+            extra={
+                "app_id": app_id,
+                "events_count": len(created),
+                "event_types": sorted({e.name for e in created}),
+                "batch_type": "batch" if len(events) > 1 else "single",
+            },
+        )
+        return created
+
+    async def count_events(self, app_id: str, hours: int = STATS_WINDOW_HOURS) -> int:
+        """Events the app sent in the last `hours`."""
+        conditions = event_crud.time_conditions(hours=hours, app_id=app_id)
+        return await event_crud.count(self.db, conditions)
 
     async def create_events(
         self, app_id: str, events: list[EventCreate]
@@ -24,7 +79,7 @@ class EventCoreService:
         """Create events with promoted columns, properties JSONB, and device upserts."""
         received_at = datetime.now(UTC)
         insert_data = []
-        devices_to_upsert: dict[str, dict] = {}
+        devices_to_upsert: dict[str, dict[str, Any]] = {}
 
         for event_data in events:
             event_id = str(uuid.uuid4())
