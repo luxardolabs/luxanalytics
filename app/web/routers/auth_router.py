@@ -1,4 +1,5 @@
-import structlog
+import logging
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -12,7 +13,7 @@ from app.core.auth import (
 from app.core.config import settings
 from app.web.templates import templates
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -30,9 +31,9 @@ async def login_page(
         return RedirectResponse(url=safe_redirect_target(next), status_code=303)
 
     return templates.TemplateResponse(
+        request,
         "pages/auth/login.html",
         {
-            "request": request,
             "next": next,
             "error": error,
             "message": message,
@@ -52,7 +53,7 @@ async def login(
     """Process login form."""
     # Verify credentials
     if not verify_credentials(username, password):
-        logger.warning("Failed login attempt", username=username)
+        logger.warning("Failed login attempt", extra={"username": username})
         return RedirectResponse(
             url=f"/login?next={next}&error=Invalid username or password",
             status_code=303,

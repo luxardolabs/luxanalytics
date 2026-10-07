@@ -1,13 +1,13 @@
 import hashlib
 import hmac
+import logging
 import time
 
-import structlog
 from fastapi import Header, HTTPException, Request
 
 from app.core.config import settings
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 def verify_hmac_signature(
@@ -31,7 +31,7 @@ def verify_hmac_signature(
     hmac_keys = settings.hmac_keys_dict
     secret = hmac_keys.get(x_key_id)
     if not secret:
-        logger.warning("Invalid key ID", key_id=x_key_id)
+        logger.warning("Invalid key ID", extra={"key_id": x_key_id})
         raise HTTPException(status_code=401, detail="Invalid key ID")
 
     # Get raw body for signature verification
@@ -45,13 +45,15 @@ def verify_hmac_signature(
     if not hmac.compare_digest(computed_signature, x_signature):
         logger.warning(
             "HMAC signature verification failed",
-            key_id=x_key_id,
-            computed=computed_signature[:8] + "...",
-            provided=x_signature[:8] + "...",
+            extra={
+                "key_id": x_key_id,
+                "computed": computed_signature[:8] + "...",
+                "provided": x_signature[:8] + "...",
+            },
         )
         raise HTTPException(status_code=403, detail="Invalid signature")
 
-    logger.info("HMAC signature verified", app_id=x_key_id)
+    logger.info("HMAC signature verified", extra={"app_id": x_key_id})
     return x_key_id
 
 

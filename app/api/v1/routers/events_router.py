@@ -1,8 +1,8 @@
 import base64
 import json
+import logging
 import secrets
 
-import structlog  # type: ignore
 from fastapi import APIRouter, Depends, HTTPException, Request  # type: ignore
 from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
@@ -14,7 +14,7 @@ from app.schemas.event_schema import BatchEventRequest, EventCreate, EventRespon
 from app.services.app_service import AppService
 from app.services.event_service import EventService
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -37,9 +37,11 @@ async def _process_events(
 
         logger.debug(
             "Analytics payload received",
-            app_id=app_id,
-            payload_size=len(processed_body),
-            payload_type=type(payload).__name__,
+            extra={
+                "app_id": app_id,
+                "payload_size": len(processed_body),
+                "payload_type": type(payload).__name__,
+            },
         )
 
         # Handle different payload types
@@ -50,30 +52,36 @@ async def _process_events(
                 events = batch_request.events
                 logger.debug(
                     "Batch events debug",
-                    app_id=app_id,
-                    batch_size=len(batch_request.events),
-                    event_names=[e.name for e in batch_request.events],
+                    extra={
+                        "app_id": app_id,
+                        "batch_size": len(batch_request.events),
+                        "event_names": [e.name for e in batch_request.events],
+                    },
                 )
             else:
                 # Single event format: {...}
                 events = [EventCreate(**payload)]
                 logger.debug(
                     "Single event debug",
-                    app_id=app_id,
-                    event_name=payload.get("name"),
-                    event_timestamp=payload.get("timestamp"),
-                    user_id=payload.get("user_id"),
-                    session_id=payload.get("session_id"),
-                    metadata_keys=list(payload.get("metadata", {}).keys()),
+                    extra={
+                        "app_id": app_id,
+                        "event_name": payload.get("name"),
+                        "event_timestamp": payload.get("timestamp"),
+                        "user_id": payload.get("user_id"),
+                        "session_id": payload.get("session_id"),
+                        "metadata_keys": list(payload.get("metadata", {}).keys()),
+                    },
                 )
         elif isinstance(payload, list):
             # Array format: [...]
             events = [EventCreate(**event) for event in payload]
             logger.debug(
                 "Array events debug",
-                app_id=app_id,
-                array_size=len(payload),
-                event_names=[e.get("name") for e in payload],
+                extra={
+                    "app_id": app_id,
+                    "array_size": len(payload),
+                    "event_names": [e.get("name") for e in payload],
+                },
             )
         else:
             raise HTTPException(status_code=400, detail="Invalid payload format")
@@ -83,12 +91,12 @@ async def _process_events(
 
         logger.info(
             "Analytics events processed",
-            app_id=app_id,
-            events_count=len(created_events),
-            event_types=list(
-                set(e.name for e in created_events)
-            ),  # Unique event types only
-            batch_type="batch" if len(events) > 1 else "single",
+            extra={
+                "app_id": app_id,
+                "events_count": len(created_events),
+                "event_types": list(set(e.name for e in created_events)),
+                "batch_type": "batch" if len(events) > 1 else "single",
+            },
         )
 
         return EventResponse(
@@ -98,14 +106,13 @@ async def _process_events(
         )
 
     except json.JSONDecodeError:
-        logger.error("Invalid JSON payload", app_id=app_id)
+        logger.error("Invalid JSON payload", extra={"app_id": app_id})
         raise HTTPException(status_code=400, detail="Invalid JSON")
     except Exception as e:
         logger.error(
             "Error processing analytics events",
-            app_id=app_id,
-            error=str(e),
             exc_info=True,
+            extra={"app_id": app_id, "error": str(e)},
         )
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -156,7 +163,7 @@ async def create_events_by_project_id(
     app = await app_service.get_app_by_project_id(project_id)
 
     if not app:
-        logger.warning("Invalid project_id in URL", project_id=project_id)
+        logger.warning("Invalid project_id in URL", extra={"project_id": project_id})
         raise HTTPException(status_code=404, detail="Invalid project")
 
     # Verify the auth header contains the correct public_id
@@ -172,24 +179,25 @@ async def create_events_by_project_id(
             ):
                 logger.warning(
                     "Invalid public_id for project",
-                    project_id=project_id,
-                    expected_public_id=app.public_id[:8] + "...",
-                    provided_public_id=auth_public_id[:8] + "...",
+                    extra={
+                        "project_id": project_id,
+                        "expected_public_id": app.public_id[:8] + "...",
+                        "provided_public_id": auth_public_id[:8] + "...",
+                    },
                 )
                 raise HTTPException(status_code=401, detail="Invalid DSN key")
         except (ValueError, UnicodeDecodeError) as e:
             # b64decode raises binascii.Error (a ValueError); .decode raises UnicodeDecodeError.
             # A malformed header is the caller's error (401); anything else is a bug and propagates.
-            logger.warning("Malformed authorization header", error=str(e))
+            logger.warning("Malformed authorization header", extra={"error": str(e)})
             raise HTTPException(status_code=401, detail="Invalid authorization")
     else:
-        logger.warning("Missing authorization header", project_id=project_id)
+        logger.warning("Missing authorization header", extra={"project_id": project_id})
         raise HTTPException(status_code=401, detail="Authorization required")
 
     logger.info(
         "Processing events via project endpoint",
-        app_id=app.app_id,
-        project_id=project_id,
+        extra={"app_id": app.app_id, "project_id": project_id},
     )
     return await _process_events(request, app.app_id, db)
 

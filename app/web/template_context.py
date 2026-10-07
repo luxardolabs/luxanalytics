@@ -7,7 +7,11 @@ without requiring each router to manually pass it.
 from typing import Any
 
 from fastapi.templating import Jinja2Templates
+from starlette.background import BackgroundTask
+from starlette.requests import Request
 from starlette.responses import Response
+
+from app.core.config import settings
 
 
 class AutoContextTemplates(Jinja2Templates):
@@ -21,33 +25,30 @@ class AutoContextTemplates(Jinja2Templates):
         """Set a global context variable available to all templates."""
         self._global_context[key] = value
 
-    def TemplateResponse(  # type: ignore[override]  # noqa: N802
+    def TemplateResponse(  # type: ignore[override]
         self,
+        request: Request,
         name: str,
-        context: dict[str, Any],
+        context: dict[str, Any] | None = None,
         status_code: int = 200,
         headers: dict[str, str] | None = None,
         media_type: str | None = None,
-        background: Any = None,
+        background: BackgroundTask | None = None,
     ) -> Response:
-        # context must contain "request"
+        # Starlette 1.x canonical form: request first, then the template name.
+        context = dict(context or {})
 
         # Inject global context (don't override what route explicitly set)
         for key, value in self._global_context.items():
-            if key not in context:
-                context[key] = value
+            context.setdefault(key, value)
 
         # Auto-inject version from settings
-        if "version" not in context:
-            try:
-                from app.core.config import settings
-                context["version"] = settings.APP_VERSION
-            except Exception:
-                context["version"] = "dev"
+        context.setdefault("version", settings.APP_VERSION)
 
-        return super().TemplateResponse(  # type: ignore[call-arg]
-            name=name,
-            context=context,
+        return super().TemplateResponse(
+            request,
+            name,
+            context,
             status_code=status_code,
             headers=headers,
             media_type=media_type,

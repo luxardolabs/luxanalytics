@@ -1,19 +1,18 @@
 import base64
-from typing import Optional
+import logging
 
-import structlog
 from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.services.app_service import AppService
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 async def extract_app_from_dsn(
     request: Request,
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
     db: AsyncSession = Depends(get_db),
 ) -> str:
     """
@@ -52,22 +51,23 @@ async def extract_app_from_dsn(
         app = await app_service.get_app_by_public_id(public_id)
 
         if not app:
-            logger.warning("Invalid public_id", public_id=public_id)
+            logger.warning("Invalid public_id", extra={"public_id": public_id})
             raise HTTPException(status_code=401, detail="Invalid app credentials")
 
         logger.info(
-            "DSN authentication successful", app_id=app.app_id, public_id=public_id
+            "DSN authentication successful",
+            extra={"app_id": app.app_id, "public_id": public_id},
         )
         return app.app_id
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("DSN authentication error", error=str(e))
+        logger.error("DSN authentication error", extra={"error": str(e)})
         raise HTTPException(status_code=401, detail="Invalid authorization")
 
 
-def extract_app_from_path(path: str) -> Optional[str]:
+def extract_app_from_path(path: str) -> str | None:
     """
     Alternative: Extract public_id from URL path.
 

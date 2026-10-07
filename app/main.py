@@ -1,11 +1,11 @@
 # Updated main.py file
 import asyncio
+import logging
 import sys
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -17,7 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.routers import router as api_router
 from app.core.auth import get_session_secret
 from app.core.config import settings
-from app.core.logging import setup_logging
+from app.core.logging_config import configure_logging
 from app.core.middleware import (
     LoggingMiddleware,
     RateLimitMiddleware,
@@ -31,8 +31,12 @@ from app.web.routers import router as web_router
 from app.web.templates import error_templates
 
 # Setup logging
-setup_logging()
-logger = structlog.get_logger()
+configure_logging(
+    service="luxanalytics",
+    version=settings.APP_VERSION,
+    environment=settings.ENVIRONMENT,
+)
+logger = logging.getLogger(__name__)
 
 # Import models at module level to ensure they're registered with Base
 from app.models import App, Device, Event  # noqa: F401, E402  # Register with Base
@@ -60,7 +64,7 @@ async def run_migrations():
         logger.info("Database migrations completed successfully!")
 
     except Exception as e:
-        logger.error("Database migrations failed!", error=str(e))
+        logger.error("Database migrations failed!", extra={"error": str(e)})
         sys.exit(1)
 
 
@@ -88,7 +92,7 @@ async def wait_for_database():
                 "Database not ready (attempt %s/%s), waiting...",
                 retry_count,
                 max_retries,
-                error=str(e),
+                extra={"error": str(e)},
             )
             await asyncio.sleep(2)
 
@@ -104,8 +108,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
     logger.info(
         "🚀 Starting Analytics Collector API with Dashboard",
-        version=settings.APP_VERSION,
-        build_timestamp=settings.BUILD_TIMESTAMP,
+        extra={
+            "version": settings.APP_VERSION,
+            "build_timestamp": settings.BUILD_TIMESTAMP,
+        },
     )
     await wait_for_database()
     await run_migrations()
@@ -123,7 +129,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.info("Redis connection closed")
     except (RedisError, OSError) as e:
         # Shutdown proceeds either way; record that the close failed instead of hiding it.
-        logger.warning("Redis close failed during shutdown", error=str(e))
+        logger.warning("Redis close failed during shutdown", extra={"error": str(e)})
 
 
 def create_application() -> FastAPI:

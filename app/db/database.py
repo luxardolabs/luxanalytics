@@ -1,8 +1,7 @@
+import logging
 from contextlib import asynccontextmanager
 
-import structlog
-from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
-                                    create_async_engine)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.db.pool_monitor import PoolMonitor
@@ -10,20 +9,20 @@ from app.db.pool_monitor import PoolMonitor
 # Re-export Base from models.base for backward compatibility
 from app.models.base import Base  # noqa: F401
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Log the pool configuration
 logger.info(
     "Creating async engine with pool settings",
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_POOL_MAX_OVERFLOW,
-    pool_recycle=settings.DB_POOL_RECYCLE,
-    pool_pre_ping=settings.DB_POOL_PRE_PING,
-    database_url=(
-        settings.DATABASE_URL.split("@")[1]
+    extra={
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_POOL_MAX_OVERFLOW,
+        "pool_recycle": settings.DB_POOL_RECYCLE,
+        "pool_pre_ping": settings.DB_POOL_PRE_PING,
+        "database_url": settings.DATABASE_URL.split("@")[1]
         if "@" in settings.DATABASE_URL
-        else "invalid"
-    ),
+        else "invalid",
+    },
 )
 
 # Async engine with robust connection pooling

@@ -1,16 +1,16 @@
 """Redis-based distributed rate limiter with sliding window algorithm."""
 
+import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import redis.asyncio as redis
-import structlog
 
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
@@ -21,19 +21,19 @@ class RateLimiter:
 
     def __init__(
         self,
-        requests_per_window: Optional[int] = None,
-        window_seconds: Optional[int] = None,
+        requests_per_window: int | None = None,
+        window_seconds: int | None = None,
         key_prefix: str = "rate_limit",
     ):
         self.requests_per_window = requests_per_window or settings.RATE_LIMIT_REQUESTS
         self.window_seconds = window_seconds or settings.RATE_LIMIT_WINDOW
         self.key_prefix = key_prefix
         # Fallback in-memory storage
-        self._memory_storage: Dict[str, list] = {}
+        self._memory_storage: dict[str, list] = {}
 
     async def is_allowed(
         self, identifier: str, cost: int = 1
-    ) -> Tuple[bool, Dict[str, Any]]:
+    ) -> tuple[bool, dict[str, Any]]:
         """
         Check if request is allowed under rate limit.
 
@@ -50,7 +50,7 @@ class RateLimiter:
 
     async def _check_redis(
         self, redis_client: redis.Redis, identifier: str, cost: int
-    ) -> Tuple[bool, Dict[str, Any]]:
+    ) -> tuple[bool, dict[str, Any]]:
         """Check rate limit using Redis with sliding window."""
         key = f"{self.key_prefix}:{identifier}"
         now = time.time()
@@ -102,11 +102,11 @@ class RateLimiter:
                     }
 
             except Exception as e:
-                logger.error("Redis rate limit check failed", error=str(e))
+                logger.error("Redis rate limit check failed", extra={"error": str(e)})
                 # Fall back to memory on Redis error
                 return self._check_memory(identifier, cost)
 
-    def _check_memory(self, identifier: str, cost: int) -> Tuple[bool, Dict[str, Any]]:
+    def _check_memory(self, identifier: str, cost: int) -> tuple[bool, dict[str, Any]]:
         """Fallback in-memory rate limiting."""
         now = datetime.now()
         window_start = now - timedelta(seconds=self.window_seconds)
@@ -165,10 +165,10 @@ class AppRateLimiter(RateLimiter):
 
     async def check_app_limit(
         self, app_id: str, cost: int = 1
-    ) -> Tuple[bool, Dict[str, Any]]:
+    ) -> tuple[bool, dict[str, Any]]:
         """Check rate limit for specific app_id."""
         # Could have different limits per app
-        app_limits: Dict[str, Tuple[int, int]] = {
+        app_limits: dict[str, tuple[int, int]] = {
             # "premium_app": (1000, 60),  # 1000 requests per minute
             # "basic_app": (100, 60),     # 100 requests per minute
         }
@@ -187,6 +187,6 @@ class IPRateLimiter(RateLimiter):
 
     async def check_ip_limit(
         self, ip_address: str, cost: int = 1
-    ) -> Tuple[bool, Dict[str, Any]]:
+    ) -> tuple[bool, dict[str, Any]]:
         """Check rate limit for specific IP address."""
         return await self.is_allowed(ip_address, cost)

@@ -1,10 +1,10 @@
 import asyncio
+import logging
 import time
 import zlib
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-import structlog
 from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.core.rate_limiter import AppRateLimiter, IPRateLimiter
 from app.core.security import get_app_id_from_headers
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
@@ -26,7 +26,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             start_time = time.time()
             response = await call_next(request)
             process_time = time.time() - start_time
-            logger.info("Request completed", method=request.method, url=str(request.url), process_time=round(process_time, 4), status=response.status_code)
+            logger.info(
+                "Request completed",
+                extra={
+                    "method": request.method,
+                    "url": str(request.url),
+                    "process_time": round(process_time, 4),
+                    "status": response.status_code,
+                },
+            )
             return response
 
         start_time = time.time()
@@ -51,9 +59,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
                     logger.info(
                         "Request decompressed",
-                        original_size=len(body),
-                        decompressed_size=len(decompressed_body),
-                        compression_ratio=round(len(body) / len(decompressed_body), 2),
+                        extra={
+                            "original_size": len(body),
+                            "decompressed_size": len(decompressed_body),
+                            "compression_ratio": round(
+                                len(body) / len(decompressed_body), 2
+                            ),
+                        },
                     )
                     # Use decompressed body for downstream processing
                     body_for_processing = decompressed_body
@@ -61,28 +73,34 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     # Log detailed error information for debugging
                     logger.debug(
                         "Standard zlib decompression failed, trying raw deflate",
-                        error=str(e),
-                        content_encoding=content_encoding,
-                        body_length=len(body),
-                        body_start=body[:20].hex() if len(body) >= 20 else body.hex(),
-                        expected_headers="78 9C or 78 DA for zlib",
+                        extra={
+                            "error": str(e),
+                            "content_encoding": content_encoding,
+                            "body_length": len(body),
+                            "body_start": body[:20].hex()
+                            if len(body) >= 20
+                            else body.hex(),
+                            "expected_headers": "78 9C or 78 DA for zlib",
+                        },
                     )
                     # Try raw deflate as fallback
                     try:
                         decompressed_body = zlib.decompress(body, -15)
                         logger.info(
                             "Request decompressed (raw deflate)",
-                            original_size=len(body),
-                            decompressed_size=len(decompressed_body),
-                            compression_ratio=round(
-                                len(body) / len(decompressed_body), 2
-                            ),
+                            extra={
+                                "original_size": len(body),
+                                "decompressed_size": len(decompressed_body),
+                                "compression_ratio": round(
+                                    len(body) / len(decompressed_body), 2
+                                ),
+                            },
                         )
                         body_for_processing = decompressed_body
                     except zlib.error as e2:
                         logger.error(
                             "Raw deflate decompression also failed",
-                            error=str(e2),
+                            extra={"error": str(e2)},
                         )
                         raise HTTPException(
                             status_code=400, detail="Invalid compressed data"
@@ -101,18 +119,17 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             request._receive = receive
 
         # Log at debug level for full headers, info level for summary
-        logger.debug(
-            "Request details",
-            headers=dict(request.headers),
-        )
+        logger.debug("Request details", extra={"headers": dict(request.headers)})
 
         logger.debug(
             "Request started",
-            method=request.method,
-            path=request.url.path,
-            body_size=len(body) if body else 0,
-            compressed=content_encoding == "deflate",
-            client_ip=request.client.host if request.client else None,
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "body_size": len(body) if body else 0,
+                "compressed": content_encoding == "deflate",
+                "client_ip": request.client.host if request.client else None,
+            },
         )
 
         # Process request
@@ -122,10 +139,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
             logger.debug(
                 "Request completed",
-                method=request.method,
-                path=request.url.path,
-                status_code=response.status_code,
-                process_time=round(process_time, 4),
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "process_time": round(process_time, 4),
+                },
             )
 
             response.headers["X-Process-Time"] = str(process_time)
@@ -135,10 +154,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             process_time = time.time() - start_time
             logger.error(
                 "Request failed",
-                method=request.method,
-                url=str(request.url),
-                error=str(e),
-                process_time=round(process_time, 4),
+                extra={
+                    "method": request.method,
+                    "url": str(request.url),
+                    "error": str(e),
+                    "process_time": round(process_time, 4),
+                },
             )
             raise
 
@@ -168,8 +189,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if not ip_allowed:
                 logger.warning(
                     "Rate limit exceeded",
-                    client_ip=client_ip,
-                    retry_after=ip_metadata.get("retry_after"),
+                    extra={
+                        "client_ip": client_ip,
+                        "retry_after": ip_metadata.get("retry_after"),
+                    },
                 )
                 return JSONResponse(
                     status_code=429,
@@ -190,14 +213,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 try:
                     app_id = get_app_id_from_headers(dict(request.headers))
                     if app_id:
-                        app_allowed, app_metadata = (
-                            await self.app_limiter.check_app_limit(app_id)
-                        )
+                        (
+                            app_allowed,
+                            app_metadata,
+                        ) = await self.app_limiter.check_app_limit(app_id)
                         if not app_allowed:
                             logger.warning(
                                 "App rate limit exceeded",
-                                app_id=app_id,
-                                retry_after=app_metadata.get("retry_after"),
+                                extra={
+                                    "app_id": app_id,
+                                    "retry_after": app_metadata.get("retry_after"),
+                                },
                             )
                             return JSONResponse(
                                 status_code=429,
@@ -228,8 +254,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 # Client disconnected during processing
                 logger.debug(
                     "Client disconnected during request processing",
-                    client_ip=client_ip,
-                    path=request.url.path,
+                    extra={"client_ip": client_ip, "path": request.url.path},
                 )
                 return Response(status_code=499)
 
@@ -247,7 +272,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Fall back to in-memory rate limiting if Redis fails
             logger.debug(
-                "Redis rate limiting failed, using in-memory fallback", error=str(e)
+                "Redis rate limiting failed, using in-memory fallback",
+                extra={"error": str(e)},
             )
 
             now = datetime.now()
@@ -265,8 +291,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 if len(self.requests[client_ip]) >= settings.RATE_LIMIT_REQUESTS:
                     logger.warning(
                         "Rate limit exceeded (in-memory)",
-                        client_ip=client_ip,
-                        requests_count=len(self.requests[client_ip]),
+                        extra={
+                            "client_ip": client_ip,
+                            "requests_count": len(self.requests[client_ip]),
+                        },
                     )
                     raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
@@ -296,9 +324,11 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
             if content_size > self.max_size:
                 logger.warning(
                     "Request body too large",
-                    content_length=content_length,
-                    max_size=self.max_size,
-                    path=request.url.path,
+                    extra={
+                        "content_length": content_length,
+                        "max_size": self.max_size,
+                        "path": request.url.path,
+                    },
                 )
                 return JSONResponse(
                     status_code=413,
@@ -320,9 +350,11 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                     if body_size > self.max_size:
                         logger.warning(
                             "Request body exceeded limit during streaming",
-                            size_read=body_size,
-                            max_size=self.max_size,
-                            path=request.url.path,
+                            extra={
+                                "size_read": body_size,
+                                "max_size": self.max_size,
+                                "path": request.url.path,
+                            },
                         )
                         return JSONResponse(
                             status_code=413,
@@ -336,8 +368,7 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                 # Client disconnected while streaming - this is normal
                 logger.debug(
                     "Client disconnected during request streaming",
-                    path=request.url.path,
-                    bytes_read=body_size,
+                    extra={"path": request.url.path, "bytes_read": body_size},
                 )
                 # Return early with a 499 Client Closed Request status
                 return Response(status_code=499)

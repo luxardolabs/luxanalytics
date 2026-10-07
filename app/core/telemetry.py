@@ -1,11 +1,10 @@
 """OpenTelemetry and Prometheus setup for observability."""
 
+import logging
 import os
 
-import structlog
 from opentelemetry import metrics, trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import \
-    OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
@@ -16,7 +15,7 @@ from prometheus_client import CollectorRegistry, generate_latest
 
 from app.core.config import settings
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Global registry for Prometheus metrics
 REGISTRY = CollectorRegistry()
@@ -70,16 +69,18 @@ def setup_telemetry(app=None):
             )
             logger.info("SQLAlchemy instrumentation enabled")
         except Exception as e:
-            logger.warning("Failed to instrument SQLAlchemy", error=str(e))
+            logger.warning("Failed to instrument SQLAlchemy", extra={"error": str(e)})
 
         logger.info(
             "OpenTelemetry initialized",
-            endpoint=otel_endpoint,
-            service_name=os.getenv("OTEL_SERVICE_NAME", "ll_analytics"),
+            extra={
+                "endpoint": otel_endpoint,
+                "service_name": os.getenv("OTEL_SERVICE_NAME", "ll_analytics"),
+            },
         )
 
     except Exception as e:
-        logger.error("Failed to initialize OpenTelemetry", error=str(e))
+        logger.error("Failed to initialize OpenTelemetry", extra={"error": str(e)})
 
 
 def get_prometheus_metrics() -> bytes:

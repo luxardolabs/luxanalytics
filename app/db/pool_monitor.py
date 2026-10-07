@@ -1,17 +1,17 @@
 """Database connection pool monitoring and circuit breaker implementation."""
 
 import asyncio
+import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 
-import structlog
 from prometheus_client import Counter, Gauge, Histogram
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.pool import NullPool, QueuePool
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Prometheus metrics for connection pool monitoring
 pool_size_gauge = Gauge("db_pool_size", "Current number of connections in pool")
@@ -42,7 +42,7 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self.expected_exception = expected_exception
         self.failure_count = 0
-        self.last_failure_time: Optional[datetime] = None
+        self.last_failure_time: datetime | None = None
         self.state = "closed"  # closed, open, half-open
 
     def call(self, func):
@@ -70,9 +70,8 @@ class CircuitBreaker:
         """Check if we should try to reset the circuit."""
         if not self.last_failure_time:
             return False
-        return (
-            datetime.now() - self.last_failure_time
-            > timedelta(seconds=self.recovery_timeout)
+        return datetime.now() - self.last_failure_time > timedelta(
+            seconds=self.recovery_timeout
         )
 
     def _on_success(self):
@@ -89,8 +88,10 @@ class CircuitBreaker:
             self.state = "open"
             logger.error(
                 "Circuit breaker opened",
-                failure_count=self.failure_count,
-                threshold=self.failure_threshold,
+                extra={
+                    "failure_count": self.failure_count,
+                    "threshold": self.failure_threshold,
+                },
             )
 
 
@@ -103,7 +104,7 @@ class PoolMonitor:
             failure_threshold=10, recovery_timeout=30, expected_exception=Exception
         )
 
-    async def get_pool_status(self) -> Dict[str, Any]:
+    async def get_pool_status(self) -> dict[str, Any]:
         """Get current pool status and metrics."""
         pool = self.engine.pool
 
@@ -136,7 +137,7 @@ class PoolMonitor:
                 status = await self.get_pool_status()
 
                 # Log pool status
-                logger.info("Connection pool status", **status)
+                logger.info("Connection pool status", extra={**status})
 
                 # Check for potential issues
                 if status.get("type") == "QueuePool":
@@ -147,12 +148,11 @@ class PoolMonitor:
                     if checked_in < total_connections * 0.2:
                         logger.warning(
                             "Low available connections in pool",
-                            available=checked_in,
-                            total=total_connections,
+                            extra={"available": checked_in, "total": total_connections},
                         )
 
             except Exception as e:
-                logger.error("Error monitoring pool health", error=str(e))
+                logger.error("Error monitoring pool health", extra={"error": str(e)})
 
             await asyncio.sleep(interval)
 
@@ -175,7 +175,7 @@ class PoolMonitor:
 
                 yield conn
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pool_timeout_counter.inc()
             self.circuit_breaker._on_failure()
             raise
@@ -209,6 +209,6 @@ async def optimize_pool_for_load(engine: AsyncEngine, expected_rps: int):
         * 2,  # Account for multiple app instances
     }
 
-    logger.info("Database pool optimization recommendations", **recommendations)
+    logger.info("Database pool optimization recommendations", extra={**recommendations})
 
     return recommendations

@@ -1,13 +1,13 @@
+import logging
 import secrets
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
-import structlog
 from fastapi import HTTPException, Request, status
 
 from app.core.config import settings
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 def get_session_secret() -> str:
@@ -65,7 +65,7 @@ async def require_auth(request: Request):
             next_url += f"?{request.url.query}"
 
         # Redirect to login page
-        logger.info("Unauthenticated access attempt", path=request.url.path)
+        logger.info("Unauthenticated access attempt", extra={"path": request.url.path})
         raise HTTPException(
             status_code=status.HTTP_303_SEE_OTHER,
             headers={"Location": f"/login?next={next_url}"},
@@ -102,7 +102,7 @@ def create_session(request: Request, username: str):
     request.session["username"] = username
     request.session["login_time"] = datetime.now(UTC).isoformat()
 
-    logger.info("User logged in", username=username)
+    logger.info("User logged in", extra={"username": username})
 
 
 def destroy_session(request: Request):
@@ -110,4 +110,4 @@ def destroy_session(request: Request):
     username = request.session.get("username", "unknown")
     request.session.clear()
 
-    logger.info("User logged out", username=username)
+    logger.info("User logged out", extra={"username": username})

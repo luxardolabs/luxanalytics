@@ -7,7 +7,6 @@ Two modes of operation:
 
 import asyncio
 import sys
-from logging.config import fileConfig
 from os.path import abspath, dirname
 
 from sqlalchemy import pool
@@ -19,14 +18,17 @@ from alembic import context
 sys.path.insert(0, dirname(dirname(abspath(__file__))))
 
 # Import all models so they register with Base.metadata
+from app.core.config import settings
+from app.core.logging_config import configure_logging
 from app.models import App, Device, Event  # noqa: F401
 from app.models.base import Base
 
 # Alembic Config object
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# The fleet's one logging setup. fileConfig would disable every logger already created when the app
+# runs these migrations in-process at startup (repo.logging_canonical).
+configure_logging(service="luxanalytics-migrations", version=settings.APP_VERSION)
 
 target_metadata = Base.metadata
 

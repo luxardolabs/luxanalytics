@@ -1,19 +1,18 @@
 """Redis client configuration and connection management."""
 
-from typing import Optional
+import logging
 
 import redis.asyncio as redis
-import structlog
 
 from app.core.config import settings
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Global Redis client instance
-_redis_client: Optional[redis.Redis] = None
+_redis_client: redis.Redis | None = None
 
 
-async def get_redis_client() -> Optional[redis.Redis]:
+async def get_redis_client() -> redis.Redis | None:
     """Get or create Redis client instance."""
     global _redis_client
 
@@ -34,7 +33,7 @@ async def get_redis_client() -> Optional[redis.Redis]:
             await _redis_client.ping()
             logger.info("Redis client initialized successfully")
         except Exception as e:
-            logger.error("Failed to initialize Redis client", error=str(e))
+            logger.error("Failed to initialize Redis client", extra={"error": str(e)})
             _redis_client = None
 
     return _redis_client
