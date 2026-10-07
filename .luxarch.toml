@@ -52,3 +52,8 @@ evidence = "Apple's UIDevice.current.model, stored verbatim from the iOS SDK (do
 # stands for. `text-fg` is the app's neutral foreground (tailwind.config.js, --color-fg).
 [color_tokens]
 fg = "white"
+
+# Templates render; the view computes (luxarch --playbook template-logic). This app's pages are
+# Jinja + HTMX, so the rule applies.
+[templates]
+lint_logic = true

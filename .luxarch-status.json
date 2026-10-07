@@ -666,12 +666,12 @@
         },
         {
           "rule": "fw.no_template_logic",
-          "status": "INERT",
+          "status": "FAIL",
           "since": "0.12.0",
-          "violations": 0,
+          "violations": 43,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "set [templates].lint_logic = true to parse templates for data-shaping/arithmetic/mutation logic that belongs in the view. See --playbook template-logic."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.tenant_scoped",
@@ -1504,10 +1504,10 @@
       ],
       "summary": {
         "PASS": 140,
-        "FAIL": 0,
+        "FAIL": 1,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 26
+        "INERT": 25
       }
     }
   ],
@@ -2046,11 +2046,11 @@
   },
   "summary": {
     "PASS": 194,
-    "FAIL": 1,
+    "FAIL": 2,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 29
+    "INERT": 28
   },
-  "commit": "3032b34dc2e267c028716ff6332943010bd81656",
-  "generated_at": "2026-10-07T20:04:49Z"
+  "commit": "b365d32ba78c8156268be1fa1b27d9c30a3e35d2",
+  "generated_at": "2026-10-07T20:09:24Z"
 }
