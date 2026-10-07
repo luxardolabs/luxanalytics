@@ -349,12 +349,43 @@ class DashboardViewService:
                 app_id=app_id, hours=hours
             )
             # The heatmap grows a row per screen; its height is layout data the view decides.
-            screens = (data.get("transition_heatmap") or {}).get("screens", [])
-            heatmap_height = 80 + 32 * len(screens)
+            heatmap = data["transition_heatmap"]
+            heatmap_height = 80 + 32 * len(heatmap["screens"])
+            flows = data["button_flows"]
+            busiest = flows[0][2] if flows else 1
+            flow_rows = [
+                {
+                    "screen": screen or "",
+                    "button": button,
+                    "count": count,
+                    "strength": round(count / busiest * 100, 1),
+                }
+                for screen, button, count in flows
+            ]
+            screen_cards = [
+                {
+                    "name": screen,
+                    "visits": visits,
+                    "features": data["screen_details"][screen]["features"],
+                }
+                for screen, visits in data["popular_screens"]
+            ]
+            total = data["total_interactions"]
             return self._filtered(
                 app_id,
                 hours,
-                {**data, "requires_app": False, "heatmap_height": heatmap_height},
+                {
+                    **data,
+                    "requires_app": False,
+                    "heatmap_height": heatmap_height,
+                    "heatmap_max": max((d[2] for d in heatmap["data"]), default=1),
+                    "flow_rows": flow_rows,
+                    "screen_cards": screen_cards,
+                    # hours=0 is "All": a per-hour rate over an unbounded window means nothing.
+                    "interactions_per_hour": round(total / hours, 1)
+                    if hours > 0
+                    else None,
+                },
             )
 
     # ── Explorer ─────────────────────────────────────────────────────────

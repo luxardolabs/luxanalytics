@@ -666,9 +666,9 @@
         },
         {
           "rule": "fw.no_template_logic",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.12.0",
-          "violations": 5,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1503,8 +1503,8 @@
         }
       ],
       "summary": {
-        "PASS": 139,
-        "FAIL": 2,
+        "PASS": 140,
+        "FAIL": 1,
         "XFAIL": 0,
         "XPASS": 0,
         "INERT": 25
@@ -2045,12 +2045,12 @@
     }
   },
   "summary": {
-    "PASS": 193,
-    "FAIL": 3,
+    "PASS": 194,
+    "FAIL": 2,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "f2e1e314a5ff3b2d828398b2392b398dd9d5dda0",
-  "generated_at": "2026-10-07T20:24:14Z"
+  "commit": "a2eb973ee65abb6880eabff4481ade536076af93",
+  "generated_at": "2026-10-07T20:26:49Z"
 }

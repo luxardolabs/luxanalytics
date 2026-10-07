@@ -25,7 +25,7 @@
 {% call stat_grid(columns=3, class="mb-6") %}
     {{ stat_card("Interactions", total_interactions | number_format, icon_name="cursor-arrow-rays", color="brand") }}
     {{ stat_card("Active Screens", popular_screens | length, icon_name="device-phone-mobile", color="blue") }}
-    {{ stat_card("Interactions/Hour", ((total_interactions) / (hours)) | round(1), icon_name="clock", color="green") }}
+    {{ stat_card("Interactions/Hour", interactions_per_hour if interactions_per_hour is not none else "—", icon_name="clock", color="green") }}
 {% endcall %}
 {% endif %}
 
@@ -43,7 +43,7 @@
         {% if button_flows %}
         <div class="bg-surface-10/50 rounded-lg p-4">
             <h5 class="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1">Top Action</h5>
-            <p class="text-sm text-slate-300"><strong class="text-fg">{{ button_flows[0][0].split(' → ')[1] | friendly_name }}</strong> button</p>
+            <p class="text-sm text-slate-300"><strong class="text-fg">{{ flow_rows[0].button | friendly_name }}</strong> button</p>
         </div>
         {% endif %}
         {% if exit_screens %}
@@ -93,7 +93,6 @@
 {# ── Transition Heatmap ── #}
 {% if transition_heatmap and transition_heatmap.data %}
 {% set hm = transition_heatmap %}
-{% set max_val = namespace(v=1) %}{% for d in hm.data %}{% if d[2] > max_val.v %}{% set max_val.v = d[2] %}{% endif %}{% endfor %}
 <div class="mb-6">
 {% call analytics_card("Screen Transitions") %}
     <div id="transition-heatmap"
@@ -135,7 +134,7 @@
              },
              "visualMap": {
                  "min": 0,
-                 "max": max_val.v,
+                 "max": heatmap_max,
                  "calculable": false,
                  "show": true,
                  "orient": "horizontal",
@@ -229,17 +228,16 @@
 <div class="mb-6">
 {% call analytics_card("Screen Popularity") %}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {% for screen, visits in popular_screens %}
-        {% set screen_detail = screen_details[screen] %}
+        {% for card in screen_cards %}
         <div class="bg-surface-10/50 border border-surface-20 rounded-lg p-4">
             <div class="flex justify-between items-center mb-3">
-                <h4 class="text-sm font-medium text-fg">{{ screen | friendly_name }}</h4>
-                {{ badge((visits | string) ~ " views", variant="default") }}
+                <h4 class="text-sm font-medium text-fg">{{ card.name | friendly_name }}</h4>
+                {{ badge((card.visits | string) ~ " views", variant="default") }}
             </div>
-            {% if screen_detail.features %}
+            {% if card.features %}
             <div>
                 <h5 class="text-xs text-slate-500 uppercase tracking-wider mb-2">Features Used</h5>
-                {% for feature, count in screen_detail.features.items() %}
+                {% for feature, count in card.features.items() %}
                 <div class="flex justify-between text-xs text-slate-300 py-0.5">
                     <span>{{ feature | friendly_name }}</span>
                     <span class="text-slate-500 tabular-nums">{{ count }}</span>
@@ -257,23 +255,20 @@
 {# ── Button Flows with strength bars ── #}
 {% if button_flows %}
 {% call analytics_card("Button Interaction Flows") %}
-    {% set max_interactions = button_flows[0][1] if button_flows else 1 %}
     {% call data_table(["Screen → Button", {"label": "Interactions", "class": "text-right"}, "Flow Strength"]) %}
-                {% for flow, count in button_flows %}
-                {% set strength = (count / max_interactions * 100) | round(1) %}
+                {% for flow in flow_rows %}
                 <tr class="hover:bg-surface-10/50 transition-colors">
                     {% call td() %}
-                        {% set parts = flow.split(' → ') %}
-                        <span class="text-slate-500">{{ parts[0] | default('') | friendly_name }}</span>
-                        <span class="text-fg font-medium"> → {{ parts[1] | default('') | friendly_name }}</span>
+                        <span class="text-slate-500">{{ flow.screen | friendly_name }}</span>
+                        <span class="text-fg font-medium"> → {{ flow.button | friendly_name }}</span>
                     {% endcall %}
-                    {% call td(class="text-right tabular-nums") %}{{ count }}{% endcall %}
+                    {% call td(class="text-right tabular-nums") %}{{ flow.count }}{% endcall %}
                     {% call td() %}
                         <div class="flex items-center gap-2">
                             <div class="w-24 h-1.5 bg-surface-20 rounded-full overflow-hidden">
-                                <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ strength }}%"></div>
+                                <div class="w-[var(--bar-w)] h-full bg-brand-500/60 rounded-full" style="--bar-w: {{ flow.strength }}%"></div>
                             </div>
-                            <span class="text-xs text-slate-500 tabular-nums">{{ strength }}%</span>
+                            <span class="text-xs text-slate-500 tabular-nums">{{ flow.strength }}%</span>
                         </div>
                     {% endcall %}
                 </tr>

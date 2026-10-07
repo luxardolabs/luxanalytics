@@ -91,3 +91,39 @@ async def test_explorer_rows_carry_share_examples_and_links(
     assert screen["url"].startswith("/dashboard/explorer/key/screen")
     for pattern in ctx["patterns"]:
         assert all(k["url"] for k in pattern["keys"])
+
+
+@pytest.mark.db
+async def test_journey_flows_strength_and_all_time_rate(db: AsyncSession) -> None:
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from sqlalchemy import insert
+
+    from app.models.event_model import Event
+
+    now = datetime.now(UTC)
+    taps = [("home", "start")] * 4 + [("settings", "save")] * 2
+    await db.execute(
+        insert(Event),
+        [
+            {
+                "id": uuid4(),
+                "app_id": "test_app",
+                "name": "button_tapped",
+                "timestamp": now,
+                "received_at": now,
+                "session_id": "s1",
+                "properties": {"screen": screen, "button": button},
+            }
+            for screen, button in taps
+        ],
+    )
+
+    ctx = await _view(db).journey_context("test_app", 0)
+
+    flows = [
+        (f["screen"], f["button"], f["count"], f["strength"]) for f in ctx["flow_rows"]
+    ]
+    assert flows == [("home", "start", 4, 100.0), ("settings", "save", 2, 50.0)]
+    assert ctx["interactions_per_hour"] is None  # "All": no per-hour rate

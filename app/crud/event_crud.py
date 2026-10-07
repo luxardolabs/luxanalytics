@@ -326,13 +326,14 @@ class EventCRUD:
 
     async def get_button_flows(
         self, db: AsyncSession, conditions: Conditions, limit: int = 15
-    ) -> list[tuple[str, int]]:
-        """Get screen→button flow counts."""
+    ) -> list[tuple[str | None, str, int]]:
+        """(screen, button, count) for the commonest screen→button taps."""
         screen_prop = Event.properties["screen"].astext
         button_prop = Event.properties["button"].astext
         query = (
             select(
-                func.concat(screen_prop, " → ", button_prop).label("flow"),
+                screen_prop.label("screen"),
+                button_prop.label("button"),
                 func.count().label("cnt"),
             )
             .where(and_(true(), *conditions), Event.properties.has_key("button"))
@@ -341,7 +342,7 @@ class EventCRUD:
             .limit(limit)
         )
         result = await db.execute(query)
-        return [(r.flow, r.cnt) for r in result.all()]
+        return [(r.screen, r.button, r.cnt) for r in result.all()]
 
     async def get_recent(
         self, db: AsyncSession, conditions: Conditions, limit: int = 10
