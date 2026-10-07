@@ -79,8 +79,7 @@ app/
 │   ├── apps_router.py       # App management with slider panels
 │   └── auth_router.py       # Login/logout
 ├── web/
-│   ├── templates.py         # Shared Jinja2 templates instance
-│   ├── template_context.py  # Global context injection
+│   ├── templates.py         # Shared Jinja2 templates instance (globals: version, static_version)
 │   └── template_filters.py  # Custom Jinja2 filters (from LuxWX)
 ├── core/
 │   ├── config.py            # Pydantic settings

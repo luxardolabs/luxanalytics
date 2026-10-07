@@ -810,12 +810,12 @@
         },
         {
           "rule": "fw.no_orphan_pages",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.54.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "this app renders a page by a computed name (a non-literal TemplateResponse), so an unreferenced page can't be proven dead. Orphan detection runs only when every render uses a literal template name."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.tenant_route_reachability",
@@ -927,12 +927,12 @@
         },
         {
           "rule": "fw.no_orphan_partials",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.79.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "this app renders a template by a non-literal TemplateResponse, or includes one by a computed name with no pinnable literal prefix ({% include some_var %}), so an unreferenced partial can't be proven dead. (A computed include WITH a literal prefix \u2014 {% include 'x/' ~ v %}, or a var set to one \u2014 is scoped to that subtree, not a global stand-down.) Run `--sweep orphan-templates` to LIST the no-static-reference partials for review (NOT a clearance)."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.mutating_route_authenticated",
@@ -1215,12 +1215,12 @@
         },
         {
           "rule": "fw.template_context_complete",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.174.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "2 render site(s) of a template that uses the pagination contract could not be judged (app/web/routers/dashboard_router.py:104 (context not readable), app/web/routers/dashboard_router.py:120 (context not readable)). NOT a clearance. For an unreadable context: build it as a dict, a local dict with `ctx[\"k\"] = \u2026`, or a view method returning one. For a name needed only inside an `{% if %}` include: supply it, or guard the include with `is defined`"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.asserter_current",
@@ -1503,11 +1503,11 @@
         }
       ],
       "summary": {
-        "PASS": 137,
+        "PASS": 140,
         "FAIL": 0,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 29
+        "INERT": 26
       }
     }
   ],
@@ -2045,12 +2045,12 @@
     }
   },
   "summary": {
-    "PASS": 191,
+    "PASS": 194,
     "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 32
+    "INERT": 29
   },
-  "commit": "96bd7353974c384b27afbca9c408c64696b7205f",
-  "generated_at": "2026-10-07T20:01:54Z"
+  "commit": "3032b34dc2e267c028716ff6332943010bd81656",
+  "generated_at": "2026-10-07T20:04:49Z"
 }

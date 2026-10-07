@@ -192,9 +192,10 @@ class DashboardViewService:
             columns += ["Event", "User", "Session", "Device", "OS", "Key Data", "Time"]
             columns.append({"label": "", "class": "w-12"})
             return {
-                **self._filtered(
-                    app_id, hours, {"events": events, "pagination": pagination}
-                ),
+                "app_id": app_id,
+                "hours": hours,
+                "events": events,
+                "pagination": pagination,
                 "columns": columns,
                 "event_name": event_name,
                 # Page links go to the full events PAGE (it takes ?page= and the same filters); the
