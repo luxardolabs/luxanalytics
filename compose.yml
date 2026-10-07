@@ -1,3 +1,6 @@
+# Pinned project name: volumes and networks never track the checkout directory.
+name: luxanalytics
+
 services:
   luxanalytics_db:
     image: postgres:16-alpine
@@ -22,6 +25,8 @@ services:
     image: redis:7-alpine
     container_name: luxanalytics_redis
     restart: unless-stopped
+    volumes:
+      - luxanalytics_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -85,6 +90,7 @@ volumes:
   luxanalytics_postgres_data:
     name: luxanalytics_postgres_data
     external: true
+  luxanalytics_redis_data:
 
 networks:
   luxanalytics_network:

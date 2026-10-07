@@ -476,10 +476,8 @@ PROD_SSH := ssh $(PROD_JUMP) "ssh $(PROD_HOST)
 
 prod-push:
 	@echo "Pushing deploy config to production..."
-	@tar -czf /tmp/luxanalytics-deploy-$(BUILD_VERSION).tar.gz -C deploy/prod .
-	@scp /tmp/luxanalytics-deploy-$(BUILD_VERSION).tar.gz $(PROD_JUMP):/tmp/
-	@ssh $(PROD_JUMP) "scp /tmp/luxanalytics-deploy-$(BUILD_VERSION).tar.gz $(PROD_HOST):/tmp/"
-	@$(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf /tmp/luxanalytics-deploy-$(BUILD_VERSION).tar.gz -C $(PROD_PATH)/'"
+	@# Streamed through both ssh hops: no staging file on any host.
+	@tar -czf - -C deploy/prod . | $(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf - -C $(PROD_PATH)/'"
 	@echo "✅ Deploy config pushed to $(PROD_PATH)"
 
 prod-deploy:
@@ -511,8 +509,7 @@ prod-shell-db:
 
 prod-nginx:
 	@echo "Pushing nginx config to production..."
-	@scp deploy/prod/analytics.luxardolabs.com.conf $(PROD_JUMP):/tmp/
-	@ssh $(PROD_JUMP) "scp /tmp/analytics.luxardolabs.com.conf $(PROD_HOST):/opt/nginx/conf.d/"
+	@$(PROD_SSH) 'cat > /opt/nginx/conf.d/analytics.luxardolabs.com.conf'" < deploy/prod/analytics.luxardolabs.com.conf
 	@$(PROD_SSH) 'docker exec nginx nginx -s reload'"
 	@echo "✅ Nginx config updated and reloaded"
 
@@ -523,9 +520,10 @@ prod-migrate:
 
 prod-backup:
 	@echo "Backing up production database..."
-	@$(PROD_SSH) 'docker exec luxanalytics_db pg_dump -U luxanalytics luxanalytics | gzip > /tmp/luxanalytics-backup-$$(date +%Y%m%d).sql.gz'"
-	@ssh $(PROD_JUMP) "scp $(PROD_HOST):/tmp/luxanalytics-backup-*.sql.gz /tmp/"
-	@scp $(PROD_JUMP):/tmp/luxanalytics-backup-*.sql.gz backups/ 2>/dev/null || mkdir -p backups && scp $(PROD_JUMP):/tmp/luxanalytics-backup-*.sql.gz backups/
+	@# pg_dump streams back over both ssh hops into backups/ (gitignored): no staging file on any host.
+	@set -e; mkdir -p backups; f=backups/luxanalytics-backup-$$(date +%Y%m%d).sql.gz; \
+	$(PROD_SSH) 'set -o pipefail; docker exec luxanalytics_db pg_dump -U luxanalytics luxanalytics | gzip'" > "$$f.part"; \
+	mv "$$f.part" "$$f"
 	@echo "✅ Backup saved to backups/"
 
 prod-version:

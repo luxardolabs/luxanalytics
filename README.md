@@ -5,9 +5,10 @@ A production-ready FastAPI application for collecting and analyzing analytics ev
 ## Features
 
 ### Core Functionality
+
 - 🚀 **FastAPI** with async/await support
 - 🗄️ **PostgreSQL** with SQLAlchemy, connection pooling, and optimized indexes
-- 🔐 **Triple Authentication**: 
+- 🔐 **Triple Authentication**:
   - HMAC-SHA256 signatures with timestamp validation (primary)
   - DSN-style endpoints (Sentry-compatible format)
   - API keys (fallback)
@@ -17,6 +18,7 @@ A production-ready FastAPI application for collecting and analyzing analytics ev
 - 🌐 **Analytics Dashboard**: Full web UI with 10+ visualization views
 
 ### Production Features
+
 - 🛡️ **Rate Limiting**: Redis-based distributed limiting with in-memory fallback
 - 📝 **Structured Logging**: JSON logs with correlation IDs via structlog
 - 📈 **Observability**: Prometheus metrics + OpenTelemetry tracing
@@ -27,6 +29,7 @@ A production-ready FastAPI application for collecting and analyzing analytics ev
 - 🧪 **Testing**: Async test suite with pytest
 
 ### Security
+
 - **HMAC Authentication**: SHA256 signatures with timestamp validation (configurable tolerance)
 - **DSN Authentication**: Sentry-style endpoints with Basic auth
 - **Web Dashboard Auth**: Session-based username/password authentication
@@ -90,6 +93,7 @@ pytest
 The application includes a comprehensive web dashboard accessible at `http://localhost:8000/dashboard`
 
 ### Dashboard Authentication
+
 - Default credentials: `admin` / `admin` (change in production!)
 - Configure via environment variables:
   - `DASHBOARD_USERNAME`
@@ -98,6 +102,7 @@ The application includes a comprehensive web dashboard accessible at `http://loc
   - `DASHBOARD_SESSION_TIMEOUT`
 
 ### Dashboard Features
+
 - **Apps Management**: Full CRUD operations for multi-tenant app configuration
 - **Apps Overview**: View all apps with event counts and last activity
 - **Events Timeline**: Interactive time-series visualization
@@ -119,6 +124,7 @@ The application includes a comprehensive web dashboard accessible at `http://loc
 ## API Endpoints
 
 ### Core Endpoints
+
 - `GET /` - Redirects to dashboard
 - `GET /dashboard` - Main analytics dashboard
 - `GET /health` - Health check with component status
@@ -127,6 +133,7 @@ The application includes a comprehensive web dashboard accessible at `http://loc
 ### Event Collection API
 
 #### Primary Endpoint with HMAC Authentication
+
 ```bash
 # Example with HMAC signature (required for production)
 TIMESTAMP=$(date +%s)
@@ -146,6 +153,7 @@ curl -X POST "http://localhost:8000/api/v1/events/" \
 ```
 
 #### DSN-Style Endpoint (Sentry-compatible)
+
 ```bash
 # Using DSN format: https://PUBLIC_ID@host/api/v1/events/PROJECT_ID
 DSN="https://abc123@analytics.example.com/api/v1/events/proj123"
@@ -162,13 +170,16 @@ curl -X POST "http://localhost:8000/api/v1/events/${PROJECT_ID}" \
 ```
 
 #### Compression Support
+
 The API automatically handles compressed payloads:
+
 - Requests with `Content-Encoding: deflate` header are automatically decompressed
 - Supports zlib/deflate compression (raw deflate format)
 - HMAC signature must be calculated on the compressed payload
 - Typically used by clients for payloads ≥ 1KB
 
 #### Stats Endpoint
+
 ```bash
 # Stats endpoint also requires HMAC authentication
 curl -X GET "http://localhost:8000/api/v1/events/stats" \
@@ -180,6 +191,7 @@ curl -X GET "http://localhost:8000/api/v1/events/stats" \
 ### Event Formats
 
 #### Single Event
+
 ```json
 {
   "name": "page_view",
@@ -191,6 +203,7 @@ curl -X GET "http://localhost:8000/api/v1/events/stats" \
 ```
 
 #### Batch Events (Optimized for bulk insert)
+
 ```json
 {
   "events": [
@@ -265,6 +278,7 @@ LOG_FORMAT=json
 ## Database Schema
 
 The `events` table includes:
+
 - `id`: UUID primary key
 - `app_id`: Application identifier
 - `name`: Event name (required)
@@ -277,17 +291,20 @@ The `events` table includes:
 ## Development
 
 ### Running Tests
+
 ```bash
 pytest tests/ -v
 ```
 
 ### Creating New Migrations
+
 ```bash
 alembic revision --autogenerate -m "Description of changes"
 alembic upgrade head
 ```
 
 ### Generating New Keys
+
 ```bash
 python scripts/generate_keys.py myapp1 myapp2
 ```
@@ -297,15 +314,18 @@ python scripts/generate_keys.py myapp1 myapp2
 The API uses HMAC-SHA256 authentication for all endpoints:
 
 1. **Required Headers**:
+
    - `X-HMAC-Signature`: HMAC-SHA256 signature in hex format
    - `X-Key-ID`: Your application ID
    - `X-Timestamp`: Unix timestamp (must be within 5 minutes)
 
-2. **Signature Calculation**:
+1. **Signature Calculation**:
+
    - For uncompressed requests: `HMAC-SHA256(payload + timestamp, secret)`
    - For compressed requests: `HMAC-SHA256(compressed_payload + timestamp, secret)`
 
-3. **Compression**:
+1. **Compression**:
+
    - Automatic decompression for requests with `Content-Encoding: deflate`
    - Supports raw deflate format (as used by iOS NSData.compressed)
    - HMAC is always calculated on the compressed payload when compression is used
@@ -313,6 +333,7 @@ The API uses HMAC-SHA256 authentication for all endpoints:
 ## Production Deployment
 
 ### 1. **High-Performance Configuration**
+
 For handling millions of requests, use the optimized production settings:
 
 ```bash
@@ -329,6 +350,7 @@ UVLOOP_ENABLED=true           # Better async performance
 ```
 
 ### 2. **PostgreSQL Optimization**
+
 Apply the PostgreSQL configuration for high load:
 
 ```bash
@@ -342,6 +364,7 @@ effective_cache_size = 12GB   # 75% of RAM
 ```
 
 ### 3. **Build and Deploy**
+
 ```bash
 # Build with version tag (extracts version from directory structure)
 ./build.sh                    # Builds with version tag only (e.g., 2025.7.13)
@@ -360,6 +383,7 @@ docker-compose -f compose.prod.yaml up -d
 ```
 
 ### 4. **Run Migrations and Indexes**
+
 ```bash
 # Run migrations
 docker-compose exec app ./scripts/run_migrations.sh
@@ -369,7 +393,9 @@ docker-compose exec app alembic upgrade head
 ```
 
 ### 5. **Health Monitoring**
+
 The enhanced `/health` endpoint now includes:
+
 - Database connectivity status
 - Redis connectivity status
 - Connection pool metrics
@@ -379,7 +405,9 @@ curl http://localhost:8000/health
 ```
 
 ### 6. **Metrics and Monitoring**
+
 Access Prometheus metrics at `/metrics` endpoint for:
+
 - Connection pool utilization
 - Rate limit statistics
 - Request processing times
@@ -388,6 +416,7 @@ Access Prometheus metrics at `/metrics` endpoint for:
 ## Monitoring
 
 The application includes:
+
 - **Structured Logging**: Request/response details with correlation IDs
 - **Request Timing**: Middleware tracks processing time
 - **Health Check**: Enhanced endpoint with component status
@@ -401,11 +430,13 @@ The application includes:
 ### Common Issues
 
 1. **"Invalid compressed data" errors**:
+
    - Ensure client is sending with `Content-Encoding: deflate` header
    - Verify compression format (raw deflate vs zlib with headers)
    - Check HMAC is calculated on compressed payload
 
-2. **Database connection issues**:
+1. **Database connection issues**:
+
    - **"password authentication failed" errors** (usually stale connections):
      - This is NOT actually a password issue - it's stale connections in the pool
      - Switch to psycopg3 driver: `postgresql+psycopg://` instead of `postgresql+asyncpg://`
@@ -418,24 +449,28 @@ The application includes:
      - `DB_POOL_MAX_OVERFLOW` - burst capacity
      - `DB_POOL_TIMEOUT` - how long to wait for connection
 
-3. **HMAC authentication failures**:
+1. **HMAC authentication failures**:
+
    - Verify timestamp is within 5-minute window
    - Ensure signature is calculated correctly (payload + timestamp)
    - Check `HMAC_KEYS` configuration matches client
 
-4. **Rate limiting issues**:
+1. **Rate limiting issues**:
+
    - Check Redis connectivity for distributed rate limiting
    - Monitor rate limit headers: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
    - Adjust `RATE_LIMIT_REQUESTS` and `RATE_LIMIT_WINDOW`
    - Different limits can be set per app_id in code
 
-5. **High load performance**:
+1. **High load performance**:
+
    - Ensure `DB_POOL_SIZE` matches expected concurrent connections
    - Set `DB_POOL_MAX_OVERFLOW=0` to prevent connection storms
    - Enable `UVLOOP_ENABLED=true` for better async performance
    - Monitor `/metrics` endpoint for pool utilization
 
-6. **Request too large errors**:
+1. **Request too large errors**:
+
    - Adjust `MAX_REQUEST_SIZE` for larger payloads
    - Default is 10MB, suitable for most batch operations
    - Consider splitting very large batches into multiple requests
@@ -443,6 +478,7 @@ The application includes:
 ## Implementation Status
 
 ### ✅ Fully Implemented
+
 - **Event Collection**: Single and batch submission with bulk insert optimization
 - **Security**: HMAC authentication with timestamp validation, API key fallback
 - **Compression**: Request decompression (zlib/deflate)
@@ -454,6 +490,7 @@ The application includes:
 - **Docker**: Multi-stage builds, health checks, production-ready
 
 ### ⚠️ Not Yet Implemented
+
 - **CI/CD Pipeline**: No automated testing or deployment
 - **Async Processing**: Configuration flag exists but no queue implementation
 - **Response Compression**: Only request decompression works
@@ -462,6 +499,7 @@ The application includes:
 - **Performance Flags**: UVLOOP_ENABLED and USE_ORJSON not actually used
 
 ### Recent Fixes (2025-07-05 & 2025-07-06)
+
 - **Critical**: Fixed stale PostgreSQL connections causing fake "password authentication failed" errors
   - Switched from asyncpg to psycopg3 driver for better connection handling
   - Simplified database session management to match proven patterns
@@ -485,7 +523,9 @@ The application includes:
 ## Production Deployment Notes
 
 ### Environment Variable Requirements
+
 The following environment variables have been added or modified for production:
+
 - `EVENT_TIMESTAMP_FUTURE_TOLERANCE`: Set to 300 (5 minutes) to handle client/server clock skew
 - `DASHBOARD_USERNAME`: Web dashboard login username (default: admin)
 - `DASHBOARD_PASSWORD`: Web dashboard login password (MUST be changed from default)
@@ -493,11 +533,13 @@ The following environment variables have been added or modified for production:
 - `DASHBOARD_SESSION_TIMEOUT`: Session timeout in seconds (default: 3600)
 
 ### Security Updates
+
 - Web dashboard now requires authentication (separate from API authentication)
 - Session secrets should be generated using the provided script for production
 - All compose files have been updated with new authentication variables
 
 ### Database Driver Change
+
 - **IMPORTANT**: Database URLs must use `postgresql+psycopg://` instead of `postgresql+asyncpg://`
 - This change resolves stale connection issues that manifest as authentication errors
 - Both `DATABASE_URL` and `DATABASE_URL_SYNC` must be updated

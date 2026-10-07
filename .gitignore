@@ -48,3 +48,6 @@ Thumbs.db
 .claude/.luxpm-searched.json
 .claude/settings.json.bak
 .claude/.push-hold
+
+# Database dumps (make backup / make prod-backup) — production data, never committed
+backups/
