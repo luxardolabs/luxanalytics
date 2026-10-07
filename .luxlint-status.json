@@ -1,0 +1,1361 @@
+{
+  "guard": "luxlint",
+  "guard_version": "0.61.0",
+  "repo": "/repo",
+  "source": [
+    "app",
+    "tests",
+    "alembic"
+  ],
+  "rules": [
+    {
+      "rule": "lint.no_local_ruff_config",
+      "status": "PASS",
+      "since": "0.1.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "types.no_local_mypy_config",
+      "status": "PASS",
+      "since": "0.1.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "test.no_local_pytest_config",
+      "status": "PASS",
+      "since": "0.4.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "test.pytest_config_wired",
+      "status": "FAIL",
+      "since": "0.35.0",
+      "violations": 1,
+      "sites": [
+        {
+          "path": "Makefile",
+          "line": null,
+          "detail": "invokes pytest without the canonical config \u2014 bare pytest runs with NO config (asyncio_mode/filterwarnings/markers silently off; async tests 'pass' unrun). Wire `pytest -c \"$(luxlint --emit-config pytest)\"`"
+        }
+      ],
+      "deferred": false
+    },
+    {
+      "rule": "lint.no_local_eslint_config",
+      "status": "PASS",
+      "since": "0.17.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "secret.no_local_gitleaks_config",
+      "status": "PASS",
+      "since": "0.9.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "secret.githooks_wired",
+      "status": "PASS",
+      "since": "0.10.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "lint.ruff",
+      "status": "FAIL",
+      "since": "0.1.0",
+      "violations": 203,
+      "sites": [
+        {
+          "path": "alembic/env.py",
+          "line": 8,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "alembic/env.py",
+          "line": 35,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "alembic/versions/001_baseline.py",
+          "line": 7,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "alembic/versions/002_promoted_columns_and_devices.py",
+          "line": 7,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "alembic/versions/003_backfill_promoted_columns.py",
+          "line": 7,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "alembic/versions/003_backfill_promoted_columns.py",
+          "line": 8,
+          "detail": "F401 `sqlalchemy` imported but unused"
+        },
+        {
+          "path": "app/api/v1/routers/events_router.py",
+          "line": 89,
+          "detail": "C401 Unnecessary generator (rewrite as a set comprehension)"
+        },
+        {
+          "path": "app/api/v1/routers/events_router.py",
+          "line": 101,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/api/v1/routers/events_router.py",
+          "line": 102,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/api/v1/routers/events_router.py",
+          "line": 104,
+          "detail": "G201 Logging `.exception(...)` should be used instead of `.error(..., exc_info=True)`"
+        },
+        {
+          "path": "app/api/v1/routers/events_router.py",
+          "line": 110,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/api/v1/routers/events_router.py",
+          "line": 184,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/core/config.py",
+          "line": 54,
+          "detail": "S105 Possible hardcoded password assigned to: \"DASHBOARD_PASSWORD\""
+        },
+        {
+          "path": "app/core/dsn_auth.py",
+          "line": 16,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/core/dsn_auth.py",
+          "line": 17,
+          "detail": "B008 Do not perform function call `Depends` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable"
+        },
+        {
+          "path": "app/core/dsn_auth.py",
+          "line": 42,
+          "detail": "SIM108 Use ternary operator `public_id = decoded.split(\":\")[0] if \":\" in decoded else decoded` instead of `if`-`else`-block"
+        },
+        {
+          "path": "app/core/dsn_auth.py",
+          "line": 66,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/core/dsn_auth.py",
+          "line": 67,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/core/dsn_auth.py",
+          "line": 70,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/core/middleware/request_middleware.py",
+          "line": 83,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/core/middleware/request_middleware.py",
+          "line": 87,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/core/middleware/request_middleware.py",
+          "line": 136,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/core/middleware/request_middleware.py",
+          "line": 253,
+          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
+        },
+        {
+          "path": "app/core/middleware/request_middleware.py",
+          "line": 271,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 5,
+          "detail": "UP035 `typing.Dict` is deprecated, use `dict` instead"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 5,
+          "detail": "UP035 `typing.Tuple` is deprecated, use `tuple` instead"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 24,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 25,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 32,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 36,
+          "detail": "UP006 Use `tuple` instead of `Tuple` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 36,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 53,
+          "detail": "UP006 Use `tuple` instead of `Tuple` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 53,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 105,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 109,
+          "detail": "UP006 Use `tuple` instead of `Tuple` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 109,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 111,
+          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 168,
+          "detail": "UP006 Use `tuple` instead of `Tuple` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 168,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 171,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 171,
+          "detail": "UP006 Use `tuple` instead of `Tuple` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 190,
+          "detail": "UP006 Use `tuple` instead of `Tuple` for type annotation"
+        },
+        {
+          "path": "app/core/rate_limiter.py",
+          "line": 190,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/core/redis_client.py",
+          "line": 13,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/core/redis_client.py",
+          "line": 16,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/core/redis_client.py",
+          "line": 37,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/core/security.py",
+          "line": 28,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/core/telemetry.py",
+          "line": 3,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "app/core/telemetry.py",
+          "line": 66,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/core/telemetry.py",
+          "line": 82,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/crud/__init__.py",
+          "line": 1,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "app/crud/app_crud.py",
+          "line": 14,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/crud/app_crud.py",
+          "line": 20,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/crud/app_crud.py",
+          "line": 26,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/crud/device_crud.py",
+          "line": 17,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/crud/device_crud.py",
+          "line": 28,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/crud/device_crud.py",
+          "line": 44,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/crud/device_crud.py",
+          "line": 59,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/db/database.py",
+          "line": 1,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "app/db/database.py",
+          "line": 74,
+          "detail": "SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": 7,
+          "detail": "UP035 `typing.Dict` is deprecated, use `dict` instead"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": 45,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": 74,
+          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": 86,
+          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": 106,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": 155,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": 178,
+          "detail": "UP041 Replace aliased errors with `TimeoutError`"
+        },
+        {
+          "path": "app/main.py",
+          "line": 42,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 44,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 45,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 61,
+          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
+        },
+        {
+          "path": "app/main.py",
+          "line": 67,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 69,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 153,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 154,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 171,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 206,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 213,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 234,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/main.py",
+          "line": 235,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/models/app_model.py",
+          "line": 33,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 2,
+          "detail": "UP035 `typing.Dict` is deprecated, use `dict` instead"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 10,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 11,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 12,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 20,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 21,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 22,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 23,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 24,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/app_schema.py",
+          "line": 24,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 3,
+          "detail": "UP035 `typing.Dict` is deprecated, use `dict` instead"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 3,
+          "detail": "UP035 `typing.List` is deprecated, use `list` instead"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 22,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 25,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 28,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 49,
+          "detail": "UP017 Use `datetime.UTC` alias"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 52,
+          "detail": "UP017 Use `datetime.UTC` alias"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 61,
+          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 86,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 87,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 88,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 98,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/schemas/event_schema.py",
+          "line": 102,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 29,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 29,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 30,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 58,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 87,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 123,
+          "detail": "UP017 Use `datetime.UTC` alias"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 147,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 185,
+          "detail": "C416 Unnecessary dict comprehension (rewrite using `dict()`)"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 187,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 223,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 250,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 274,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 333,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 351,
+          "detail": "C416 Unnecessary dict comprehension (rewrite using `dict()`)"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 438,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 563,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 563,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 584,
+          "detail": "SIM118 Use `key in dict` instead of `key in dict.keys()`"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 608,
+          "detail": "C414 Unnecessary `list()` call within `sorted()`"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": 616,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 5,
+          "detail": "UP035 `typing.List` is deprecated, use `list` instead"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 39,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 42,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 45,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 48,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 51,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 59,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/services/app_service.py",
+          "line": 73,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 8,
+          "detail": "UP035 `typing.Dict` is deprecated, use `dict` instead"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 8,
+          "detail": "UP035 `typing.List` is deprecated, use `list` instead"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 21,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 21,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 24,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 24,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 33,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 36,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 36,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 42,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 45,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 48,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 51,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 54,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 57,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 60,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 63,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 66,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/dashboard/service.py",
+          "line": 69,
+          "detail": "UP006 Use `dict` instead of `Dict` for type annotation"
+        },
+        {
+          "path": "app/services/event_service.py",
+          "line": 5,
+          "detail": "UP035 `typing.List` is deprecated, use `list` instead"
+        },
+        {
+          "path": "app/services/event_service.py",
+          "line": 23,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/services/event_service.py",
+          "line": 24,
+          "detail": "UP006 Use `list` instead of `List` for type annotation"
+        },
+        {
+          "path": "app/web/routers/__init__.py",
+          "line": 1,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": 101,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": 102,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": 141,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": 142,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": 143,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": 144,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": 216,
+          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 16,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 16,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 46,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 62,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 78,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 94,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 110,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 128,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 129,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 151,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 152,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 153,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 195,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 211,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 229,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 245,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 263,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 279,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 297,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 312,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 329,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 349,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 371,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 386,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 405,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 407,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 421,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 423,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": 438,
+          "detail": "UP045 Use `X | None` for type annotations"
+        },
+        {
+          "path": "app/web/template_context.py",
+          "line": 24,
+          "detail": "RUF100 Unused `noqa` directive (non-enabled: `N802`)"
+        },
+        {
+          "path": "app/web/template_context.py",
+          "line": 43,
+          "detail": "PLC0415 `import` should be at the top-level of a file"
+        },
+        {
+          "path": "app/web/template_filters.py",
+          "line": 40,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "app/web/template_filters.py",
+          "line": 325,
+          "detail": "UP037 Remove quotes from type annotation"
+        },
+        {
+          "path": "tests/conftest.py",
+          "line": 7,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "tests/conftest.py",
+          "line": 14,
+          "detail": "F401 `sqlalchemy.ext.asyncio.AsyncSession` imported but unused"
+        },
+        {
+          "path": "tests/conftest.py",
+          "line": 98,
+          "detail": "F811 Redefinition of unused `App` from line 21: `App` redefined here"
+        },
+        {
+          "path": "tests/conftest.py",
+          "line": 118,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "tests/conftest.py",
+          "line": 119,
+          "detail": "F811 Redefinition of unused `Event` from line 21: `Event` redefined here"
+        },
+        {
+          "path": "tests/test_events.py",
+          "line": 3,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        },
+        {
+          "path": "tests/test_events.py",
+          "line": 8,
+          "detail": "F401 `app.models.event_model.Event` imported but unused"
+        },
+        {
+          "path": "tests/test_events.py",
+          "line": 156,
+          "detail": "I001 Import block is un-sorted or un-formatted"
+        }
+      ],
+      "deferred": false
+    },
+    {
+      "rule": "lint.format",
+      "status": "FAIL",
+      "since": "0.1.0",
+      "violations": 24,
+      "sites": [
+        {
+          "path": "alembic/env.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "alembic/versions/001_baseline.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "alembic/versions/002_promoted_columns_and_devices.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "alembic/versions/003_backfill_promoted_columns.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/core/constants.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/core/middleware/request_middleware.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/core/telemetry.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/crud/app_crud.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/crud/device_crud.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/db/database.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/db/pool_monitor.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/models/app_model.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/models/device_model.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/models/event_model.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/services/analytics_service.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/services/event_service.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/web/routers/apps_router.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/web/routers/dashboard_router.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/web/template_context.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "app/web/template_filters.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "tests/conftest.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "tests/test_auth.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "tests/test_dashboard_queries.py",
+          "line": null,
+          "detail": "would be reformatted"
+        },
+        {
+          "path": "tests/test_events.py",
+          "line": null,
+          "detail": "would be reformatted"
+        }
+      ],
+      "deferred": false
+    },
+    {
+      "rule": "lint.eslint",
+      "status": "FAIL",
+      "since": "0.18.0",
+      "violations": 2,
+      "sites": [
+        {
+          "path": "app/static/js/app.js",
+          "line": 11,
+          "detail": "no-unused-vars: 'event' is defined but never used. Allowed unused args must match /^_/u."
+        },
+        {
+          "path": "app/static/js/app.js",
+          "line": 25,
+          "detail": "no-unused-vars: 'event' is defined but never used. Allowed unused args must match /^_/u."
+        }
+      ],
+      "deferred": false
+    },
+    {
+      "rule": "lint.js_declared",
+      "status": "PASS",
+      "since": "0.25.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "lint.source_declared",
+      "status": "PASS",
+      "since": "0.38.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "test.suite_exists",
+      "status": "PASS",
+      "since": "0.3.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "test.location",
+      "status": "PASS",
+      "since": "0.4.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "test.db_tested",
+      "status": "PASS",
+      "since": "0.3.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "test.db_isolated",
+      "status": "FAIL",
+      "since": "0.33.0",
+      "violations": 1,
+      "sites": [
+        {
+          "path": "tests/",
+          "line": null,
+          "detail": "no TEST_DATABASE_URL in the test harness \u2014 the DB suite has no dedicated test database and isn't provably isolated from dev/prod (this is how a suite ran against the dev DB). Adopt the canonical harness: luxlint --emit-config conftest. One mechanism fleet-wide."
+        }
+      ],
+      "deferred": false
+    },
+    {
+      "rule": "test.no_handrolled_cleanup",
+      "status": "PASS",
+      "since": "0.36.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "docs.coverage",
+      "status": "PASS",
+      "since": "0.5.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "docs.substantive",
+      "status": "PASS",
+      "since": "0.5.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
+      "rule": "docs.markdown_format",
+      "status": "FAIL",
+      "since": "0.10.0",
+      "violations": 2,
+      "sites": [
+        {
+          "path": "CHANGELOG.md",
+          "line": null,
+          "detail": "hard-wrapped / not canonically formatted"
+        },
+        {
+          "path": "docs/ios-sdk-platform-field.md",
+          "line": null,
+          "detail": "hard-wrapped / not canonically formatted"
+        }
+      ],
+      "deferred": false
+    },
+    {
+      "rule": "security.jwt_decode_algorithms",
+      "status": "PASS",
+      "since": "0.14.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    }
+  ],
+  "summary": {
+    "PASS": 15,
+    "FAIL": 6,
+    "XFAIL": 0,
+    "XPASS": 0,
+    "INERT": 0
+  },
+  "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
+  "commit": "425e67992bf2c989bb1535318237250f7f921ce6",
+  "generated_at": "2026-10-07T02:48:29Z"
+}

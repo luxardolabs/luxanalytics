@@ -1,0 +1,1939 @@
+{
+  "guard": "luxarch",
+  "guard_version": "0.265.0",
+  "repo": "/repo",
+  "targets": [
+    {
+      "kind": "fastapi-web",
+      "app": "app",
+      "rules": [
+        {
+          "rule": "fw.required_dirs",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 2,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_legacy_routers",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.model_naming",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.crud_naming",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.schema_naming",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.router_naming",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.service_naming",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.core_service_dir",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.view_service_dir",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_stray_services",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 4,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.core_service_class",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.view_service_class",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_raw_sql_in_services",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_raw_sql_in_routers",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_raw_sql_outside_crud",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.web_no_cascading_delete",
+          "status": "INERT",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare the repo's cascading-delete call patterns to enforce that web routers enqueue them instead of running them inside the request; until then nothing is searched."
+        },
+        {
+          "rule": "fw.core_no_fastapi",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.crud_no_fastapi",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.views_no_sqlalchemy",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.routers_no_sqlalchemy",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_view_imports_crud",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_crud_imports_crud",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_models_in_routers",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_response_models_in_routers",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_dto_in_routers",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 4,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enum_query_params",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.web_router_composition",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_inline_imports",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_inline_html",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enum_model_exists",
+          "status": "INERT",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "list this repo's enums under [enums].declared to enforce they live in the enum module. See --playbook enum-typing."
+        },
+        {
+          "rule": "fw.enum_labels",
+          "status": "INERT",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "list enums that must carry member labels under [enums].labelled to enforce it. See --playbook enum-typing."
+        },
+        {
+          "rule": "fw.uuid_id_typing",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enumish_columns",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.jsonb_shaping",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 3,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.hypertable_bounds",
+          "status": "INERT",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no [hypertables] declaration and no `create_hypertable(...)` anywhere in the repo, so no aggregate is over a hypertable."
+        },
+        {
+          "rule": "fw.worker_sessions_commit",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.template_pagination",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.view_pagination",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.template_table",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.selects_accessible",
+          "status": "INERT",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+        },
+        {
+          "rule": "fw.no_redundant_commit",
+          "status": "FAIL",
+          "since": "0.1.0",
+          "violations": 4,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.js_no_fetch",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.js_no_reload",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.js_no_alert",
+          "status": "PASS",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.import_linter_declared",
+          "status": "INERT",
+          "since": "0.1.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "half the fleet enforces layering via luxarch's AST rules, not import-linter. Set [importlinter].required = true ONLY if this repo also uses import-linter; then this rule verifies the [tool.importlinter] block exists (the run is the in-repo lint-imports tail)."
+        },
+        {
+          "rule": "fw.routers_dont_import_crud",
+          "status": "FAIL",
+          "since": "0.2.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.views_dont_import_models",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.web_routers_dont_import_core",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.core_no_outbound_deps",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.crud_dont_import_services",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.routers_no_transaction_control",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_session_mutation_outside_crud",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.web_routers_no_nested_functions",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.web_routers_dont_parse_json",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_naive_utcnow",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_private_cross_module_imports",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.paginated_responses_subclass_base",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_browser_confirm_in_templates",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_inline_style_in_pages",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_private_macros_in_pages",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enum_dto_fields_enum_typed",
+          "status": "FAIL",
+          "since": "0.2.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.migration_revision_ids_fit",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_reserved_logging_keys",
+          "status": "PASS",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.restricted_imports",
+          "status": "INERT",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare packages + their boundary files under [restricted].imports to enforce them; until then this rule has nothing to check."
+        },
+        {
+          "rule": "fw.restricted_calls",
+          "status": "INERT",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare call patterns + their boundary files under [restricted].calls to enforce them; until then this rule has nothing to check."
+        },
+        {
+          "rule": "fw.admin_endpoints_rbac",
+          "status": "INERT",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare [rbac].admin_url_patterns and [rbac].require_names to enforce that admin-tier mutating routes carry an RBAC dependency; until then this rule does not run."
+        },
+        {
+          "rule": "fw.fields_wired_into_pipeline",
+          "status": "INERT",
+          "since": "0.2.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare [field_wiring] specs (class + fields + accessors) to enforce that UI/config-driving fields are actually read by the pipeline; until then this rule has nothing to check."
+        },
+        {
+          "rule": "fw.no_aliased_first_party_imports",
+          "status": "PASS",
+          "since": "0.7.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.routers_in_router_dirs",
+          "status": "PASS",
+          "since": "0.9.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.vendored_js_in_vendor",
+          "status": "PASS",
+          "since": "0.9.1",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_hand_rolled_components_in_pages",
+          "status": "PASS",
+          "since": "0.9.1",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.optional_query_empty_safe",
+          "status": "PASS",
+          "since": "0.9.2",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.crud_orm_over_text",
+          "status": "PASS",
+          "since": "0.11.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_template_logic",
+          "status": "INERT",
+          "since": "0.12.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "set [templates].lint_logic = true to parse templates for data-shaping/arithmetic/mutation logic that belongs in the view. See --playbook template-logic."
+        },
+        {
+          "rule": "fw.tenant_scoped",
+          "status": "INERT",
+          "since": "0.14.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "set [tenant].column to the tenant FK (e.g. organization_id) to enable per-tenant query scoping; until then this rule does not run. See --playbook tenant-scoped."
+        },
+        {
+          "rule": "fw.component_registry",
+          "status": "INERT",
+          "since": "0.15.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+        },
+        {
+          "rule": "fw.layout",
+          "status": "PASS",
+          "since": "0.16.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enum_column_roundtrips",
+          "status": "INERT",
+          "since": "0.26.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "list this repo's enums under [enums].declared to enforce enum columns round-trip to the enum (not raw str). See --playbook enum-typing."
+        },
+        {
+          "rule": "fw.no_hand_rolled_pagination",
+          "status": "PASS",
+          "since": "0.29.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_dynamic_column_sort",
+          "status": "PASS",
+          "since": "0.29.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enum_persists_value",
+          "status": "PASS",
+          "since": "0.30.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.aware_datetime_columns",
+          "status": "PASS",
+          "since": "0.32.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.side_effects_after_commit",
+          "status": "PASS",
+          "since": "0.33.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.static_assets_cache_busted",
+          "status": "PASS",
+          "since": "0.34.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.commented_enum_columns",
+          "status": "PASS",
+          "since": "0.38.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.web_templates_at_fleet_path",
+          "status": "FAIL",
+          "since": "0.46.0",
+          "violations": 48,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.static_js_at_fleet_path",
+          "status": "PASS",
+          "since": "0.47.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.secure_cookies",
+          "status": "PASS",
+          "since": "0.51.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.template_refs_resolve",
+          "status": "INERT",
+          "since": "0.54.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+        },
+        {
+          "rule": "fw.no_orphan_pages",
+          "status": "INERT",
+          "since": "0.54.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+        },
+        {
+          "rule": "fw.tenant_route_reachability",
+          "status": "INERT",
+          "since": "0.55.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare [tenant].column and the [tenant.auth] role markers to turn on the static cross-tenant reachability analysis; until then it does not run. See --playbook tenant-scoped."
+        },
+        {
+          "rule": "fw.state_changing_get",
+          "status": "INERT",
+          "since": "0.56.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "set [csrf].enabled = true to turn on the static GET/HEAD-mutation reachability check (the SameSite=Lax CSRF stance); until then it does not run. See --playbook state-changing-get."
+        },
+        {
+          "rule": "fw.enum_not_native_pg",
+          "status": "PASS",
+          "since": "0.63.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.route_smoke_wired",
+          "status": "INERT",
+          "since": "0.64.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "route-smoke catches a dependency deprecation one release before the pin makes it fatal, but it's off here. To turn it ON: set [route_smoke].enabled = true, then `luxarch --emit route-smoke` into tests/conftest.py (this rule then enforces the asserter is committed)."
+        },
+        {
+          "rule": "fw.session_minted_in_owner",
+          "status": "PASS",
+          "since": "0.65.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.dev_prod_pool_parity",
+          "status": "PASS",
+          "since": "0.65.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.app_dont_import_scripts",
+          "status": "PASS",
+          "since": "0.67.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enums_in_enum_model",
+          "status": "PASS",
+          "since": "0.68.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.enums_declared",
+          "status": "PASS",
+          "since": "0.69.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_threaded_aliasing",
+          "status": "PASS",
+          "since": "0.75.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_dropped_input",
+          "status": "PASS",
+          "since": "0.75.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_passthrough_view_service",
+          "status": "PASS",
+          "since": "0.78.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_orphan_partials",
+          "status": "INERT",
+          "since": "0.79.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+        },
+        {
+          "rule": "fw.mutating_route_authenticated",
+          "status": "INERT",
+          "since": "0.84.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "list this repo's authenticating dependencies in [auth].deps (the fns/factories that ESTABLISH identity \u2014 get_current_user, require_editor, check_subscription_active_hybrid, \u2026) to enforce that every POST/PUT/PATCH/DELETE route is authenticated; OR, if auth is entirely a global middleware (a web_only app with no per-route deps), name it in [auth].global_middleware and install it to earn the asserted-inert. Enforcing security schemes (HTTPBearer/OAuth2/APIKey without auto_error=False), dependencies that refuse the anonymous caller with 401/403, Annotated aliases, router-level deps and in-body 401/403 resolve automatically; carve out public/webhook/login routes in [allowlist].auth_public with evidence."
+        },
+        {
+          "rule": "fw.annotated_dep_is_depends",
+          "status": "PASS",
+          "since": "0.85.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.feature_flag_is_not_authz",
+          "status": "INERT",
+          "since": "0.86.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "list the feature-gate dependency factories in [features].gate_names (e.g. require_feature) to flag a state-changing route whose ONLY authorization is a feature flag (feature-enabled is not permission \u2014 a mutating route needs a role gate or an ownership scope). See --playbook route-auth."
+        },
+        {
+          "rule": "fw.feature_keys_declared",
+          "status": "INERT",
+          "since": "0.86.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "set [features].registry = 'app.core.features:Feature' \u2014 the canonical closed set \u2014 to enforce that every feature-key literal is a declared member (a typo silently locks everyone out of a surface, or hides a page). ADR-001 for feature keys. See --playbook route-auth."
+        },
+        {
+          "rule": "fw.no_any_typed_service_boundary",
+          "status": "PASS",
+          "since": "0.88.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.strftime_is_display_only",
+          "status": "PASS",
+          "since": "0.89.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.crud_paginated_signature",
+          "status": "FAIL",
+          "since": "0.90.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.crud_base_single_pattern",
+          "status": "INERT",
+          "since": "0.195.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no crud class defines an `__init__`, so no construction pattern is declared here"
+        },
+        {
+          "rule": "fw.template_role_placement",
+          "status": "INERT",
+          "since": "0.99.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+        },
+        {
+          "rule": "fw.api_routers_dont_import_views",
+          "status": "PASS",
+          "since": "0.100.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.web_routers_single_surface",
+          "status": "PASS",
+          "since": "0.100.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.json_routes_typed",
+          "status": "FAIL",
+          "since": "0.100.0",
+          "violations": 3,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.js_in_files",
+          "status": "PASS",
+          "since": "0.105.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.injected_models_dont_cross_the_seam",
+          "status": "PASS",
+          "since": "0.106.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.templates_compile",
+          "status": "PASS",
+          "since": "0.107.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.color_mode_tokens",
+          "status": "INERT",
+          "since": "0.107.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no [color_tokens] palette declared \u2014 declare it (token \u2192 tailwind color) to enforce that a hand-rolled light/dark pair uses the token; off until then"
+        },
+        {
+          "rule": "fw.no_nested_session",
+          "status": "INERT",
+          "since": "0.111.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "opt-in \u2014 declare [session].no_nesting = true to turn on the static nested-session double-lock check (off until then)"
+        },
+        {
+          "rule": "fw.jinja_strict_undefined",
+          "status": "FAIL",
+          "since": "0.112.0",
+          "violations": 2,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_orm_dict_across_seam",
+          "status": "PASS",
+          "since": "0.113.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_naive_datetime_default",
+          "status": "PASS",
+          "since": "0.122.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.auth_fails_closed",
+          "status": "PASS",
+          "since": "0.124.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.url_assembly_in_view",
+          "status": "INERT",
+          "since": "0.132.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "web templates aren't at the path this family scans \u2014 fix fw.web_templates_at_fleet_path FIRST (move them to app/templates/web/, or set a [templates].dir pointer to scan them where they are). Until then this rule scanned NOTHING and cannot verify your work \u2014 a \u2713 here would be hollow."
+        },
+        {
+          "rule": "fw.url_builder_not_in_template",
+          "status": "PASS",
+          "since": "0.132.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.url_assembly_in_data_layer",
+          "status": "FAIL",
+          "since": "0.134.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.route_no_broad_except",
+          "status": "PASS",
+          "since": "0.136.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_crud_reach_through",
+          "status": "PASS",
+          "since": "0.146.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_layer_reach_through",
+          "status": "INERT",
+          "since": "0.147.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "the type resolver could not follow the DI/attribute shape (untyped service attrs / an unresolved alias), so a reach-through verdict would be a blind PASS. Type the injected services (--playbook view-seam) so the graph resolves; the .crud token rule fw.no_crud_reach_through still gates the crud boundary meanwhile."
+        },
+        {
+          "rule": "fw.datetime_display_via_filter",
+          "status": "PASS",
+          "since": "0.148.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.dto_in_schemas",
+          "status": "PASS",
+          "since": "0.155.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.paginated_result_unpacked",
+          "status": "PASS",
+          "since": "0.157.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.test_engine_pool_parity",
+          "status": "PASS",
+          "since": "0.160.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.template_context_complete",
+          "status": "PASS",
+          "since": "0.174.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.asserter_current",
+          "status": "INERT",
+          "since": "0.188.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no luxarch asserter is committed \u2014 whether one SHOULD be is the wiring rules' question (fw.route_smoke_wired); there is no version to compare"
+        },
+        {
+          "rule": "fw.broad_except_is_logged",
+          "status": "FAIL",
+          "since": "0.177.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.core_mutation_checks_permission",
+          "status": "INERT",
+          "since": "0.178.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare [rbac].require_names (the same list the route-level RBAC rules use) to enforce that a mutating core method taking a `user` actually checks that user's permission. Until then this rule does not run."
+        },
+        {
+          "rule": "fw.destructive_macro_gated",
+          "status": "INERT",
+          "since": "0.179.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare [components].destructive (the macros that delete/reindex/revoke) and [rbac].require_names (what a permission check looks like here) to enforce that a destructive control is rendered only inside a permission conditional. The image cannot infer either: a macro NAME does not tell you whether it destroys, and every repo spells its permission check differently. Until both are declared this rule does not run."
+        },
+        {
+          "rule": "fw.route_dep_matches_surface",
+          "status": "INERT",
+          "since": "0.180.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "declare [[authz.signature]] rows (`prefix` + `require_dep`) to enforce that a route under a surface carries THAT surface's dependency. `fw.admin_endpoints_rbac` asks whether any gate exists; this asks whether it is the right one \u2014 a bare CurrentUser on /admin is a gate and not an admin gate. Until rows are declared this rule does not run."
+        },
+        {
+          "rule": "fw.credential_routes_limited",
+          "status": "FAIL",
+          "since": "0.215.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.committed_artifacts_declared",
+          "status": "FAIL",
+          "since": "0.226.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_reserved_query_params",
+          "status": "PASS",
+          "since": "0.227.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.surface_separation",
+          "status": "INERT",
+          "since": "0.228.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "opt-in \u2014 N/A until [surfaces].admin and [surfaces].tenant name the two surfaces' template roots (read: admin=[], tenant=[]). Each is a path prefix, or a list of them, relative to the web templates dir (`admin = \"pages/admin/\"`, `tenant = [\"pages/\", \"partials/\"]`); the admin root may sit inside the tenant one. A repo with an operator surface and a customer surface should declare them"
+        },
+        {
+          "rule": "fw.auth_surface_declared",
+          "status": "FAIL",
+          "since": "0.230.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.rate_limit_enforced",
+          "status": "PASS",
+          "since": "0.231.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.module_homes",
+          "status": "PASS",
+          "since": "0.233.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.file_size",
+          "status": "PASS",
+          "since": "0.235.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.no_noload_loader",
+          "status": "PASS",
+          "since": "0.244.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.sqlalchemy_21_ready",
+          "status": "PASS",
+          "since": "0.247.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        },
+        {
+          "rule": "fw.non_request_callers_use_core",
+          "status": "INERT",
+          "since": "0.257.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no view services in this target, so nothing can reach the web seam from outside a request"
+        },
+        {
+          "rule": "fw.service_owns_its_tasks",
+          "status": "INERT",
+          "since": "0.257.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no view or core service files in this target"
+        },
+        {
+          "rule": "fw.generated_assets_built_in_image",
+          "status": "FAIL",
+          "since": "0.262.0",
+          "violations": 2,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": ""
+        }
+      ],
+      "summary": {
+        "PASS": 96,
+        "FAIL": 21,
+        "XFAIL": 0,
+        "XPASS": 0,
+        "INERT": 36
+      }
+    }
+  ],
+  "shared": {
+    "rules": [
+      {
+        "rule": "repo.build_config_committed",
+        "status": "PASS",
+        "since": "0.17.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.guards_wired",
+        "status": "PASS",
+        "since": "0.104.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.no_public_ci",
+        "status": "PASS",
+        "since": "0.20.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.oci_image_labels",
+        "status": "PASS",
+        "since": "0.21.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.components_declared",
+        "status": "PASS",
+        "since": "0.23.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.no_piped_installer",
+        "status": "PASS",
+        "since": "0.25.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.makefile_canonical",
+        "status": "PASS",
+        "since": "0.96.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.guard_owned_tools_undeclared",
+        "status": "FAIL",
+        "since": "0.243.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.dev_tools_not_in_production",
+        "status": "PASS",
+        "since": "0.243.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.fleet_skills_present",
+        "status": "PASS",
+        "since": "0.245.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.logging_canonical",
+        "status": "FAIL",
+        "since": "0.254.0",
+        "violations": 21,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.makefile_no_command_substitution",
+        "status": "PASS",
+        "since": "0.185.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.makefile_no_fixed_tmp",
+        "status": "PASS",
+        "since": "0.249.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.guard_pins_not_overridable",
+        "status": "PASS",
+        "since": "0.187.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.guard_upgrade_verifies_write",
+        "status": "PASS",
+        "since": "0.192.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.db_verify_image_is_current",
+        "status": "INERT",
+        "since": "0.196.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "no `db-verify` target in a committed makefile \u2014 there is no migration-chain run to judge"
+      },
+      {
+        "rule": "repo.image_name_declares_provenance",
+        "status": "PASS",
+        "since": "0.197.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.deploy_tag_is_immutable",
+        "status": "PASS",
+        "since": "0.197.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.release_scans_candidate",
+        "status": "INERT",
+        "since": "0.250.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "no make target publishes an immutable tag \u2014 there is no push to gate"
+      },
+      {
+        "rule": "repo.makefile_image_ref_well_formed",
+        "status": "PASS",
+        "since": "0.208.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.alembic_env_honors_caller_url",
+        "status": "FAIL",
+        "since": "0.217.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.emitted_assets_current",
+        "status": "PASS",
+        "since": "0.208.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.luxpm_receipt_current",
+        "status": "FAIL",
+        "since": "0.211.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.luxpm_backlog_triaged",
+        "status": "INERT",
+        "since": "0.252.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "this checkout's git remote cannot be read here, so whether `.luxpm-receipt` describes THIS repo is unknown \u2014 the backlog counts are only trusted from a verified receipt (`repo.luxpm_receipt_current` says what to fix). NOT a clearance"
+      },
+      {
+        "rule": "repo.guard_status_current",
+        "status": "INERT",
+        "since": "0.222.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "this run is WRITING the status files (`make status`), so the files on disk are the ones it is replacing \u2014 judging them would record a red about themselves in the committed snapshot. The next `make check` judges what was written"
+      },
+      {
+        "rule": "repo.claude_pointer_present",
+        "status": "PASS",
+        "since": "0.213.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.gitleaks_scans_identity",
+        "status": "PASS",
+        "since": "0.204.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.makefile_test_db_harness",
+        "status": "FAIL",
+        "since": "0.102.0",
+        "violations": 3,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.migrations_build_schema",
+        "status": "FAIL",
+        "since": "0.120.0",
+        "violations": 2,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.release_docs_present",
+        "status": "FAIL",
+        "since": "0.137.0",
+        "violations": 4,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.release_docs_current",
+        "status": "INERT",
+        "since": "0.137.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "no VERSION file to key the per-version docs to (repo.version_single_source owns that)"
+      },
+      {
+        "rule": "repo.github_release_wired",
+        "status": "INERT",
+        "since": "0.150.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "no git remote \u2014 a GitHub Release has nowhere to be created; wire `gh release create` when this repo gains one. NOT a clearance: the moment a GitHub remote exists this is checked again"
+      },
+      {
+        "rule": "repo.release_tag_hygiene",
+        "status": "PASS",
+        "since": "0.151.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.hooks_wired",
+        "status": "PASS",
+        "since": "0.154.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.hooks_current",
+        "status": "PASS",
+        "since": "0.164.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.allowlist_wellformed",
+        "status": "PASS",
+        "since": "0.165.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.python_version_consistent",
+        "status": "PASS",
+        "since": "0.166.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.fleet_dep_floor",
+        "status": "FAIL",
+        "since": "0.219.0",
+        "violations": 3,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.schema_from_migrations",
+        "status": "FAIL",
+        "since": "0.130.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.metadata_naming_convention",
+        "status": "FAIL",
+        "since": "0.131.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.compose_conventions",
+        "status": "FAIL",
+        "since": "0.37.0",
+        "violations": 2,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.compose_command_no_orphan_flags",
+        "status": "PASS",
+        "since": "0.141.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.shared_buildx_builder",
+        "status": "PASS",
+        "since": "0.42.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.compose_project_name",
+        "status": "FAIL",
+        "since": "0.72.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.compose_db_ephemeral_volume",
+        "status": "PASS",
+        "since": "0.72.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.makefile_db_ephemeral_volume",
+        "status": "PASS",
+        "since": "0.240.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.compose_up_selects_services",
+        "status": "PASS",
+        "since": "0.264.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.alembic_path_separator",
+        "status": "FAIL",
+        "since": "0.71.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.alembic_autogen_comparisons",
+        "status": "FAIL",
+        "since": "0.123.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.migration_notnull_safe",
+        "status": "PASS",
+        "since": "0.239.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.buildx_builder_gc_capped",
+        "status": "PASS",
+        "since": "0.46.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.buildx_strays_refused",
+        "status": "PASS",
+        "since": "0.193.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.version_single_source",
+        "status": "FAIL",
+        "since": "0.52.0",
+        "violations": 2,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.hatchling_build_backend",
+        "status": "FAIL",
+        "since": "0.62.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.hatch_version_source_buildable",
+        "status": "PASS",
+        "since": "0.184.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.app_version_calver",
+        "status": "INERT",
+        "since": "0.50.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "no VERSION file governs any app target (none in a target's package or any directory above it up to the repo root) \u2014 nothing to judge. The VERSION file is the fleet's one version source: add it (see --doc FLEET-BUILD-DEPLOY-STANDARD)"
+      },
+      {
+        "rule": "repo.dockerfile_provenance_args",
+        "status": "PASS",
+        "since": "0.50.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.entrypoint_execs",
+        "status": "PASS",
+        "since": "0.27.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      }
+    ],
+    "summary": {
+      "PASS": 35,
+      "FAIL": 16,
+      "XFAIL": 0,
+      "XPASS": 0,
+      "INERT": 7
+    }
+  },
+  "summary": {
+    "PASS": 131,
+    "FAIL": 37,
+    "XFAIL": 0,
+    "XPASS": 0,
+    "INERT": 43
+  },
+  "commit": "425e67992bf2c989bb1535318237250f7f921ce6",
+  "generated_at": "2026-10-07T02:48:29Z"
+}
