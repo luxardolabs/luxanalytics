@@ -69,7 +69,7 @@
       "rule": "lint.ruff",
       "status": "FAIL",
       "since": "0.1.0",
-      "violations": 10,
+      "violations": 6,
       "sites": [
         {
           "path": "alembic/env.py",
@@ -100,26 +100,6 @@
           "path": "app/db/pool_monitor.py",
           "line": 155,
           "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/services/core/analytics_core_service.py",
-          "line": 248,
-          "detail": "C416 Unnecessary dict comprehension (rewrite using `dict()`)"
-        },
-        {
-          "path": "app/services/core/analytics_core_service.py",
-          "line": 588,
-          "detail": "C416 Unnecessary dict comprehension (rewrite using `dict()`)"
-        },
-        {
-          "path": "app/services/core/analytics_core_service.py",
-          "line": 905,
-          "detail": "SIM118 Use `key in dict` instead of `key in dict.keys()`"
-        },
-        {
-          "path": "app/services/core/analytics_core_service.py",
-          "line": 929,
-          "detail": "C414 Unnecessary `list()` call within `sorted()`"
         }
       ],
       "deferred": false
@@ -248,6 +228,6 @@
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "f281df4275c2441f621132c0f16b679f5e67a06b",
-  "generated_at": "2026-10-07T04:54:02Z"
+  "commit": "1093ad5a9c1fcb30cd9b0320cc8df359a2eec780",
+  "generated_at": "2026-10-07T05:00:43Z"
 }

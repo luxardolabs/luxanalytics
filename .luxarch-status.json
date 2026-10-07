@@ -990,9 +990,9 @@
         },
         {
           "rule": "fw.crud_paginated_signature",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.90.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1386,8 +1386,8 @@
         }
       ],
       "summary": {
-        "PASS": 111,
-        "FAIL": 8,
+        "PASS": 112,
+        "FAIL": 7,
         "XFAIL": 0,
         "XPASS": 0,
         "INERT": 34
@@ -1928,12 +1928,12 @@
     }
   },
   "summary": {
-    "PASS": 163,
-    "FAIL": 11,
+    "PASS": 164,
+    "FAIL": 10,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 37
   },
-  "commit": "f281df4275c2441f621132c0f16b679f5e67a06b",
-  "generated_at": "2026-10-07T04:54:02Z"
+  "commit": "1093ad5a9c1fcb30cd9b0320cc8df359a2eec780",
+  "generated_at": "2026-10-07T05:00:43Z"
 }
