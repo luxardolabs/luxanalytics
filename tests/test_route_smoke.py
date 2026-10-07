@@ -59,6 +59,9 @@ async def test_metrics_scrape_runs(client: AsyncClient) -> None:
     r = await client.get("/metrics")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/plain")
+    # The scrape has series: it served an empty private registry nothing registered into.
+    assert "python_info" in r.text
+    assert "db_pool_checkouts_total" in r.text
 
 
 @pytest.mark.db

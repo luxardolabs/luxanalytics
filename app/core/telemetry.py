@@ -13,15 +13,12 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from prometheus_client import CollectorRegistry, generate_latest
+from prometheus_client import generate_latest
 
 from app.core.config import settings
 from app.db.database import async_engine
 
 logger = logging.getLogger(__name__)
-
-# Global registry for Prometheus metrics
-REGISTRY = CollectorRegistry()
 
 
 def setup_telemetry(app: FastAPI | None = None) -> None:
@@ -33,65 +30,41 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
         logger.info("OpenTelemetry disabled - no endpoint configured")
         return
 
-    try:
-        # Create resource identifying the service
-        resource = Resource.create(
-            {
-                "service.name": os.getenv("OTEL_SERVICE_NAME", "ll_analytics"),
-                "service.version": settings.APP_VERSION,
-                "deployment.environment": settings.ENVIRONMENT,
-            }
-        )
+    # No try/except: the OTLP exporter connects lazily, so anything raised here is a config or
+    # code error, and an operator who set the endpoint wants it to fail loudly, not trace nothing.
+    service_name = os.getenv("OTEL_SERVICE_NAME", "ll_analytics")
+    resource = Resource.create(
+        {
+            "service.name": service_name,
+            "service.version": settings.APP_VERSION,
+            "deployment.environment": settings.ENVIRONMENT,
+        }
+    )
 
-        # Setup tracing. Keep the SDK provider we built: trace.get_tracer_provider() returns the
-        # API type (no add_span_processor), and a provider set earlier would be returned instead.
-        tracer_provider = TracerProvider(resource=resource)
-        trace.set_tracer_provider(tracer_provider)
+    # Keep the SDK provider we built: trace.get_tracer_provider() returns the API type (no
+    # add_span_processor), and a provider set earlier would be returned instead.
+    tracer_provider = TracerProvider(resource=resource)
+    trace.set_tracer_provider(tracer_provider)
+    tracer_provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=otel_endpoint, insecure=True))
+    )
+    metrics.set_meter_provider(MeterProvider(resource=resource))
 
-        # Add OTLP exporter
-        otlp_exporter = OTLPSpanExporter(
-            endpoint=otel_endpoint,
-            insecure=True,  # Use insecure for internal communication
-        )
-        span_processor = BatchSpanProcessor(otlp_exporter)
-        tracer_provider.add_span_processor(span_processor)
-
-        # Setup metrics
-        metrics.set_meter_provider(MeterProvider(resource=resource))
-
-        # Auto-instrument FastAPI
-        if app:
-            FastAPIInstrumentor.instrument_app(app)
-            logger.info("FastAPI instrumentation enabled")
-
-        # Auto-instrument SQLAlchemy
-        try:
-            SQLAlchemyInstrumentor().instrument(
-                engine=async_engine.sync_engine, service="ll_analytics_db"
-            )
-            logger.info("SQLAlchemy instrumentation enabled")
-        except Exception as e:
-            logger.warning("Failed to instrument SQLAlchemy", extra={"error": str(e)})
-
-        logger.info(
-            "OpenTelemetry initialized",
-            extra={
-                "endpoint": otel_endpoint,
-                "service_name": os.getenv("OTEL_SERVICE_NAME", "ll_analytics"),
-            },
-        )
-
-    except Exception:
-        # Telemetry is optional: the app serves without it, but the failure is recorded.
-        logger.exception("Failed to initialize OpenTelemetry")
+    if app:
+        FastAPIInstrumentor.instrument_app(app)
+    SQLAlchemyInstrumentor().instrument(
+        engine=async_engine.sync_engine, service="ll_analytics_db"
+    )
+    logger.info(
+        "OpenTelemetry initialized",
+        extra={"endpoint": otel_endpoint, "service_name": service_name},
+    )
 
 
 def get_prometheus_metrics() -> bytes:
-    """Generate Prometheus metrics in text format."""
-    # Import here to ensure metrics are registered
-
-    # Generate and return metrics
-    return generate_latest(REGISTRY)
+    """The scrape body: prometheus_client's default registry, where every collector registers
+    (the process and platform collectors, and the db_pool_* metrics)."""
+    return generate_latest()
 
 
 def create_custom_metrics() -> dict[str, Counter | Histogram | UpDownCounter]:

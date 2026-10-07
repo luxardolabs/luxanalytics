@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import redis.asyncio as redis
+from redis.exceptions import RedisError
 
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
@@ -103,9 +104,10 @@ class RateLimiter:
                         "retry_after": retry_after,
                     }
 
-            except Exception:
+            except RedisError, OSError:
+                # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
+                # the in-memory window, so requests stay limited. Anything else is a bug and raises.
                 logger.exception("Redis rate limit check failed")
-                # Fall back to memory on Redis error
                 return self._check_memory(identifier, cost)
 
     def _check_memory(self, identifier: str, cost: int) -> tuple[bool, dict[str, Any]]:
