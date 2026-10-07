@@ -24,7 +24,9 @@ class AppUpdate(BaseModel):
     app_metadata: dict[str, Any] | None = None
 
 
-class AppResponse(AppBase):
+class AppRow(AppBase):
+    """An app's stored columns, read from the ORM row (no derived fields)."""
+
     id: UUID
     public_id: str
     project_id: str
@@ -32,6 +34,29 @@ class AppResponse(AppBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    dsn: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AppResponse(AppRow):
+    """An app as the dashboard shows it: its columns plus the DSN the SDK is configured with."""
+
+    dsn: str
+
+
+class AppListItem(BaseModel):
+    """One row of the apps list."""
+
+    app_id: str
+    name: str
+    organization: str | None
+    is_active: bool
+    public_id: str
+    dsn: str
+    event_count: int
+
+
+class AppStats(BaseModel):
+    total_events: int
+    unique_users: int
+    unique_sessions: int

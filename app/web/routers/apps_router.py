@@ -1,19 +1,16 @@
-import io
-import json
-import logging
-from datetime import datetime
+"""Apps admin (HTMX). HTTP only: every route asks AppsViewService for its context."""
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+import io
+
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
 from app.db.database import get_db
-from app.schemas.app_schema import AppCreate, AppUpdate
-from app.services.core.app_core_service import AppCoreService
+from app.services.views.apps_view_service import AppsViewService, DuplicateAppIdError
 from app.web.templates import templates
 
-logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
@@ -21,7 +18,7 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/", response_class=HTMLResponse)
-async def apps_page(request: Request):
+async def apps_page(request: Request) -> Response:
     """Full apps management page."""
     return templates.TemplateResponse(request, "pages/apps/index.html")
 
@@ -30,40 +27,19 @@ async def apps_page(request: Request):
 
 
 @router.get("/list", response_class=HTMLResponse)
-async def apps_list(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
+async def apps_list(
+    request: Request, q: str = "", db: AsyncSession = Depends(get_db)
+) -> Response:
     """Apps list partial — loaded by HTMX on page load and search."""
-    app_service = AppCoreService(db)
-    if q:
-        apps = await app_service.search_apps(q)
-    else:
-        apps = await app_service.get_all_apps(include_inactive=True)
-
-    # Add event counts for display
-    app_list = []
-    for app in apps:
-        stats = await app_service.get_app_stats(app.app_id)
-        app_list.append(
-            {
-                "app_id": app.app_id,
-                "name": app.name,
-                "organization": app.organization,
-                "is_active": app.is_active,
-                "public_id": app.public_id,
-                "dsn": app.dsn,
-                "event_count": stats.get("total_events", 0),
-            }
-        )
-
-    return templates.TemplateResponse(
-        request, "partials/apps/list.html", {"apps": app_list}
-    )
+    context = await AppsViewService(db, request).list_context(q)
+    return templates.TemplateResponse(request, "partials/apps/list.html", context)
 
 
 # ── Slider Panels ────────────────────────────────────────────────────────────
 
 
 @router.get("/new", response_class=HTMLResponse)
-async def new_app_panel(request: Request):
+async def new_app_panel(request: Request) -> Response:
     """New app form — slider panel."""
     return templates.TemplateResponse(
         request, "partials/apps/form_panel.html", {"app": None}
@@ -73,31 +49,20 @@ async def new_app_panel(request: Request):
 @router.get("/{app_id}/edit", response_class=HTMLResponse)
 async def edit_app_panel(
     request: Request, app_id: str, db: AsyncSession = Depends(get_db)
-):
+) -> Response:
     """Edit app form — slider panel."""
-    app_service = AppCoreService(db)
-    app = await app_service.get_app_by_app_id(app_id)
-    if not app:
-        raise HTTPException(404, "App not found")
-    return templates.TemplateResponse(
-        request, "partials/apps/form_panel.html", {"app": app}
-    )
+    context = await AppsViewService(db, request).edit_panel_context(app_id)
+    return templates.TemplateResponse(request, "partials/apps/form_panel.html", context)
 
 
 @router.get("/{app_id}/detail", response_class=HTMLResponse)
 async def app_detail_panel(
     request: Request, app_id: str, db: AsyncSession = Depends(get_db)
-):
+) -> Response:
     """App detail — slider panel with DSN, stats."""
-    app_service = AppCoreService(db)
-    app = await app_service.get_app_by_app_id(app_id)
-    if not app:
-        raise HTTPException(404, "App not found")
-    stats = await app_service.get_app_stats(app_id)
+    context = await AppsViewService(db, request).detail_panel_context(app_id)
     return templates.TemplateResponse(
-        request,
-        "partials/apps/detail_panel.html",
-        {"app": app, "stats": stats},
+        request, "partials/apps/detail_panel.html", context
     )
 
 
@@ -112,47 +77,23 @@ async def create_app(
     organization: str | None = Form(None),
     description: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
-):
+) -> Response:
     """Create a new app, then refresh the list."""
-    app_service = AppCoreService(db)
-
-    existing = await app_service.get_app_by_app_id(app_id)
-    if existing:
-        return HTMLResponse(
-            content=f'<div class="rounded-lg border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">App ID "{app_id}" already exists</div>',
+    view = AppsViewService(db, request)
+    try:
+        message = await view.create(name, app_id, organization, description)
+    except DuplicateAppIdError as e:
+        # Shown in the form's own error box (the emitted htmx-error-swap honours HX-Error-Swap).
+        response = templates.TemplateResponse(
+            request,
+            "partials/apps/form_error.html",
+            {"message": str(e)},
             status_code=400,
         )
-
-    app_data = AppCreate(
-        name=name, app_id=app_id, organization=organization, description=description
-    )
-    await app_service.create_app(app_data)
-
-    # Return updated list + close panel via HX-Trigger
-    apps = await app_service.get_all_apps(include_inactive=True)
-    app_list = []
-    for app in apps:
-        stats = await app_service.get_app_stats(app.app_id)
-        app_list.append(
-            {
-                "app_id": app.app_id,
-                "name": app.name,
-                "organization": app.organization,
-                "is_active": app.is_active,
-                "public_id": app.public_id,
-                "dsn": app.dsn,
-                "event_count": stats.get("total_events", 0),
-            }
-        )
-
-    response = templates.TemplateResponse(
-        request, "partials/apps/list.html", {"apps": app_list}
-    )
-    response.headers["HX-Trigger"] = json.dumps(
-        {"showtoast": {"message": f"App '{name}' created", "type": "success"}}
-    )
-    response.headers["HX-Retarget"] = "#apps-list"
-    return response
+        response.headers["HX-Retarget"] = "#form-errors"
+        response.headers["HX-Error-Swap"] = "true"
+        return response
+    return await view.list_with_toast(message)
 
 
 @router.put("/{app_id}", response_class=HTMLResponse)
@@ -162,108 +103,35 @@ async def update_app(
     name: str | None = Form(None),
     organization: str | None = Form(None),
     description: str | None = Form(None),
-    is_active: bool | None = Form(None),
+    is_active: bool = Form(False),
     db: AsyncSession = Depends(get_db),
-):
+) -> Response:
     """Update an app."""
-    app_service = AppCoreService(db)
-    app_update = AppUpdate(
-        name=name,
-        organization=organization,
-        description=description,
-        is_active=is_active,
-    )
-    app = await app_service.update_app(app_id, app_update)
-    if not app:
-        raise HTTPException(404, "App not found")
-
-    # Refresh list
-    apps = await app_service.get_all_apps(include_inactive=True)
-    app_list = []
-    for a in apps:
-        stats = await app_service.get_app_stats(a.app_id)
-        app_list.append(
-            {
-                "app_id": a.app_id,
-                "name": a.name,
-                "organization": a.organization,
-                "is_active": a.is_active,
-                "public_id": a.public_id,
-                "dsn": a.dsn,
-                "event_count": stats.get("total_events", 0),
-            }
-        )
-
-    response = templates.TemplateResponse(
-        request, "partials/apps/list.html", {"apps": app_list}
-    )
-    response.headers["HX-Trigger"] = json.dumps(
-        {"showtoast": {"message": f"App '{app.name}' updated", "type": "success"}}
-    )
-    response.headers["HX-Retarget"] = "#apps-list"
-    return response
+    view = AppsViewService(db, request)
+    message = await view.update(app_id, name, organization, description, is_active)
+    return await view.list_with_toast(message)
 
 
 @router.delete("/{app_id}", response_class=HTMLResponse)
-async def delete_app(request: Request, app_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_app(
+    request: Request, app_id: str, db: AsyncSession = Depends(get_db)
+) -> Response:
     """Delete an app."""
-    app_service = AppCoreService(db)
-    app = await app_service.get_app_by_app_id(app_id)
-    if not app:
-        raise HTTPException(404, "App not found")
-
-    await app_service.delete_app(app_id)
-
-    apps = await app_service.get_all_apps(include_inactive=True)
-    app_list = []
-    for a in apps:
-        stats = await app_service.get_app_stats(a.app_id)
-        app_list.append(
-            {
-                "app_id": a.app_id,
-                "name": a.name,
-                "organization": a.organization,
-                "is_active": a.is_active,
-                "public_id": a.public_id,
-                "dsn": a.dsn,
-                "event_count": stats.get("total_events", 0),
-            }
-        )
-
-    response = templates.TemplateResponse(
-        request, "partials/apps/list.html", {"apps": app_list}
-    )
-    response.headers["HX-Trigger"] = json.dumps(
-        {"showtoast": {"message": f"App '{app.name}' deleted", "type": "success"}}
-    )
-    response.headers["HX-Retarget"] = "#apps-list"
-    return response
+    view = AppsViewService(db, request)
+    message = await view.delete(app_id)
+    return await view.list_with_toast(message)
 
 
 # ── Export ────────────────────────────────────────────────────────────────────
 
 
 @router.get("/export/json")
-async def export_apps_json(db: AsyncSession = Depends(get_db)):
-    app_service = AppCoreService(db)
-    apps = await app_service.get_all_apps(include_inactive=True)
-    data = [
-        {
-            "app_id": a.app_id,
-            "name": a.name,
-            "organization": a.organization,
-            "public_id": a.public_id,
-            "dsn": a.dsn,
-            "is_active": a.is_active,
-            "created_at": a.created_at.isoformat(),
-            "updated_at": a.updated_at.isoformat(),
-        }
-        for a in apps
-    ]
+async def export_apps_json(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> StreamingResponse:
+    body, filename = await AppsViewService(db, request).export_json()
     return StreamingResponse(
-        io.BytesIO(json.dumps(data, indent=2).encode()),
+        io.BytesIO(body),
         media_type="application/json",
-        headers={
-            "Content-Disposition": f"attachment; filename=apps_{datetime.now().strftime('%Y%m%d')}.json"
-        },
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
