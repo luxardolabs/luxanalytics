@@ -1,48 +1,47 @@
-# ---- app: the shared base — runtime deps from the lock + the application ----
-FROM python:3.14-slim AS app
+# ---- builder: resolve the lock into a venv; the build tooling never reaches the runtime ----
+FROM python:3.14-slim AS builder
+
+# Matches the Poetry that writes poetry.lock (2.x reads the [project] table).
+ENV POETRY_VERSION=2.4.1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_NO_INTERACTION=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH
+
+RUN pip install --no-cache-dir poetry==${POETRY_VERSION} \
+    && python -m venv /opt/venv
+
+WORKDIR /build
+COPY pyproject.toml poetry.lock VERSION ./
+# Into the active venv (VIRTUAL_ENV), main group only; then pip leaves the venv: it vendors
+# urllib3/msgpack/setuptools that no lock upgrade reaches, and the app never runs pip.
+RUN poetry install --no-root --only main \
+    && /opt/venv/bin/python -m pip uninstall -y pip
+
+# ---- production: what ships (the default — last — stage) ----
+FROM python:3.14-slim AS production
+
+# Current OS packages (the release gate refuses fixable HIGH/CRITICAL), curl for the
+# HEALTHCHECK only, and no pip in the system interpreter either.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip uninstall -y pip
+
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH
 
 WORKDIR /app
-
-# System dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Poetry
-# Matches the Poetry that writes poetry.lock (2.x reads the [project] table).
-ENV POETRY_VERSION=2.4.1
-ENV POETRY_HOME=/opt/poetry
-ENV POETRY_VIRTUALENVS_CREATE=false
-ENV POETRY_NO_INTERACTION=1
-
-RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
-
-# Install dependencies (cached layer)
-COPY pyproject.toml poetry.lock* VERSION ./
-RUN poetry install --no-root --only main
-
-# Copy application
+COPY --from=builder /opt/venv /opt/venv
+COPY VERSION ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 
-# Non-root user (switched to in the production stage)
 RUN useradd -m -u 1000 luxanalytics && chown -R luxanalytics:luxanalytics /app
-
-# ---- test: the shipped app layers + the dev group, from the SAME lock ----
-# Built LOCALLY by `make test` (bare luxanalytics:test, never pushed). Source is over-mounted at
-# run time, so this rebuilds only when the lock changes (FLEET-BUILD-DEPLOY-STANDARD, "Lint & test
-# images"). Runs as root so the over-mounted checkout's ownership doesn't matter.
-FROM app AS test
-RUN poetry install --no-root --with dev
-
-# ---- production: what ships (the default — last — stage) ----
-FROM app AS production
 USER luxanalytics
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:4000/health || exit 1
 
@@ -61,3 +60,18 @@ LABEL org.opencontainers.image.version="$BUILD_VERSION" \
       org.opencontainers.image.title="luxanalytics"
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "4000"]
+
+# ---- test: the SHIPPED layers + the dev group, from the same lock ----
+# FROM production, putting back what production stripped (FLEET-BUILD-DEPLOY-STANDARD, "Lint &
+# test images"). Built LOCALLY by `make test` (bare luxanalytics:test, never pushed); source is
+# over-mounted at run time. Root, so the over-mounted checkout's ownership doesn't matter.
+FROM production AS test
+USER root
+ENV POETRY_VIRTUALENVS_CREATE=false POETRY_NO_INTERACTION=1
+COPY pyproject.toml poetry.lock ./
+RUN python -m ensurepip \
+    && python -m pip install --no-cache-dir poetry==2.4.1 \
+    && poetry install --no-root --with dev
+
+# The default target stays the shipped image.
+FROM production
