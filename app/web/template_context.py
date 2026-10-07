@@ -17,8 +17,8 @@ from app.core.config import settings
 class AutoContextTemplates(Jinja2Templates):
     """Extended Jinja2Templates that auto-injects common context."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, directory: str) -> None:
+        super().__init__(directory=directory)
         self._global_context: dict[str, Any] = {}
 
     def set_global_context(self, key: str, value: Any) -> None:
