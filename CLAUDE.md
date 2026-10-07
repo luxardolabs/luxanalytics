@@ -149,7 +149,7 @@ make migrate          # Run Alembic migrations
 make migrate-create   # Create new migration (interactive)
 make css              # Build Tailwind CSS
 make css-watch        # Watch mode for Tailwind
-make status           # Health check + container status
+make stack-status     # Health check + container status
 make backup           # Backup local database
 ```
 
@@ -159,6 +159,8 @@ make backup           # Backup local database
 make check            # THE gate: pins → honest → lint → mypy → test → arch → audit → gitleaks
 make onboard-check    # wiring + honesty (NOT green)
 make plan             # every arch red, phase-ordered
+make status           # regenerate the committed .lux*-status.json files (commit them)
+make arch-rule RULE=… / arch-file FILE=… / lint-file FILE=… / mypy-file FILE=…   # scoped re-runs
 make format           # the canonical fixer (luxlint --format) — never a bare formatter
 make guard-upgrade    # bump every guard pin to latest
 ```

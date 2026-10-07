@@ -29,3 +29,16 @@ coverage.xml
 *.swo
 *~
 test.db
+
+# Secrets, private topology and data never enter the build context
+# (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD, "Clean-clone build readiness").
+.env.*
+!.env.example
+Makefile.local
+deploy/
+backups/
+*.sql
+*.sql.gz
+*.dump
+node_modules/
+.git/

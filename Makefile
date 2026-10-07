@@ -7,6 +7,13 @@
 # values win over the empty defaults below.
 -include Makefile.local
 
+# The external-registry credential is a SECRET, not topology, so it lives in the gitignored
+# .env.build (REGISTRY_USER / REGISTRY_PASSWORD), same as www / open-claim / luxof.life — never in
+# a Makefile. `export` makes it visible to recipe shells, which read it as $$REGISTRY_PASSWORD.
+# See luxarch --doc FLEET-BUILD-DEPLOY-STANDARD ("Versioning your ops config").
+-include .env.build
+export REGISTRY_USER REGISTRY_PASSWORD
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -14,10 +21,9 @@ APP_NAME := luxanalytics
 
 # The fleet registry: holds this app's local images AND the three guard images.
 REGISTRY ?=
-# The external registry production pulls from, and its push/pull credential.
+# The external registry production pulls from (its credential is in .env.build, above).
 EXTERNAL_REGISTRY ?=
-EXTERNAL_REGISTRY_USER ?=
-EXTERNAL_REGISTRY_PASSWORD ?=
+REGISTRY_USER ?= luxardolabs
 
 # Image name
 IMAGE_NAME := luxanalytics
@@ -33,7 +39,8 @@ BUILD_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown"
 BUILD_TIMESTAMP := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Build args
-BUILD_ARGS := --build-arg VERSION=$(BUILD_VERSION) \
+BUILD_ARGS := --build-arg BUILD_VERSION=$(BUILD_VERSION) \
+              --build-arg BUILD_COMMIT=$(BUILD_COMMIT) \
               --build-arg BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)
 
 # Cache control: use NOCACHE=1 to disable
@@ -61,9 +68,10 @@ export TLS_CERTS_DIR
 .DEFAULT_GOAL := help
 
 .PHONY: help check guard-version-check guard-upgrade guard-registry honest lint mypy format test arch plan \
+        arch-rule arch-file lint-file mypy-file status \
         audit gitleaks gitleaks-staged onboard-check \
         build build-fast up down restart logs logs-app logs-db shell shell-db test-local migrate migrate-down \
-        migrate-create clean status health ps backup restore work quick css css-watch check-env \
+        migrate-create clean stack-status health ps backup restore work quick css css-watch check-env \
         local-build local-build-latest external-build external-build-latest release release-latest \
         buildx-setup version images \
         prod-push prod-deploy prod-restart prod-stop prod-logs prod-status prod-shell prod-shell-db \
@@ -131,6 +139,43 @@ plan: guard-registry ## The full red board — every arch red, phase-ordered + f
 
 audit: guard-registry ## Dependency CVEs (SCA) against the live advisory feed
 	@$(GUARD_RUN) -v luxaudit-cache:/root/.cache/trivy $(LUXAUDIT)
+
+# Targeted re-runs — one rule / one file, still on the canonical config (luxarch --doc
+# FLEET-BUILD-DEPLOY-STANDARD, "Targeted re-runs"). For iterating; the merge gate is `make check`.
+# The emitted config goes to a per-run mktemp file mounted read-only — never a file in the repo.
+arch-rule: guard-registry ## luxarch, ONE rule: make arch-rule RULE=fw.no_inline_html
+	@[ -n "$(RULE)" ] || { echo "usage: make arch-rule RULE=<rule-id>"; exit 2; }
+	@$(GUARD_RUN) $(LUXARCH) --rule $(RULE)
+
+arch-file: guard-registry ## luxarch reds touching ONE file: make arch-file FILE=app/main.py
+	@[ -n "$(FILE)" ] || { echo "usage: make arch-file FILE=<path>"; exit 2; }
+	@$(GUARD_RUN) $(LUXARCH) --path $(FILE)
+
+lint-file: guard-registry ## ruff on ONE file, canonical config: make lint-file FILE=app/main.py
+	@[ -n "$(FILE)" ] || { echo "usage: make lint-file FILE=<path>"; exit 2; }
+	@set -e; C=$$(mktemp); trap 'rm -f "$$C"' EXIT INT TERM; \
+	$(GUARD_RUN) $(LUXLINT) --emit-config ruff > "$$C"; \
+	docker run --rm -v $(PWD):/repo -v "$$C":/cfg.toml:ro -w /repo --entrypoint ruff $(LUXLINT) \
+	  check --config /cfg.toml $(FILE)
+
+mypy-file: guard-registry ## mypy on ONE file, canonical config: make mypy-file FILE=app/main.py
+	@[ -n "$(FILE)" ] || { echo "usage: make mypy-file FILE=<path>"; exit 2; }
+	@set -e; C=$$(mktemp); trap 'rm -f "$$C"' EXIT INT TERM; \
+	$(GUARD_RUN) $(LUXLINT) --emit-config mypy > "$$C"; \
+	docker run --rm -v $(PWD):/repo -v "$$C":/cfg.ini:ro -w /repo --entrypoint mypy $(LUXLINT) \
+	  --config-file /cfg.ini $(FILE)
+
+# Committed guard-status files (.lux*-status.json): the fleet reads these instead of re-running.
+# Recipe verbatim from luxarch --doc FLEET-STATUS.
+STAMP = python3 -c 'import json,sys,os; d=json.load(open(sys.argv[1])); g=d.get("guard"); g==sys.argv[3] or sys.exit(f"status: {sys.argv[1]} holds {g!r} output, expected {sys.argv[3]!r}; refusing to stamp"); d["commit"]=os.environ["SHA"]; d["generated_at"]=os.environ["TS"]; json.dump(d,open(sys.argv[2],"w"),indent=2)'
+
+status: guard-registry ## Regenerate committed guard-status files (.lux*-status.json) — commit them
+	@set -e; export SHA=$$(git rev-parse HEAD) TS=$$(date -u +%FT%TZ); \
+	J=$$(mktemp); trap 'rm -f "$$J"' EXIT INT TERM; \
+	$(GUARD_RUN) $(LUXLINT)  --json > "$$J" || true; $(STAMP) "$$J" .luxlint-status.json luxlint; \
+	$(GUARD_RUN) -e LUXARCH_STATUS_WRITE=1 $(LUXARCH) --json > "$$J" || true; $(STAMP) "$$J" .luxarch-status.json luxarch; \
+	$(GUARD_RUN) $(LUXAUDIT) --json > "$$J" || true; $(STAMP) "$$J" .luxaudit-status.json luxaudit; \
+	echo "wrote .lux*-status.json at $$SHA — commit them"
 
 # The machine gate for "is this repo ONBOARDED": wiring + honesty, NOT green.
 # See luxarch --doc FLEET-ONBOARDING-STANDARD §5.
@@ -253,7 +298,7 @@ help:
 	@echo "  make shell-db    - Open psql in database"
 	@echo "  make test        - Run test suite"
 	@echo "  make migrate     - Run database migrations"
-	@echo "  make status      - Quick health check"
+	@echo "  make stack-status - Quick health check"
 	@echo "  make css         - Build Tailwind CSS"
 	@echo "  make css-watch   - Watch and rebuild CSS on changes"
 	@echo ""
@@ -316,7 +361,8 @@ local-build-latest: local-build
 external-build: buildx-setup css
 	@echo "Building and pushing to external registry..."
 	@echo "Image: $(EXTERNAL_IMAGE):$(BUILD_VERSION)"
-	@printf '%s' "$(EXTERNAL_REGISTRY_PASSWORD)" | docker login $(EXTERNAL_REGISTRY) -u $(EXTERNAL_REGISTRY_USER) --password-stdin
+	@test -n "$${REGISTRY_PASSWORD}" || { echo "REGISTRY_PASSWORD not set (expected in .env.build)"; exit 1; }
+	@printf '%s' "$${REGISTRY_PASSWORD}" | docker login $(EXTERNAL_REGISTRY) -u $(REGISTRY_USER) --password-stdin
 	docker buildx build --platform linux/amd64 \
 		$(BUILD_ARGS) \
 		-t $(EXTERNAL_IMAGE):$(BUILD_VERSION) \
@@ -326,7 +372,8 @@ external-build: buildx-setup css
 
 external-build-latest: buildx-setup css
 	@echo "Building and pushing to external registry with :latest..."
-	@printf '%s' "$(EXTERNAL_REGISTRY_PASSWORD)" | docker login $(EXTERNAL_REGISTRY) -u $(EXTERNAL_REGISTRY_USER) --password-stdin
+	@test -n "$${REGISTRY_PASSWORD}" || { echo "REGISTRY_PASSWORD not set (expected in .env.build)"; exit 1; }
+	@printf '%s' "$${REGISTRY_PASSWORD}" | docker login $(EXTERNAL_REGISTRY) -u $(REGISTRY_USER) --password-stdin
 	docker buildx build --platform linux/amd64 \
 		$(BUILD_ARGS) \
 		-t $(EXTERNAL_IMAGE):$(BUILD_VERSION) \
@@ -420,7 +467,7 @@ clean:
 	rm -rf __pycache__ .pytest_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
-status:
+stack-status: ## Container status + health of the local stack
 	@echo "🔍 LuxAnalytics v$(BUILD_VERSION)"
 	@docker compose ps
 	@echo ""
@@ -482,7 +529,10 @@ prod-push:
 
 prod-deploy:
 	@echo "Deploying LuxAnalytics $(BUILD_VERSION) to production..."
-	@$(PROD_SSH) 'printf %s $(EXTERNAL_REGISTRY_PASSWORD) | docker login $(EXTERNAL_REGISTRY) -u $(EXTERNAL_REGISTRY_USER) --password-stdin && cd $(PROD_PATH) && docker compose --env-file .env.prod pull && docker compose --env-file .env.prod up -d && docker logout $(EXTERNAL_REGISTRY)'"
+	@# The password crosses both ssh hops on STDIN, never on a remote command line (where ps shows it).
+	@set -e; test -n "$${REGISTRY_PASSWORD}" || { echo "REGISTRY_PASSWORD not set (expected in .env.build)"; exit 1; }; \
+	printf '%s' "$${REGISTRY_PASSWORD}" | $(PROD_SSH) 'docker login $(EXTERNAL_REGISTRY) -u $(REGISTRY_USER) --password-stdin'"; \
+	$(PROD_SSH) 'cd $(PROD_PATH) && docker compose --env-file .env.prod pull && docker compose --env-file .env.prod up -d; rc=\$$?; docker logout $(EXTERNAL_REGISTRY); exit \$$rc'"
 	@echo "✅ Deployed $(BUILD_VERSION)"
 
 prod-restart:

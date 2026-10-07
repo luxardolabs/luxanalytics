@@ -36,14 +36,17 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 
 EXPOSE 4000
 
-ARG VERSION
-ARG BUILD_TIMESTAMP
-ENV APP_VERSION=${VERSION}
+# Provenance: the canonical build-arg names feed the portable OCI labels
+# (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD, "Image labels"). .created is RFC-3339 UTC.
+ARG BUILD_VERSION= BUILD_COMMIT= BUILD_TIMESTAMP=
+ENV APP_VERSION=${BUILD_VERSION}
 ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
+ENV BUILD_COMMIT=${BUILD_COMMIT}
 
-LABEL version="${VERSION}" \
-      build_timestamp="${BUILD_TIMESTAMP}" \
-      maintainer="luxardolabs" \
-      description="LuxAnalytics Event Collector API"
+LABEL org.opencontainers.image.version="$BUILD_VERSION" \
+      org.opencontainers.image.revision="$BUILD_COMMIT" \
+      org.opencontainers.image.created="$BUILD_TIMESTAMP" \
+      org.opencontainers.image.source="https://github.com/luxardolabs/luxanalytics" \
+      org.opencontainers.image.title="luxanalytics"
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "4000"]
