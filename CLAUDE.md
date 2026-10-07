@@ -120,7 +120,7 @@ app/
 │       └── dashboard_view_service.py  # DashboardViewService
 ├── templates/web/             # The fleet-canonical web template root (Jinja loader dir)
 │   ├── layouts/base.html    # Unified layout (Tailwind, HTMX, Alpine, Chart.js, ECharts)
-│   ├── components/nav.html  # Top nav with HTMX app dropdown
+│   ├── partials/layout/nav.html  # Top nav with HTMX app dropdown
 │   ├── macros/              # LuxWX macro library (12 files, ~5000 lines)
 │   ├── pages/dashboard/     # Full page templates (9 pages)
 │   └── partials/dashboard/  # HTMX content partials + slider panels

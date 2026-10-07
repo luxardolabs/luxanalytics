@@ -27,7 +27,7 @@
 <body class="bg-surface-0 text-slate-300 min-h-screen flex flex-col">
 
     {# ===== TOP NAV ===== #}
-    {% include "components/nav.html" %}
+    {% include "partials/layout/nav.html" %}
 
     {# ===== MAIN CONTENT ===== #}
     {% from "macros/layout.html" import page_width_class %}
@@ -38,7 +38,7 @@
     </main>
 
     {# ===== FOOTER ===== #}
-    {% include "components/footer.html" %}
+    {% include "partials/layout/footer.html" %}
 
     {# ===== MODAL/PANEL CONTAINER ===== #}
     <div id="panel-container"></div>
