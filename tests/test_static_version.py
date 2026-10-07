@@ -29,3 +29,15 @@ async def test_the_rendered_page_carries_a_real_token(client: AsyncClient) -> No
     response = await client.get("/login")
     assert 'href="/static/css/compiled.css?v=' in response.text
     assert '?v="' not in response.text  # never an empty token
+
+
+def test_the_web_templates_fail_loud_on_an_undefined_variable() -> None:
+    # fw.jinja_strict_undefined: a missing value raises instead of rendering "" (which would also
+    # turn a missing static_version into a bare, useless ?v=).
+    from jinja2 import UndefinedError
+
+    from app.web.templates import error_templates, templates
+
+    for env in (templates.env, error_templates.env):
+        with pytest.raises(UndefinedError):
+            env.from_string("{{ not_in_the_context }}").render()
