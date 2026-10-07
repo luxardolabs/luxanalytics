@@ -78,5 +78,18 @@ class AppCRUD:
             "unique_sessions": row.unique_sessions,
         }
 
+    async def event_counts(
+        self, db: AsyncSession, app_ids: list[str]
+    ) -> dict[str, int]:
+        """Events per app for every id in `app_ids`, in one GROUP BY (absent = no events)."""
+        if not app_ids:
+            return {}
+        result = await db.execute(
+            select(Event.app_id, func.count(Event.id))
+            .where(Event.app_id.in_(app_ids))
+            .group_by(Event.app_id)
+        )
+        return dict(result.all())
+
 
 app_crud = AppCRUD()

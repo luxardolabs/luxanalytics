@@ -70,7 +70,7 @@ class AppsViewService:
             app = await self._core.get_app_by_app_id(app_id)
             if app is None:
                 raise HTTPException(404, "App not found")
-            return AppRow.model_validate(app)
+            return app
 
     async def list_context(self, q: str = "") -> dict[str, Any]:
         """The apps list partial: every app (inactive included) with its event count."""
@@ -80,10 +80,9 @@ class AppsViewService:
                 if q
                 else await self._core.get_all_apps(include_inactive=True)
             )
+            counts = await self._core.get_event_counts([a.app_id for a in apps])
             items = []
-            for orm in apps:
-                app = AppRow.model_validate(orm)
-                stats = await self._core.get_app_stats(app.app_id)
+            for app in apps:
                 items.append(
                     AppListItem(
                         app_id=app.app_id,
@@ -92,7 +91,7 @@ class AppsViewService:
                         is_active=app.is_active,
                         public_id=app.public_id,
                         dsn=self._dsn(app),
-                        event_count=stats.total_events,
+                        event_count=counts.get(app.app_id, 0),
                         urls=self._urls(app.app_id),
                     )
                 )
@@ -197,7 +196,7 @@ class AppsViewService:
         """Every app as a JSON download: (body, filename)."""
         with create_service_span("AppsViewService", "export_json"):
             apps = [
-                self._response(AppRow.model_validate(a))
+                self._response(a)
                 for a in await self._core.get_all_apps(include_inactive=True)
             ]
             data = [

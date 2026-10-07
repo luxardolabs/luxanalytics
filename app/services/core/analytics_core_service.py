@@ -13,6 +13,7 @@ from app.crud.device_crud import device_crud
 from app.crud.event_crud import Conditions, event_crud
 from app.models.device_model import Device
 from app.models.event_model import Event
+from app.schemas.event_schema import EventInDB
 
 
 class AnalyticsCoreService:
@@ -23,11 +24,12 @@ class AnalyticsCoreService:
 
     # ── Events ────────────────────────────────────────────────────────────
 
-    async def get_event_by_id(self, event_id: str) -> Event | None:
+    async def get_event_by_id(self, event_id: str) -> EventInDB | None:
         with create_service_span(
             "AnalyticsCoreService", "get_event_by_id", event_id=event_id
         ):
-            return await event_crud.get_by_id(self.db, event_id)
+            event = await event_crud.get_by_id(self.db, event_id)
+            return EventInDB.model_validate(event) if event is not None else None
 
     async def get_filtered_events(
         self,
@@ -38,7 +40,7 @@ class AnalyticsCoreService:
         event_name: str | None = None,
         user_id: str | None = None,
         hours: int = 24,
-    ) -> tuple[list[Event], int]:
+    ) -> tuple[list[EventInDB], int]:
         """One window of matching events (newest first) and the total that match."""
         with create_service_span(
             "AnalyticsCoreService",
@@ -46,7 +48,7 @@ class AnalyticsCoreService:
             app_id=app_id,
             user_id=user_id,
         ):
-            return await event_crud.get_filtered(
+            events, total = await event_crud.get_filtered(
                 self.db,
                 skip=skip,
                 limit=limit,
@@ -55,12 +57,14 @@ class AnalyticsCoreService:
                 user_id=user_id,
                 hours=hours,
             )
+            return [EventInDB.model_validate(e) for e in events], total
 
     async def search_events(
         self, query: str, search_type: str = "event_name", limit: int = 50
-    ) -> list[Event]:
+    ) -> list[EventInDB]:
         with create_service_span("AnalyticsCoreService", "search_events"):
-            return await event_crud.search(self.db, query, search_type, limit)
+            events = await event_crud.search(self.db, query, search_type, limit)
+            return [EventInDB.model_validate(e) for e in events]
 
     # ── Overview Stats ────────────────────────────────────────────────────
 

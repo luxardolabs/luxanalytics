@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -80,14 +80,23 @@ class EventCreate(EventBase):
 
 
 class EventInDB(BaseModel):
+    """An event's stored columns, read from the ORM row: what core hands the view."""
+
     id: UUID
     app_id: str
     name: str
     timestamp: datetime
+    received_at: datetime
     user_id: str | None
     session_id: str | None
-    event_metadata: dict[str, str]
-    received_at: datetime
+    device_id: str | None
+    device_model: str | None
+    os_version: str | None
+    app_version: str | None
+    platform: str | None
+    # JSONB the SDK fills per event name: keys and value types are the caller's.
+    properties: dict[str, Any] | None
+    event_metadata: dict[str, Any] | None
 
     model_config = ConfigDict(from_attributes=True)
 

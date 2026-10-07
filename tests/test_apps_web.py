@@ -119,3 +119,14 @@ async def test_the_json_export_carries_the_dsn(
     assert (
         f"/api/v1/events/{sample_app.project_id}" in exported[sample_app.app_id]["dsn"]
     )
+
+
+@pytest.mark.db
+async def test_event_counts_are_one_grouped_query(
+    db: AsyncSession, sample_app: App, sample_events: list[dict[str, object]]
+) -> None:
+    """The apps list counts every app's events in one GROUP BY, not one query per app."""
+    from app.services.core.app_core_service import AppCoreService
+
+    counts = await AppCoreService(db).get_event_counts([sample_app.app_id, "no_events"])
+    assert counts == {sample_app.app_id: len(sample_events)}
