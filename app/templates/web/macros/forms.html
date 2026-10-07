@@ -43,7 +43,7 @@
 
 
 {# Form select field #}
-{% macro select(name, options, label=none, value="", required=false, help=none, class="", id=none, hx_get=none, hx_post=none, hx_target=none, hx_swap=none, hx_trigger=none) %}
+{% macro select(name, options, label=none, value="", required=false, help=none, class="", id=none, hx_get=none, hx_post=none, hx_target=none, hx_swap=none, hx_trigger=none, aria_label=none) %}
 {% set field_id = id if id else name %}
 {% if label %}
 <label for="{{ field_id }}" class="block text-sm font-medium text-slate-300 mb-1.5">
@@ -53,6 +53,7 @@
 {% endif %}
 <select name="{{ name }}"
         id="{{ field_id }}"
+        {% if aria_label %}aria-label="{{ aria_label }}"{% endif %}
         {% if required %}required{% endif %}
         {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
         {% if hx_post %}hx-post="{{ hx_post }}"{% endif %}

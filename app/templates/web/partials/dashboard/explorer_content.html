@@ -92,10 +92,8 @@
                 <h5 class="text-xs text-slate-500 uppercase tracking-wider mb-2">JSON Keys ({{ pattern.json_keys | length }}):</h5>
                 <div class="flex flex-wrap gap-1">
                     {% for key in pattern.json_keys %}
-                    <button class="text-xs px-2 py-0.5 rounded bg-surface-20 text-slate-300 hover:bg-brand-500/20 hover:text-brand-500 transition-colors font-mono"
-                            hx-get="{{ key_urls[key] }}"
-                            hx-target="#panel-container"
-                            hx-swap="innerHTML">{{ key }}</button>
+                    {{ button(key, variant='neutral', size='xs', extra_classes='font-mono',
+                              hx_get=key_urls[key], hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% endfor %}
                 </div>
             </div>

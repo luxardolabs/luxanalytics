@@ -1,3 +1,4 @@
+{% from "macros/buttons.html" import button %}
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -74,7 +75,7 @@
                  }">
                 <div class="flex items-center justify-between">
                     <span x-text="toast.message"></span>
-                    <button @click="removeToast(toast.id)" class="ml-3 opacity-60 hover:opacity-100 text-xs">&times;</button>
+                    {{ button('×', variant='icon-muted', size='xs', alpine_click='removeToast(toast.id)', title='Dismiss', extra_classes='ml-3') }}
                 </div>
             </div>
         </template>

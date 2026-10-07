@@ -61,12 +61,8 @@
                 {% for s in sessions %}
                 <div class="py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
                     <div class="flex items-center justify-between">
-                        <button class="text-sm text-brand-500 hover:text-brand-400 transition-colors font-mono"
-                                hx-get="{{ session_urls[s.session_id] }}"
-                                hx-target="#panel-container"
-                                hx-swap="innerHTML">
-                            {{ s.session_id | truncate(12) }}
-                        </button>
+                        {{ button(s.session_id | truncate(12), variant='link', size='sm', extra_classes='font-mono',
+                                  hx_get=session_urls[s.session_id], hx_target='#panel-container', hx_swap='innerHTML') }}
                         <div class="flex items-center gap-3 text-xs text-slate-500">
                             <span class="tabular-nums">{{ s.event_count }} events</span>
                             <span class="tabular-nums">{{ s.duration_seconds | duration }}</span>

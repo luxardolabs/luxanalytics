@@ -71,9 +71,12 @@ class DashboardViewService:
     # ── Nav ──────────────────────────────────────────────────────────────
 
     async def apps_dropdown_context(self, request: Request) -> Context:
+        apps = await self._core.get_apps_for_dropdown()
         return {
-            "apps": await self._core.get_apps_for_dropdown(),
+            "options": [{"value": "", "label": "All Apps"}]
+            + [{"value": a["app_id"], "label": a["app_id"]} for a in apps],
             "current_app_id": request.cookies.get(APP_CONTEXT_COOKIE, ""),
+            "set_context_url": self._path("set_app_context"),
         }
 
     # ── Overview ─────────────────────────────────────────────────────────
@@ -201,7 +204,9 @@ class DashboardViewService:
         screens = (data.get("transition_heatmap") or {}).get("screens", [])
         heatmap_height = 80 + 32 * len(screens)
         return self._filtered(
-            app_id, hours, {**data, "requires_app": False, "heatmap_height": heatmap_height}
+            app_id,
+            hours,
+            {**data, "requires_app": False, "heatmap_height": heatmap_height},
         )
 
     # ── Explorer ─────────────────────────────────────────────────────────

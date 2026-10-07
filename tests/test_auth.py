@@ -214,3 +214,30 @@ async def test_stats_overview_answers_a_logged_in_session(
     assert body["hours"] == 24
     assert body["total_events"] >= 1
     assert all(set(e) == {"name", "count"} for e in body["top_events"])
+
+
+@pytest.mark.db
+async def test_switching_app_redirects_to_the_same_page_without_its_app_id(
+    client: AsyncClient,
+) -> None:
+    client.base_url = "https://test"
+    await client.post(
+        "/login",
+        data={
+            "username": settings.DASHBOARD_USERNAME,
+            "password": settings.DASHBOARD_PASSWORD,
+        },
+        headers={"X-Forwarded-For": "198.51.100.95"},
+        follow_redirects=False,
+    )
+    response = await client.post(
+        "/set-app-context",
+        data={"app_id": "other_app"},
+        headers={
+            "HX-Current-URL": "https://test/dashboard/events?hours=24&app_id=test_app&page=2"
+        },
+    )
+    assert response.status_code == 204
+    # Same page and filters, but no app_id to override the cookie that now names other_app.
+    assert response.headers["hx-redirect"] == "/dashboard/events?hours=24&page=2"
+    assert "analytics_app_id=other_app" in response.headers["set-cookie"]
