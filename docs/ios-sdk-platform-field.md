@@ -13,6 +13,7 @@ Currently the server defaults `platform = "ios"` when it's not present in the ev
 In the `generateContext()` method, add `"platform": "ios"` to the context dictionary.
 
 **Current code** (approximately):
+
 ```swift
 @MainActor
 private func generateContext() -> [String: String] {
@@ -32,6 +33,7 @@ private func generateContext() -> [String: String] {
 ```
 
 **Add this line:**
+
 ```swift
 context["platform"] = "ios"
 ```
@@ -88,11 +90,13 @@ context["platform"] = "ios"  // ← NEW: identifies this as the iOS SDK
 ## Server-Side Handling
 
 The server extracts `platform` from metadata on ingest:
+
 ```python
 platform = metadata.get("platform", "ios")  # defaults to "ios" if missing
 ```
 
 It's stored as a promoted column on the `events` table and used for:
+
 - Filtering dashboard views by platform
 - Device analytics breakdowns
 - Future cross-platform comparison
@@ -100,9 +104,10 @@ It's stored as a promoted column on the `events` table and used for:
 ## Testing
 
 After making the change:
+
 1. Run the app in debug mode
-2. Check the analytics debug output — events should include `"platform": "ios"` in metadata
-3. Verify events appear in the LuxAnalytics dashboard with the `ios` platform badge
+1. Check the analytics debug output — events should include `"platform": "ios"` in metadata
+1. Verify events appear in the LuxAnalytics dashboard with the `ios` platform badge
 
 ## Timeline
 
