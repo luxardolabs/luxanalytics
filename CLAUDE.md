@@ -118,7 +118,7 @@ app/
 │   │   └── app_core_service.py        # AppCoreService: app management
 │   └── views/                         # The web seam: shapes template context (*_view_service.py)
 │       └── dashboard_view_service.py  # DashboardViewService
-├── templates/
+├── templates/web/             # The fleet-canonical web template root (Jinja loader dir)
 │   ├── layouts/base.html    # Unified layout (Tailwind, HTMX, Alpine, Chart.js, ECharts)
 │   ├── components/nav.html  # Top nav with HTMX app dropdown
 │   ├── macros/              # LuxWX macro library (12 files, ~5000 lines)

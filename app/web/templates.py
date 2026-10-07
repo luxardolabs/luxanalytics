@@ -12,7 +12,9 @@ from app.web.template_context import AutoContextTemplates
 from app.web.template_filters import register_filters
 
 # Shared templates instance with automatic context injection
-templates = AutoContextTemplates(directory="app/templates")
+# The fleet-canonical web template root (fw.web_templates_at_fleet_path); a sibling medium
+# (email, llm) would get its own peer under app/templates/.
+templates = AutoContextTemplates(directory="app/templates/web")
 
 # Register all filters (date, time, timeago, num, etc.)
 register_filters(templates)
@@ -20,8 +22,7 @@ register_filters(templates)
 # Register template globals
 templates.env.globals["now"] = lambda: datetime.now(UTC)
 
-# Plain instance with the canonical TemplateResponse(request, name, context) signature, for the
-# emitted exception handler (app/utils/exception_handlers.py reads app.state.templates).
-# AutoContextTemplates above still takes the legacy (name, context) form.
-error_templates = Jinja2Templates(directory="app/templates")
+# Plain instance (no injected globals) for the emitted exception handler
+# (app/utils/exception_handlers.py reads app.state.templates).
+error_templates = Jinja2Templates(directory="app/templates/web")
 register_filters(error_templates)
