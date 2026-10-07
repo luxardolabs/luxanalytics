@@ -1,0 +1,519 @@
+{#
+    Form Macros - Form inputs and controls for LuxAnalytics templates.
+
+    Usage:
+        {% from "macros/forms.html" import input, select, form_group, setting_card, filter_label %}
+#}
+
+{% from "macros/icons.html" import icon %}
+
+
+{# ============================================================================
+   FILTER LABEL - Branded chip label for filter/selector controls
+
+   Usage:
+   {{ filter_label('Period:') }}
+   {{ filter_label('Category:') }}
+   {{ filter_label('Time Range:') }}
+   ============================================================================ #}
+{% macro filter_label(text) %}
+<span class="text-xs font-medium px-2.5 py-1 rounded-md bg-brand-500/10 text-brand-500 flex-shrink-0">{{ text }}</span>
+{% endmacro %}
+
+
+{# Form input field #}
+{% macro input(name, label=none, type="text", value="", placeholder="", required=false, help=none, class="") %}
+{% if label %}
+<label for="{{ name }}" class="block text-sm font-medium text-slate-300 mb-1">
+    {{ label }}
+    {% if required %}<span class="text-red-500">*</span>{% endif %}
+</label>
+{% endif %}
+<input type="{{ type }}"
+       name="{{ name }}"
+       id="{{ name }}"
+       value="{{ value }}"
+       placeholder="{{ placeholder }}"
+       {% if required %}required{% endif %}
+       class="block w-full rounded-md bg-surface-10 border-surface-20 text-white placeholder-slate-500 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm {{ class }}">
+{% if help %}
+<p class="mt-1 text-xs text-slate-500">{{ help }}</p>
+{% endif %}
+{% endmacro %}
+
+
+{# Form select field #}
+{% macro select(name, options, label=none, value="", required=false, help=none, class="", id=none, hx_get=none, hx_post=none, hx_target=none, hx_swap=none, hx_trigger=none) %}
+{% set field_id = id if id else name %}
+{% if label %}
+<label for="{{ field_id }}" class="block text-sm font-medium text-slate-300 mb-1.5">
+    {{ label }}
+    {% if required %}<span class="text-red-400">*</span>{% endif %}
+</label>
+{% endif %}
+<select name="{{ name }}"
+        id="{{ field_id }}"
+        {% if required %}required{% endif %}
+        {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
+        {% if hx_post %}hx-post="{{ hx_post }}"{% endif %}
+        {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
+        {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
+        {% if hx_trigger %}hx-trigger="{{ hx_trigger }}"{% endif %}
+        class="block w-full px-3 pr-10 py-2.5 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm transition-all bg-surface-0 border border-surface-20 {{ class }}">
+    {% for opt in options %}
+    <option value="{{ opt.value }}" {% if opt.value == value %}selected{% endif %}>
+        {{ opt.label }}
+    </option>
+    {% endfor %}
+</select>
+{% if help %}
+<p class="mt-1.5 text-xs text-slate-500">{{ help }}</p>
+{% endif %}
+{% endmacro %}
+
+
+{# Inline filter select - auto-submits on change, no label #}
+{% macro filter_select(name, options, value="", placeholder=none, class="") %}
+<select name="{{ name }}"
+        id="{{ name }}"
+        onchange="this.form.submit()"
+        class="pl-3 pr-8 py-1.5 border border-surface-20 rounded-md bg-surface-10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 {{ class }}">
+    {% if placeholder %}
+    <option value="">{{ placeholder }}</option>
+    {% endif %}
+    {% for opt in options %}
+    <option value="{{ opt.value }}" {% if opt.value|string == value|string %}selected{% endif %}>
+        {{ opt.label }}
+    </option>
+    {% endfor %}
+</select>
+{% endmacro %}
+
+
+{# Timezone select with grouped options - uses COMMON_TIMEZONES global #}
+{% macro timezone_select(name, value="", label="Timezone", help=none, class="") %}
+{% if label %}
+<label for="{{ name }}" class="block text-sm font-medium text-slate-300 mb-1">{{ label }}</label>
+{% endif %}
+<select id="{{ name }}" name="{{ name }}"
+        class="block w-full px-3 py-2.5 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm transition-all bg-surface-0 border border-surface-20 {{ class }}">
+    {% for group in COMMON_TIMEZONES %}
+    <optgroup label="{{ group.group }}">
+        {% for zone_value, zone_label in group.zones %}
+        <option value="{{ zone_value }}" {% if value == zone_value or (not value and zone_value == 'America/Chicago') %}selected{% endif %}>{{ zone_label }}</option>
+        {% endfor %}
+    </optgroup>
+    {% endfor %}
+</select>
+{% if help %}
+<p class="mt-1 text-xs text-slate-500">{{ help }}</p>
+{% endif %}
+{% endmacro %}
+
+
+{# Form group wrapper - standardized label + input + help text #}
+{% macro form_group(label, name, value="", type="text", placeholder="", required=false, help=none, class="") %}
+<div class="{{ class }}">
+    {% if label %}<label for="{{ name }}" class="block text-xs font-medium text-slate-300 mb-1">{{ label }}</label>{% endif %}
+    <input type="{{ type }}"
+           id="{{ name }}"
+           name="{{ name }}"
+           value="{{ value }}"
+           placeholder="{{ placeholder }}"
+           {% if required %}required{% endif %}
+           class="block w-full px-2.5 py-2 border border-surface-20 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm bg-surface-10 text-white placeholder-slate-500">
+    {% if help %}
+    <p class="mt-0.5 text-xs text-slate-500">{{ help }}</p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# Textarea field #}
+{% macro textarea(name, label=none, value="", placeholder="", rows=3, required=false, help=none, class="") %}
+{% if label %}
+<label for="{{ name }}" class="block text-sm font-medium text-slate-300 mb-1">
+    {{ label }}
+    {% if required %}<span class="text-red-500">*</span>{% endif %}
+</label>
+{% endif %}
+<textarea name="{{ name }}"
+          id="{{ name }}"
+          rows="{{ rows }}"
+          placeholder="{{ placeholder }}"
+          {% if required %}required{% endif %}
+          class="block w-full rounded-md bg-surface-10 border-surface-20 text-white placeholder-slate-500 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm {{ class }}">{{ value }}</textarea>
+{% if help %}
+<p class="mt-1 text-xs text-slate-500">{{ help }}</p>
+{% endif %}
+{% endmacro %}
+
+
+{# Checkbox field #}
+{% macro checkbox(name, label, checked=false, help=none, class="") %}
+<div class="flex items-start {{ class }}">
+    <div class="flex items-center h-5">
+        <input type="checkbox"
+               id="{{ name }}"
+               name="{{ name }}"
+               {% if checked %}checked{% endif %}
+               class="h-4 w-4 rounded border-surface-20 bg-surface-10 text-brand-500 focus:ring-brand-500">
+    </div>
+    <div class="ml-3 text-sm">
+        <label for="{{ name }}" class="font-medium text-slate-300">{{ label }}</label>
+        {% if help %}
+        <p class="text-slate-500">{{ help }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Toggle switch - Dark mode #}
+{% macro toggle(name, label, checked=false, help=none, class="") %}
+<div class="flex items-center justify-between {{ class }}">
+    <div>
+        <label for="{{ name }}" class="text-sm font-medium text-slate-300">{{ label }}</label>
+        {% if help %}
+        <p class="text-xs text-slate-500">{{ help }}</p>
+        {% endif %}
+    </div>
+    <label class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox"
+               id="{{ name }}"
+               name="{{ name }}"
+               value="on"
+               {% if checked %}checked{% endif %}
+               class="sr-only peer">
+        <div class="w-11 h-6 bg-surface-20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-500/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-surface-20 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+    </label>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   DARK MODE TOGGLE
+   Sleek toggle switch for dark mode UIs with glow effects.
+
+   Variants:
+   - default/cyan: Cyan glow when on (brand color)
+   - success/green: Green glow when on
+   - warning/amber: Amber glow when on
+
+   Usage:
+   {{ toggle_dark(name='my_toggle', checked=true, variant='cyan') }}
+
+   With HTMX:
+   {{ toggle_dark(name='alerts_enabled', checked=tenant.alerts_enabled,
+                  hx_post='/settings/alerts/toggle', hx_swap='none') }}
+   ============================================================================ #}
+{% macro toggle_dark(
+    name,
+    label=none,
+    checked=false,
+    help=none,
+    variant='cyan',
+    size='md',
+    disabled=false,
+    hx_post=none,
+    hx_get=none,
+    hx_target=none,
+    hx_swap=none,
+    hx_trigger='click',
+    onchange=none,
+    class=""
+) %}
+{% set sizes = {
+    'sm': {'track': 'w-9 h-5', 'knob': 'h-4 w-4', 'translate': 'translate-x-4', 'start': 'translate-x-0.5'},
+    'md': {'track': 'w-11 h-6', 'knob': 'h-5 w-5', 'translate': 'translate-x-5', 'start': 'translate-x-0.5'},
+    'lg': {'track': 'w-14 h-7', 'knob': 'h-6 w-6', 'translate': 'translate-x-7', 'start': 'translate-x-0.5'}
+} %}
+{% set s = sizes[size] if size in sizes else sizes['md'] %}
+
+{% set variants = {
+    'cyan': {
+        'on_bg': 'bg-brand-500',
+        'on_glow': 'shadow-[0_0_12px_rgba(255,165,0,0.5)]',
+        'focus_ring': 'focus:ring-brand-500/30'
+    },
+    'green': {
+        'on_bg': 'bg-green-500',
+        'on_glow': 'shadow-[0_0_12px_rgba(34,197,94,0.5)]',
+        'focus_ring': 'focus:ring-green-500/30'
+    },
+    'success': {
+        'on_bg': 'bg-green-500',
+        'on_glow': 'shadow-[0_0_12px_rgba(34,197,94,0.5)]',
+        'focus_ring': 'focus:ring-green-500/30'
+    },
+    'amber': {
+        'on_bg': 'bg-amber-500',
+        'on_glow': 'shadow-[0_0_12px_rgba(245,158,11,0.5)]',
+        'focus_ring': 'focus:ring-amber-500/30'
+    },
+    'warning': {
+        'on_bg': 'bg-amber-500',
+        'on_glow': 'shadow-[0_0_12px_rgba(245,158,11,0.5)]',
+        'focus_ring': 'focus:ring-amber-500/30'
+    },
+    'purple': {
+        'on_bg': 'bg-purple-500',
+        'on_glow': 'shadow-[0_0_12px_rgba(168,85,247,0.5)]',
+        'focus_ring': 'focus:ring-purple-500/30'
+    },
+    'default': {
+        'on_bg': 'bg-brand-500',
+        'on_glow': 'shadow-[0_0_12px_rgba(255,165,0,0.5)]',
+        'focus_ring': 'focus:ring-brand-500/30'
+    }
+} %}
+{% set v = variants[variant] if variant in variants else variants['default'] %}
+
+<div class="flex items-center justify-between {{ class }}">
+    {% if label %}
+    <div class="mr-3">
+        <label for="{{ name }}" class="text-sm font-medium text-white">{{ label }}</label>
+        {% if help %}
+        <p class="text-xs text-slate-500">{{ help }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <button type="button"
+            role="switch"
+            aria-checked="{{ 'true' if checked else 'false' }}"
+            id="{{ name }}_toggle"
+            {% if disabled %}disabled{% endif %}
+            {% if hx_post %}hx-post="{{ hx_post }}"{% endif %}
+            {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
+            {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
+            {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
+            {% if hx_post or hx_get %}hx-trigger="{{ hx_trigger }}"{% endif %}
+            class="group relative inline-flex {{ s.track }} items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface-0 {{ v.focus_ring }}
+                   {% if checked %}{{ v.on_bg }} {{ v.on_glow }}{% else %}bg-surface-20{% endif %}
+                   {% if disabled %}opacity-50 cursor-not-allowed{% else %}cursor-pointer hover:brightness-110{% endif %}">
+        {# Hidden checkbox for form submission #}
+        <input type="checkbox"
+               name="{{ name }}"
+               id="{{ name }}"
+               value="on"
+               {% if checked %}checked{% endif %}
+               {% if disabled %}disabled{% endif %}
+               {% if onchange %}onchange="{{ onchange }}"{% endif %}
+               class="sr-only">
+
+        {# Toggle knob #}
+        <span class="pointer-events-none inline-block {{ s.knob }} transform rounded-full bg-white shadow-lg ring-0 transition-all duration-200
+                     {% if checked %}{{ s.translate }}{% else %}{{ s.start }}{% endif %}
+                     group-hover:shadow-xl"></span>
+    </button>
+</div>
+{% endmacro %}
+
+
+{# Simple toggle button (no label wrapper) for inline use #}
+{% macro toggle_button_dark(
+    name,
+    checked=false,
+    variant='cyan',
+    size='md',
+    disabled=false,
+    hx_post=none,
+    hx_swap=none,
+    title=none
+) %}
+{% set sizes = {
+    'sm': {'track': 'w-9 h-5', 'knob': 'h-4 w-4', 'translate': 'translate-x-4', 'start': 'translate-x-0.5'},
+    'md': {'track': 'w-11 h-6', 'knob': 'h-5 w-5', 'translate': 'translate-x-5', 'start': 'translate-x-0.5'},
+    'lg': {'track': 'w-14 h-7', 'knob': 'h-6 w-6', 'translate': 'translate-x-7', 'start': 'translate-x-0.5'}
+} %}
+{% set s = sizes[size] if size in sizes else sizes['md'] %}
+
+{% set variants = {
+    'cyan': {'on_bg': 'bg-brand-500', 'on_glow': 'shadow-[0_0_12px_rgba(255,165,0,0.5)]'},
+    'green': {'on_bg': 'bg-green-500', 'on_glow': 'shadow-[0_0_12px_rgba(34,197,94,0.5)]'},
+    'success': {'on_bg': 'bg-green-500', 'on_glow': 'shadow-[0_0_12px_rgba(34,197,94,0.5)]'},
+    'amber': {'on_bg': 'bg-amber-500', 'on_glow': 'shadow-[0_0_12px_rgba(245,158,11,0.5)]'},
+    'warning': {'on_bg': 'bg-amber-500', 'on_glow': 'shadow-[0_0_12px_rgba(245,158,11,0.5)]'},
+    'default': {'on_bg': 'bg-brand-500', 'on_glow': 'shadow-[0_0_12px_rgba(255,165,0,0.5)]'}
+} %}
+{% set v = variants[variant] if variant in variants else variants['default'] %}
+
+<button type="button"
+        role="switch"
+        aria-checked="{{ 'true' if checked else 'false' }}"
+        {% if title %}title="{{ title }}"{% endif %}
+        {% if disabled %}disabled{% endif %}
+        {% if hx_post %}hx-post="{{ hx_post }}" hx-swap="{{ hx_swap or 'none' }}"{% endif %}
+        class="relative inline-flex {{ s.track }} items-center rounded-full transition-all duration-200
+               {% if checked %}{{ v.on_bg }} {{ v.on_glow }}{% else %}bg-surface-20{% endif %}
+               {% if disabled %}opacity-50 cursor-not-allowed{% else %}cursor-pointer hover:brightness-110{% endif %}">
+    <input type="checkbox" name="{{ name }}" value="on" {% if checked %}checked{% endif %} class="sr-only">
+    <span class="pointer-events-none inline-block {{ s.knob }} transform rounded-full bg-white shadow-lg transition-all duration-200
+                 {% if checked %}{{ s.translate }}{% else %}{{ s.start }}{% endif %}"></span>
+</button>
+{% endmacro %}
+
+
+{# ============================================================================
+   SETTING CARD
+   Admin settings page card with inline editing
+   ============================================================================ #}
+
+{# Setting card for admin settings page #}
+{# setting: enriched dict from service with key, value, value_type, label, description, options, etc. #}
+{# Optional: setting.hx_post to override the default POST URL #}
+{# Optional: setting.hx_target to override the HTMX target (default: none) #}
+{# Optional: setting.hx_swap to override the HTMX swap (default: 'none') #}
+{# Optional: setting.form_name to override the field name (default: 'value') #}
+{# Optional: setting.hidden_fields dict of extra hidden inputs to include #}
+{# Optional: setting.color for colored top border (purple, blue, amber, red, green, brand, neutral) #}
+{% macro setting_card(setting) %}
+{% set value_type = setting.value_type %}
+{% set options = setting.options | default([]) %}
+{% set post_url = setting.hx_post | default('/admin/settings/' ~ setting.key) %}
+{% set hx_target = setting.hx_target | default(none) %}
+{% set hx_swap = setting.hx_swap | default('none') %}
+{% set form_name = setting.form_name | default('value') %}
+{% set hidden_fields = setting.hidden_fields | default({}) %}
+{% set color = setting.color | default(none) %}
+{% set color_config = {
+    'purple': '168, 85, 247',
+    'blue': '59, 130, 246',
+    'amber': '245, 158, 11',
+    'red': '239, 68, 68',
+    'green': '34, 197, 94',
+    'brand': '255, 165, 0',
+    'neutral': '100, 116, 139'
+} %}
+{% set rgb = color_config.get(color) if color else none %}
+{% if rgb %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 p-4 transition-all duration-300 flex flex-col h-full"
+     style="border-top: 2px solid rgba({{ rgb }}, 0.5);"
+     onmouseenter="this.style.boxShadow='0 0 20px rgba({{ rgb }}, 0.2)'; this.style.borderColor='rgba({{ rgb }}, 0.4)'"
+     onmouseleave="this.style.boxShadow='none'; this.style.borderColor='rgba(51, 65, 85, 0.5)'; this.style.borderTopColor='rgba({{ rgb }}, 0.5)'">
+{% else %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 p-4 hover:border-brand-500/30 transition-colors flex flex-col h-full">
+{% endif %}
+    {# Title row with badges #}
+    <div class="flex items-start justify-between gap-2 mb-2">
+        <h4 class="text-base font-semibold text-white leading-tight">{{ setting.label }}</h4>
+        <div class="flex items-center gap-1 flex-shrink-0">
+            {% if not setting.is_editable %}
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-surface-10/50 text-slate-500" title="Read-only">
+                {{ icon('lock-closed', 'w-3 h-3') }}
+            </span>
+            {% endif %}
+            {% if setting.is_sensitive %}
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-300" title="Sensitive">
+                {{ icon('eye', 'w-3 h-3') }}
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Content area - description with input floated right #}
+    <div class="flex-grow">
+        {# Input floated right #}
+        <div class="float-right ml-3 mb-1">
+            {% if setting.is_editable %}
+                {% if setting.value_type == "boolean" %}
+                {# Boolean Toggle #}
+                <form hx-post="{{ post_url }}" hx-swap="none">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="value" value="on"
+                               {% if setting.value == "true" %}checked{% endif %}
+                               onchange="this.form.requestSubmit()"
+                               class="sr-only peer">
+                        <div class="w-11 h-6 bg-surface-20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-500/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-surface-20 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                    </label>
+                </form>
+                {% elif setting.value_type == "number" %}
+                {# Number Input - compact #}
+                <form hx-post="{{ post_url }}" hx-swap="none" hx-trigger="change">
+                    <input type="number" name="value" value="{{ setting.value }}"
+                           class="w-24 px-2 py-1.5 border border-surface-20 rounded-md text-sm text-white bg-surface-10 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-right">
+                </form>
+                {% elif value_type == "select" and options %}
+                {# Select Dropdown #}
+                <form hx-post="{{ post_url }}" hx-swap="{{ hx_swap }}" {% if hx_target %}hx-target="{{ hx_target }}"{% endif %} hx-trigger="change">
+                    {% for field_name, field_value in hidden_fields.items() %}
+                    <input type="hidden" name="{{ field_name }}" value="{{ field_value }}">
+                    {% endfor %}
+                    <select name="{{ form_name }}"
+                            class="w-32 px-2 py-1.5 border border-surface-20 rounded-md text-sm text-white bg-surface-10 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        {% for option in options %}
+                        <option value="{{ option.value }}" {% if setting.value == option.value %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% else %}
+                {# String Input #}
+                <form hx-post="{{ post_url }}" hx-swap="none" hx-trigger="submit" class="flex gap-1">
+                    {% if setting.is_sensitive %}
+                    <input type="password" name="value" value="{{ setting.value }}"
+                           class="w-28 px-2 py-1.5 border border-surface-20 rounded-md text-sm text-white bg-surface-10 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    {% else %}
+                    <input type="text" name="value" value="{{ setting.value }}"
+                           class="w-28 px-2 py-1.5 border border-surface-20 rounded-md text-sm text-white bg-surface-10 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                    {% endif %}
+                    <button type="submit"
+                            class="px-2 py-1.5 text-sm font-medium rounded-md text-slate-900 bg-brand-500 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500">
+                        {{ icon('check', 'w-3.5 h-3.5') }}
+                    </button>
+                </form>
+                {% endif %}
+            {% else %}
+                {# Read-only Display - compact #}
+                <div class="px-2 py-1.5 bg-surface-10/50 border border-surface-20 rounded-md text-sm text-slate-300 font-mono whitespace-nowrap">
+                    {% if setting.is_sensitive %}********{% else %}{{ setting.value }}{% endif %}
+                </div>
+            {% endif %}
+        </div>
+        {# Description wraps around input #}
+        {% if setting.description %}
+        <p class="text-sm text-slate-500 leading-relaxed">{{ setting.description }}</p>
+        {% endif %}
+    </div>
+
+    {# Footer - tag at bottom #}
+    <div class="mt-auto pt-2 border-t border-surface-20 clear-both">
+        <p class="text-sm text-slate-500 font-mono truncate" title="{{ setting.key }}">{{ setting.key }}</p>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   TIME PERIOD SELECTOR - HTMX-enabled dropdown for analytics pages
+   ============================================================================ #}
+
+{# Time period selector with HTMX support
+   Usage:
+   {{ time_period_selector('/admin/analytics', selected_days) }}
+   {{ time_period_selector('/admin/analytics/events', selected_days, options=[1, 7, 30]) }}
+#}
+{% macro time_period_selector(action_url, selected_days, options=none) %}
+{% set default_options = [
+    {'value': 1, 'label': 'Last 24 hours'},
+    {'value': 7, 'label': 'Last 7 days'},
+    {'value': 30, 'label': 'Last 30 days'},
+    {'value': 90, 'label': 'Last 90 days'}
+] %}
+{% set opts = options if options else default_options %}
+<form method="get" action="{{ action_url }}" class="inline">
+    <select name="days"
+            hx-get="{{ action_url }}"
+            hx-trigger="change"
+            hx-target="body"
+            hx-push-url="true"
+            onchange="if(!window.htmx) this.form.submit()"
+            class="px-4 py-2 border border-surface-20 rounded-lg bg-surface-10 text-white text-sm focus:ring-brand-500 focus:border-brand-500">
+        {% for opt in opts %}
+        <option value="{{ opt.value }}" {% if selected_days == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+        {% endfor %}
+    </select>
+</form>
+{% endmacro %}

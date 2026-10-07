@@ -1,0 +1,107 @@
+{% from "macros/tables.html" import th, td, pagination_bar %}
+{% from "macros/layout.html" import empty_state %}
+{% from "macros/badges.html" import badge %}
+{% from "macros/buttons.html" import icon_view %}
+
+{% if events %}
+<div class="overflow-x-auto rounded-lg border border-surface-20">
+    <table class="w-full text-sm">
+        <thead>
+            <tr>
+                {% if not app_id %}{{ th("App") }}{% endif %}
+                {{ th("Event") }}
+                {{ th("User") }}
+                {{ th("Session") }}
+                {{ th("Device") }}
+                {{ th("OS") }}
+                {{ th("Key Data") }}
+                {{ th("Time") }}
+                {{ th("", class="w-12") }}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-surface-20">
+            {% for event in events %}
+            <tr class="hover:bg-surface-10/50 transition-colors">
+                {% if not app_id %}
+                {% call td() %}
+                    <span class="text-xs text-brand-500 font-medium">{{ event.app_id | default('—', true) }}</span>
+                {% endcall %}
+                {% endif %}
+                {% call td() %}
+                    <span class="font-medium text-white">{{ event.name | friendly_name }}</span>
+                {% endcall %}
+                {% call td() %}
+                    {% if event.user_id %}
+                    <button class="font-mono text-xs text-brand-500 hover:text-brand-400 transition-colors"
+                            hx-get="/dashboard/user/{{ event.user_id }}"
+                            hx-target="#panel-container"
+                            hx-swap="innerHTML">{{ event.user_id | truncate(16) }}</button>
+                    {% else %}
+                    <span class="text-xs text-slate-500">—</span>
+                    {% endif %}
+                {% endcall %}
+                {% call td() %}
+                    {% if event.session_id %}
+                    <button class="font-mono text-xs text-brand-500 hover:text-brand-400 transition-colors"
+                            hx-get="/dashboard/session/{{ event.session_id }}"
+                            hx-target="#panel-container"
+                            hx-swap="innerHTML">{{ event.session_id | truncate(10) }}</button>
+                    {% else %}
+                    <span class="text-xs text-slate-500">—</span>
+                    {% endif %}
+                {% endcall %}
+                {% call td() %}
+                    <span class="text-xs">{{ event.device_model | default('—', true) }}</span>
+                {% endcall %}
+                {% call td() %}
+                    <span class="text-xs text-slate-500">{{ event.os_version | default('—', true) }}</span>
+                {% endcall %}
+                {% call td() %}
+                    {% if event.properties %}
+                        {% if event.name == 'screen_viewed' and event.properties.get('screen') %}
+                            {{ badge(event.properties.screen, variant="default") }}
+                        {% elif event.name in ('button_tap', 'button_tapped') and event.properties.get('button') %}
+                            {{ badge(event.properties.button, variant="default") }}
+                            {% if event.properties.get('screen') %}
+                            <span class="text-xs text-slate-500">on {{ event.properties.screen }}</span>
+                            {% endif %}
+                        {% elif event.name == 'performance_measured' and event.properties.get('operation') %}
+                            {{ badge(event.properties.operation, variant="default") }}
+                            {% if event.properties.get('duration_ms') %}
+                            <span class="text-xs text-slate-500">{{ event.properties.duration_ms }}ms</span>
+                            {% endif %}
+                        {% elif event.name == 'app_launched' %}
+                            {% if event.properties.get('launch_count') %}
+                            <span class="text-xs text-slate-500">Launch #{{ event.properties.launch_count }}</span>
+                            {% endif %}
+                            {% if event.properties.get('is_authenticated') == 'true' %}
+                            {{ badge("Auth", variant="success") }}
+                            {% endif %}
+                        {% elif event.name == 'error_occurred' and event.properties.get('error_type') %}
+                            {{ badge(event.properties.error_type, variant="danger") }}
+                        {% elif event.name == 'feedback_submitted' and event.properties.get('feedback_category') %}
+                            {{ badge(event.properties.feedback_category | friendly_name, variant="success") }}
+                        {% else %}
+                            <span class="text-xs text-slate-500">{{ event.properties.keys() | list | join(', ') | truncate(40) }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-slate-500">—</span>
+                    {% endif %}
+                {% endcall %}
+                {% call td() %}
+                    <span class="text-xs {{ event.received_at | timeago_color }}">{{ event.received_at | timeago }}</span>
+                {% endcall %}
+                {% call td() %}
+                    {{ icon_view(hx_get='/dashboard/events/detail/' ~ event.id, hx_target='#panel-container', hx_swap='innerHTML') }}
+                {% endcall %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if pagination | default(none) %}
+    {{ pagination_bar(pagination, '/dashboard/events/content', '#page-content', '&hours=' ~ hours ~ '&app_id=' ~ (app_id or '') ~ '&event_name=' ~ (event_name or '')) }}
+    {% endif %}
+</div>
+{% else %}
+{{ empty_state("No events found", description="Try adjusting your filters or time range", icon_name="magnifying-glass") }}
+{% endif %}

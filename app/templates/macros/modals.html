@@ -1,0 +1,213 @@
+{#
+    Modal Macros - Slide-over panels and centered modals for LuxAnalytics templates.
+    Dark mode styling.
+
+    Usage:
+        {% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer_close %}
+        {% from "macros/modals.html" import modal_wrapper, modal_header, modal_body, modal_footer %}
+#}
+
+{% from "macros/icons.html" import icon %}
+{% from "macros/buttons.html" import button, btn_close, btn_cancel, icon_close_modal %}
+
+
+{# ============================================================================
+   SLIDE-OVER PANEL
+   Right-side slide-over panel for detail views, forms, and settings
+   ============================================================================ #}
+
+{# Slide-over panel wrapper #}
+{% macro panel_wrapper(max_width="max-w-2xl") %}
+<div class="fixed inset-0 overflow-hidden z-50"
+     role="dialog"
+     aria-modal="true"
+     x-data="{ show: false }"
+     x-init="setTimeout(() => show = true, 10)"
+     @keydown.escape.window="show = false; setTimeout(() => document.getElementById('panel-container').innerHTML = '', 300)">
+
+    {# Background overlay #}
+    <div class="absolute inset-0 overflow-hidden">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+             x-show="show"
+             x-transition:enter="ease-in-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in-out duration-300"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             @click="show = false; setTimeout(() => document.getElementById('panel-container').innerHTML = '', 300)"></div>
+
+        <div class="fixed inset-y-0 right-0 pl-10 max-w-full flex">
+            {# Slide-over panel #}
+            <div class="w-screen {{ max_width }}"
+                 x-show="show"
+                 x-transition:enter="transform transition ease-in-out duration-300"
+                 x-transition:enter-start="translate-x-full"
+                 x-transition:enter-end="translate-x-0"
+                 x-transition:leave="transform transition ease-in-out duration-300"
+                 x-transition:leave-start="translate-x-0"
+                 x-transition:leave-end="translate-x-full">
+
+                <div class="h-full flex flex-col shadow-2xl border-l border-surface-20 bg-surface-gradient">
+                    {{ caller() }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Panel header with title and close button #}
+{% macro panel_header(title, subtitle=none) %}
+<div class="px-6 py-4 border-b border-surface-20 bg-panel-header">
+    <div class="flex items-start justify-between">
+        <div>
+            <h2 class="text-xl font-semibold text-white">{{ title }}</h2>
+            {% if subtitle %}
+            <p class="mt-1 text-sm text-slate-500">{{ subtitle }}</p>
+            {% endif %}
+        </div>
+        {{ icon_close_modal(alpine_click="show = false; setTimeout(() => document.getElementById('panel-container').innerHTML = '', 300)", extra_classes='ml-3') }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Panel content area #}
+{% macro panel_content() %}
+<div class="flex-1 overflow-y-auto px-6 py-6">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# Panel footer with close button #}
+{% macro panel_footer_close(button_text="Close") %}
+<div class="flex-shrink-0 px-6 py-4 border-t border-surface-20 bg-surface-0" >
+    <div class="flex items-center justify-end gap-3">
+        {{ btn_close(text=button_text, alpine_click="show = false; setTimeout(() => document.getElementById('panel-container').innerHTML = '', 300)") }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Panel footer with custom actions #}
+{% macro panel_footer() %}
+<div class="flex-shrink-0 px-6 py-4 border-t border-surface-20 bg-surface-0" >
+    <div class="flex items-center justify-end gap-3">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   CENTERED MODAL
+   Centered dialog for confirmations, alerts, and focused user flows
+   ============================================================================ #}
+
+{# Centered modal wrapper #}
+{% macro modal_wrapper(id="modal", max_width="max-w-md") %}
+<div class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+     role="dialog"
+     aria-modal="true"
+     id="{{ id }}-overlay"
+     x-data="{ show: true }"
+     @keydown.escape.window="closeModal('{{ id }}')">
+    <div class="rounded-xl shadow-2xl border border-surface-20 {{ max_width }} w-full mx-4 bg-surface-gradient"
+         x-show="show"
+         x-transition:enter="ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         @click.outside="closeModal('{{ id }}')">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Modal header with title and close button #}
+{% macro modal_header(title, target_id="panel-container") %}
+<div class="flex items-center justify-between p-6 pb-4 border-b border-surface-20">
+    <h3 class="text-xl font-semibold text-white">{{ title }}</h3>
+    {{ icon_close_modal(onclick="closeModal('" ~ target_id ~ "')") }}
+</div>
+{% endmacro %}
+
+
+{# Modal body/content area #}
+{% macro modal_body() %}
+<div class="px-6 pb-6">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# Modal footer with action buttons #}
+{% macro modal_footer() %}
+<div class="px-6 py-4 border-t border-surface-20 rounded-b-xl bg-surface-0" >
+    <div class="flex gap-3">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   CONFIRMATION DIALOG
+   Pre-styled confirmation modal for destructive actions
+   ============================================================================ #}
+
+{# Confirmation dialog - for delete confirmations, etc. #}
+{% macro confirm_dialog(
+    id,
+    title="Confirm Action",
+    message="Are you sure you want to proceed?",
+    confirm_text="Confirm",
+    cancel_text="Cancel",
+    variant="danger",
+    hx_delete=none,
+    hx_post=none,
+    hx_target=none,
+    hx_swap="outerHTML"
+) %}
+{# Icon background colors for the warning icon #}
+{% set icon_classes = {
+    'danger': 'bg-red-500/20 text-red-400',
+    'warning': 'bg-amber-500/20 text-amber-400',
+    'primary': 'bg-brand-500/20 text-brand-500'
+} %}
+<div class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="{{ id }}-title"
+     id="{{ id }}-overlay"
+     x-data="{ show: true }"
+     @keydown.escape.window="closeModal('{{ id }}')">
+    <div class="rounded-xl shadow-2xl border border-surface-20 max-w-md w-full mx-4 bg-surface-gradient"
+         x-show="show"
+         x-transition:enter="ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+        <div class="p-6">
+            <div class="flex items-center gap-4">
+                <div class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center {{ icon_classes.get(variant, icon_classes.danger) }}">
+                    {{ icon('exclamation-triangle', 'w-6 h-6') }}
+                </div>
+                <div>
+                    <h3 id="{{ id }}-title" class="text-lg font-semibold text-white">{{ title }}</h3>
+                    <p class="mt-1 text-sm text-slate-500">{{ message }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-surface-20 rounded-b-xl flex justify-end gap-3 bg-surface-0" >
+            {{ btn_cancel(text=cancel_text, onclick="closeModal('" ~ id ~ "')") }}
+            {{ button(confirm_text, variant=variant, size='sm', hx_delete=hx_delete, hx_post=hx_post, hx_target=hx_target, hx_swap=hx_swap) }}
+        </div>
+    </div>
+</div>
+{% endmacro %}

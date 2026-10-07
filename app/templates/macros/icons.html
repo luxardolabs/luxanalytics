@@ -1,0 +1,214 @@
+{#
+    Icon Macros - Heroicons and Weather Icons for LuxAnalytics templates.
+
+    Usage:
+        {% from "macros/icons.html" import icon, weather_icon, icon_box %}
+#}
+
+
+{# ============================================================================
+   ICON BOX WITH HOVER GLOW
+   Styled icon container with background and hover glow effect.
+
+   Parameters:
+     - icon_name: Name of the Heroicon to display
+     - color: Color theme (green, blue, amber, purple, red, brand)
+     - size: Size variant ('sm', 'md', 'lg') - default 'md'
+     - icon_size: Custom icon size class - overrides size default
+
+   Usage:
+     {{ icon_box('sun', 'green') }}
+     {{ icon_box('bell', 'red', 'lg') }}
+     {{ icon_box('sparkles', 'brand', 'sm') }}
+   ============================================================================ #}
+
+{% macro icon_box(icon_name, color='brand', size='md', icon_size=none) %}
+{# Color definitions: rgb values, text class #}
+{% set colors = {
+    'green': {'rgb': '34, 197, 94', 'text': 'text-green-400'},
+    'blue': {'rgb': '59, 130, 246', 'text': 'text-blue-400'},
+    'amber': {'rgb': '245, 158, 11', 'text': 'text-amber-400'},
+    'purple': {'rgb': '168, 85, 247', 'text': 'text-purple-400'},
+    'red': {'rgb': '239, 68, 68', 'text': 'text-red-400'},
+    'brand': {'rgb': '255, 165, 0', 'text': 'text-brand-500'}
+} %}
+{# Size definitions: container size, default icon size #}
+{% set sizes = {
+    'sm': {'container': 'w-10 h-10 rounded-lg', 'icon': 'w-5 h-5'},
+    'md': {'container': 'w-14 h-14 rounded-xl', 'icon': 'w-7 h-7'},
+    'lg': {'container': 'w-20 h-20 rounded-2xl', 'icon': 'w-10 h-10'}
+} %}
+{% set c = colors.get(color, colors.brand) %}
+{% set s = sizes.get(size, sizes.md) %}
+{% set final_icon_size = icon_size if icon_size else s.icon %}
+<div class="{{ s.container }} flex items-center justify-center transition-all duration-300"
+     style="background: rgba({{ c.rgb }}, 0.15);"
+     onmouseenter="this.style.boxShadow='0 0 30px rgba({{ c.rgb }}, 0.4)'"
+     onmouseleave="this.style.boxShadow='none'">
+    {{ icon(icon_name, final_icon_size ~ ' ' ~ c.text) }}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   LIVE PING INDICATOR
+   Animated ping dot for live/active status indicators.
+
+   Parameters:
+     - size: 'sm' (2x2), 'md' (3x3), 'lg' (4x4) - default 'sm'
+     - color: 'green', 'brand', 'cyan', 'red', 'white', etc. - default 'green'
+     - dot_class: additional classes for the inner dot (e.g., 'border-2 shadow-lg')
+
+   Usage:
+     {{ live_ping() }}                    - small green (default)
+     {{ live_ping('md', 'cyan') }}        - medium cyan
+     {{ live_ping('lg', 'brand') }}       - large brand color
+     {{ live_ping('sm', item.color) }}    - dynamic color from variable
+     {{ live_ping('md', 'white', 'border-2 border-surface-0 shadow-lg') }}
+   ============================================================================ #}
+
+{% macro live_ping(size='sm', color='green', dot_class='') %}
+{% set sizes = {
+    'sm': 'h-2 w-2',
+    'md': 'h-3 w-3',
+    'lg': 'h-4 w-4'
+} %}
+{% set colors = {
+    'green': {'ping': 'bg-green-400', 'dot': 'bg-green-500'},
+    'brand': {'ping': 'bg-brand-500', 'dot': 'bg-brand-500'},
+    'cyan': {'ping': 'bg-cyan-400', 'dot': 'bg-cyan-500'},
+    'red': {'ping': 'bg-red-400', 'dot': 'bg-red-500'},
+    'amber': {'ping': 'bg-amber-400', 'dot': 'bg-amber-500'},
+    'purple': {'ping': 'bg-purple-400', 'dot': 'bg-purple-500'},
+    'blue': {'ping': 'bg-blue-400', 'dot': 'bg-blue-500'},
+    'white': {'ping': 'bg-white', 'dot': 'bg-white'}
+} %}
+{% set s = sizes.get(size, sizes.sm) %}
+{% set c = colors.get(color, colors.green) %}
+<span class="relative flex {{ s }}">
+    <span class="animate-ping absolute inline-flex h-full w-full rounded-full {{ c.ping }} opacity-75"></span>
+    <span class="relative inline-flex rounded-full {{ s }} {{ c.dot }} {{ dot_class }}"></span>
+</span>
+{%- endmacro %}
+
+
+{# ============================================================================
+   HEROICONS - File-based Icon Router
+
+   Individual SVG files live in templates/icons/hero/{outline,solid}/
+   Each SVG is clean: viewBox="0 0 24 24", currentColor, no width/height.
+
+   Usage:
+     icon('plus', 'w-5 h-5 text-slate-500')              - outline icon
+     icon('check-circle-solid', 'w-6 h-6 text-green-500')  - solid icon
+
+   All 324 outline + 324 solid Heroicons v2 icons are available.
+   Use canonical v2 names (e.g., 'magnifying-glass' not 'search').
+
+   Alert icons: Font Awesome names from alert templates are auto-mapped
+   to Heroicon equivalents (snowflake->sun, wind->cloud, etc.)
+
+   Browse icons: https://heroicons.com/
+   ============================================================================ #}
+
+{% macro icon(name, class="w-5 h-5") %}
+{#- Map Font Awesome alert icon names to Heroicon equivalents -#}
+{%- set icon_aliases = {
+    'snowflake': 'cloud',
+    'icicles': 'cloud',
+    'temperature-high': 'fire',
+    'temperature-low': 'cloud',
+    'wind': 'cloud',
+    'cloud-rain': 'cloud',
+    'cloud-showers-heavy': 'cloud',
+    'cloud-meatball': 'cloud',
+    'cloud-bolt': 'bolt',
+    'droplet': 'beaker',
+    'spray-can': 'beaker',
+    'virus': 'bug-ant',
+    'battery-quarter': 'battery-50',
+    'battery-empty': 'battery-0',
+    'wifi-slash': 'wifi'
+} -%}
+{#- Solid icons use "-solid" suffix (e.g., "check-circle-solid") -#}
+{%- set is_solid = name.endswith('-solid') -%}
+{%- set base_name = name.replace('-solid', '') if is_solid else name -%}
+{#- Apply alias mapping if exists -#}
+{%- set resolved_name = icon_aliases.get(base_name, base_name) -%}
+{%- set icon_dir = 'solid' if is_solid else 'outline' -%}
+{%- set icon_path = 'icons/hero/' ~ icon_dir ~ '/' ~ resolved_name ~ '.svg' -%}
+<span class="inline-flex items-center justify-center shrink-0 [&>svg]:w-full [&>svg]:h-full {{ class }}" aria-hidden="true">{%- include icon_path ignore missing -%}</span>
+{%- endmacro %}
+
+
+{# ============================================================================
+   WEATHER ICONS
+   Maps WeatherFlow icon codes to local weather-icons SVG files.
+   Uses Erik Flowers' Weather Icons: https://github.com/erikflowers/weather-icons
+   SVGs are inlined so CSS color classes can apply via currentColor.
+   ============================================================================ #}
+
+{# Weather icon component - maps WeatherFlow codes to local SVGs #}
+{% macro weather_icon(code, class="w-16 h-16", alt="") %}
+{# Official WeatherFlow Forecast Icon Values (19 total) + UI extras
+   Source: WeatherFlow API documentation
+   Extras: sunrise, sunset, hail, tornado, hurricane
+   Unmapped codes fall back to 'wi-na' (N/A icon) #}
+{% set icon_map = {
+    'clear-day': 'wi-day-sunny',
+    'clear-night': 'wi-night-clear',
+    'cloudy': 'wi-cloudy',
+    'foggy': 'wi-fog',
+    'partly-cloudy-day': 'wi-day-cloudy',
+    'partly-cloudy-night': 'wi-night-alt-cloudy',
+    'possibly-rainy-day': 'wi-day-showers',
+    'possibly-rainy-night': 'wi-night-alt-showers',
+    'possibly-sleet-day': 'wi-day-sleet',
+    'possibly-sleet-night': 'wi-night-alt-sleet',
+    'possibly-snow-day': 'wi-day-snow',
+    'possibly-snow-night': 'wi-night-alt-snow',
+    'possibly-thunderstorm-day': 'wi-day-storm-showers',
+    'possibly-thunderstorm-night': 'wi-night-alt-storm-showers',
+    'rainy': 'wi-rain',
+    'sleet': 'wi-sleet',
+    'snow': 'wi-snow',
+    'thunderstorm': 'wi-thunderstorm',
+    'windy': 'wi-windy',
+    'sunrise': 'wi-sunrise',
+    'sunset': 'wi-sunset',
+    'hail': 'wi-hail',
+    'tornado': 'wi-tornado',
+    'hurricane': 'wi-hurricane'
+} %}
+{# Color classes for weather icon styling #}
+{% set color_map = {
+    'clear-day': 'wi-sunny',
+    'clear-night': 'wi-night',
+    'cloudy': 'wi-cloudy',
+    'foggy': 'wi-fog',
+    'partly-cloudy-day': 'wi-cloudy',
+    'partly-cloudy-night': 'wi-night',
+    'possibly-rainy-day': 'wi-rain',
+    'possibly-rainy-night': 'wi-rain',
+    'possibly-sleet-day': 'wi-snow',
+    'possibly-sleet-night': 'wi-snow',
+    'possibly-snow-day': 'wi-snow',
+    'possibly-snow-night': 'wi-snow',
+    'possibly-thunderstorm-day': 'wi-storm',
+    'possibly-thunderstorm-night': 'wi-storm',
+    'rainy': 'wi-rain',
+    'sleet': 'wi-snow',
+    'snow': 'wi-snow',
+    'thunderstorm': 'wi-storm',
+    'windy': 'wi-wind',
+    'sunrise': 'wi-sunny',
+    'sunset': 'wi-sunny',
+    'hail': 'wi-storm',
+    'tornado': 'wi-storm',
+    'hurricane': 'wi-storm'
+} %}
+{% set icon_file = icon_map.get(code, 'wi-na') %}
+{% set color_class = color_map.get(code, '') %}
+{% set icon_path = 'icons/weather/' ~ icon_file ~ '.svg' %}
+<span class="inline-flex items-center justify-center shrink-0 [&>svg]:w-full [&>svg]:h-full {{ class }} {{ color_class }}" role="img" aria-label="{{ alt or code or 'Weather' }}">{%- include icon_path ignore missing -%}</span>
+{% endmacro %}

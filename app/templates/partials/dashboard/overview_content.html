@@ -1,0 +1,75 @@
+{% from "macros/cards.html" import stat_card, stat_grid %}
+{% from "macros/layout.html" import empty_state_compact, grid, loading %}
+{% from "macros/analytics.html" import analytics_card, chart_area %}
+
+{# ── Stat Cards ── #}
+{% call stat_grid(columns=4, class="mb-6") %}
+    {{ stat_card("Total Events", total_events | default(0) | number_format, icon_name="signal", color="brand") }}
+    {{ stat_card("Unique Users", unique_users | default(0) | number_format, icon_name="users", color="blue") }}
+    {{ stat_card("Events/Hour", ((total_events | default(0)) / (hours | default(24))) | round(1), icon_name="clock", color="green") }}
+    {{ stat_card("Event Types", top_events | default([]) | length, icon_name="squares-2x2", color="purple") }}
+{% endcall %}
+
+{# ── Events Timeline (lazy loaded) ── #}
+<div class="mb-6">
+{% call analytics_card("Events Timeline") %}
+    {{ chart_area("timeline-chart-area", "/dashboard/overview/timeline?hours=" ~ hours ~ "&app_id=" ~ (app_id or '')) }}
+{% endcall %}
+</div>
+
+{# ── 3-column: Event Types + Top Screens + Top Events ── #}
+{% call grid(columns=3, class="mb-6") %}
+    {% call analytics_card("Event Type Breakdown") %}
+        <div id="event-type-chart-area"
+             hx-get="/dashboard/overview/event-types?hours={{ hours }}&app_id={{ app_id or '' }}"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             style="min-height: 250px;">
+            {{ loading("Loading...") }}
+        </div>
+    {% endcall %}
+
+    {% call analytics_card("Top Screens") %}
+        <div id="top-screens-area"
+             hx-get="/dashboard/overview/top-screens?hours={{ hours }}&app_id={{ app_id or '' }}"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             style="min-height: 250px;">
+            {{ loading("Loading...") }}
+        </div>
+    {% endcall %}
+
+    {% call analytics_card("Top Events") %}
+        {% if top_events %}
+        <div class="space-y-2.5">
+            {% for event in top_events %}
+            <div class="flex items-center justify-between text-sm">
+                <a href="/dashboard/events?event_name={{ event.name }}&hours={{ hours }}&app_id={{ app_id or '' }}"
+                   class="text-slate-300 hover:text-brand-500 transition-colors truncate mr-3">
+                    {{ event.name | friendly_name }}
+                </a>
+                <div class="flex items-center gap-2 shrink-0">
+                    {% set pct = (event.count / total_events * 100) if total_events else 0 %}
+                    <div class="w-16 h-1.5 bg-surface-20 rounded-full overflow-hidden">
+                        <div class="h-full bg-brand-500/60 rounded-full" style="width: {{ pct | round(1) }}%"></div>
+                    </div>
+                    <span class="text-slate-500 text-xs tabular-nums w-10 text-right">{{ event.count | number_format }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            {{ empty_state_compact("No events in this period") }}
+        {% endif %}
+    {% endcall %}
+{% endcall %}
+
+{# ── Recent Activity (full width) ── #}
+{% call analytics_card("Recent Activity") %}
+    <div id="recent-events"
+         hx-get="/dashboard/events/content?hours={{ hours }}&app_id={{ app_id or '' }}&limit=10"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        {{ loading("Loading...") }}
+    </div>
+{% endcall %}

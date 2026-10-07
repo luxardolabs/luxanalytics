@@ -1,0 +1,122 @@
+{% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer_close %}
+{% from "macros/cards.html" import stat_card_compact, stat_grid %}
+{% from "macros/badges.html" import badge %}
+{% from "macros/analytics.html" import detail_section, kv_pair, kv_grid %}
+{% from "macros/buttons.html" import button %}
+{% from "macros/tables.html" import th, td %}
+
+{% call panel_wrapper(max_width="max-w-2xl") %}
+
+    {{ panel_header("Session", subtitle=session_id | truncate(16)) }}
+
+    {% call panel_content() %}
+        <div class="space-y-4">
+
+            {# ── Summary ── #}
+            {% call stat_grid(columns=4, gap=3) %}
+                {{ stat_card_compact("Events", total_events, color="brand") }}
+                {{ stat_card_compact("Duration", duration_seconds | duration, color="blue") }}
+                {{ stat_card_compact("Screens", screen_flow | length, color="green") }}
+                {{ stat_card_compact("Errors", errors | length, color="red") }}
+            {% endcall %}
+
+            {# ── Session Info ── #}
+            {% call detail_section("Session Info") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("User", user_id | truncate(20) if user_id else '—', mono=true) }}
+                    {{ kv_pair("Device", device_model | default('—')) }}
+                    {{ kv_pair("OS", os_version | default('—')) }}
+                    {{ kv_pair("App Version", app_version | default('—')) }}
+                    {{ kv_pair("Started", first_event | datetime('medium') if first_event else '—') }}
+                    {{ kv_pair("Ended", last_event | datetime('medium') if last_event else '—') }}
+                {% endcall %}
+            {% endcall %}
+
+            {# ── Screen Flow (visual path) ── #}
+            {% if screen_flow %}
+            {% call detail_section("Screen Flow") %}
+                <div class="flex flex-wrap items-center gap-1">
+                    {% for screen in screen_flow %}
+                    {{ badge(screen | friendly_name, variant="default") }}
+                    {% if not loop.last %}
+                    <span class="text-slate-500 text-xs">→</span>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            {% endcall %}
+            {% endif %}
+
+            {# ── Button Taps ── #}
+            {% if button_taps %}
+            {% call detail_section("Button Taps (" ~ button_taps | length ~ ")") %}
+                {% for tap in button_taps %}
+                <div class="flex items-center justify-between text-sm py-1">
+                    <span class="text-slate-300">
+                        <span class="text-slate-500">{{ tap.screen | friendly_name }}</span>
+                        → <span class="text-white font-medium">{{ tap.button | friendly_name }}</span>
+                    </span>
+                </div>
+                {% endfor %}
+            {% endcall %}
+            {% endif %}
+
+            {# ── Performance ── #}
+            {% if performance %}
+            {% call detail_section("Performance") %}
+                {% for p in performance %}
+                <div class="flex items-center justify-between text-sm py-1">
+                    <span class="text-slate-300">{{ p.operation | friendly_name }}</span>
+                    <span class="font-mono text-xs {% if p.duration_ms | int > 1000 %}text-red-400{% elif p.duration_ms | int > 500 %}text-amber-400{% else %}text-green-400{% endif %}">{{ p.duration_ms }}ms</span>
+                </div>
+                {% endfor %}
+            {% endcall %}
+            {% endif %}
+
+            {# ── Errors ── #}
+            {% if errors %}
+            {% call detail_section("Errors") %}
+                {% for e in errors %}
+                <div class="flex items-center justify-between text-sm py-1.5">
+                    <span class="text-red-400">{{ e.name | friendly_name }}</span>
+                    <span class="text-xs text-slate-500">{{ e.received_at | time('short') }}</span>
+                </div>
+                {% endfor %}
+            {% endcall %}
+            {% endif %}
+
+            {# ── Full Event Stream ── #}
+            {% call detail_section("Event Stream (" ~ total_events ~ " events)") %}
+                <div class="space-y-1 max-h-[400px] overflow-y-auto">
+                    {% for e in events %}
+                    <div class="flex items-center justify-between text-xs py-1 {% if not loop.last %}border-b border-surface-20{% endif %}">
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 tabular-nums w-16">{{ e.received_at | time('short') }}</span>
+                            <span class="text-white font-medium">{{ e.name | friendly_name }}</span>
+                        </div>
+                        {% if e.properties %}
+                        <span class="text-slate-500 truncate ml-2 max-w-[200px]">
+                            {% if e.properties.get('screen') %}{{ e.properties.screen }}{% endif %}
+                            {% if e.properties.get('button') %} · {{ e.properties.button }}{% endif %}
+                            {% if e.properties.get('operation') %} · {{ e.properties.operation }} {{ e.properties.get('duration_ms', '') }}ms{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endcall %}
+
+            {# ── Link to User Profile ── #}
+            {% if user_id %}
+            <div class="pt-2">
+                {{ button("View User Profile", variant='secondary', size='sm',
+                          hx_get='/dashboard/user/' ~ user_id,
+                          hx_target='#panel-container', hx_swap='innerHTML') }}
+            </div>
+            {% endif %}
+
+        </div>
+    {% endcall %}
+
+    {{ panel_footer_close() }}
+
+{% endcall %}

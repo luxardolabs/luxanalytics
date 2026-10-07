@@ -1,0 +1,352 @@
+{#
+Panel Macros - Reusable components for the panel system
+
+These macros provide:
+- Consistent panel container styling
+- Time range selector component
+- Chart initialization patterns
+- Stat card layouts
+
+Usage:
+{% from "macros/panels.html" import panel_container, time_selector, chart_script %}
+#}
+
+
+{# ============================================================================
+   PANEL CONTAINER
+   Wraps panel content with consistent styling and HTMX attributes
+   ============================================================================ #}
+{% macro panel_container(panel_def, panel_data, station, time_range, show_title=true, show_controls=true, show_footer=true, height=300, extra_classes='') %}
+<div class="panel-wrapper bg-surface-10 rounded-lg shadow-lg overflow-hidden {{ extra_classes }}"
+     id="panel-{{ panel_def.panel_type.value }}-{{ station.id }}"
+     data-panel-type="{{ panel_def.panel_type.value }}"
+     data-station-id="{{ station.id }}">
+
+    {# Panel Header #}
+    {% if show_title or show_controls %}
+    <div class="panel-header flex items-center justify-between px-4 py-2 border-b border-surface-20">
+        {% if show_title %}
+        <div class="flex items-center gap-2">
+            <span class="text-slate-300 text-sm font-medium">{{ panel_def.name }}</span>
+            {% if panel_data.observation_count == 0 %}
+            <span class="text-xs text-yellow-500">(No data)</span>
+            {% endif %}
+        </div>
+        {% else %}
+        <div></div>
+        {% endif %}
+
+        {% if show_controls and panel_def.supports_time_range %}
+        {{ time_selector(panel_def.panel_type.value, station.id, time_range, extra_classes) }}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# Panel Content #}
+    <div class="panel-content p-4" style="height: {{ height }}px;">
+        {{ caller() }}
+    </div>
+
+    {# Panel Footer (optional) #}
+    {% if show_footer and panel_data.last_observation %}
+    <div class="panel-footer px-4 py-1 border-t border-surface-20 text-xs text-slate-500">
+        Last updated: {{ panel_data.last_observation | time('short') }}
+        ({{ panel_data.observation_count }} observations)
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   TIME RANGE SELECTOR
+   Pill-style buttons for selecting time range with HTMX
+   ============================================================================ #}
+{% macro time_selector(panel_type, station_id, current_range, extra_classes='') %}
+{% set ranges = [
+    ('today', 'Today'),
+    ('1h', '1H'),
+    ('4h', '4H'),
+    ('12h', '12H'),
+    ('24h', '24H'),
+    ('48h', '48H'),
+    ('7d', '7D')
+] %}
+<div class="time-selector flex gap-1">
+    {% for value, label in ranges %}
+    <button type="button"
+            class="px-2 py-0.5 text-xs rounded transition-colors
+                   {% if current_range.value == value %}
+                   bg-blue-600 text-white
+                   {% else %}
+                   bg-surface-20 text-slate-500 hover:bg-surface-20 hover:text-slate-300
+                   {% endif %}"
+            hx-get="/panels/{{ panel_type }}/{{ station_id }}?time_range={{ value }}{% if extra_classes %}&amp;extra_classes={{ extra_classes | urlencode }}{% endif %}"
+            hx-target="#panel-{{ panel_type }}-{{ station_id }}"
+            hx-swap="outerHTML">
+        {{ label }}
+    </button>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   CHART INITIALIZATION SCRIPT
+   Generates ECharts initialization with proper HTMX disposal pattern
+   ============================================================================ #}
+{% macro chart_script(chart_id, options) %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    // Dispose existing chart if present (for HTMX refreshes)
+    const existingChart = echarts.getInstanceByDom(document.getElementById('{{ chart_id }}'));
+    if (existingChart) {
+        existingChart.dispose();
+    }
+
+    // Initialize new chart
+    const chart = echarts.init(document.getElementById('{{ chart_id }}'), 'dark');
+
+    // Set options
+    chart.setOption({{ options | safe }});
+
+    // Handle resize
+    const resizeObserver = new ResizeObserver(() => chart.resize());
+    resizeObserver.observe(document.getElementById('{{ chart_id }}'));
+
+    // Cleanup on HTMX swap
+    document.getElementById('{{ chart_id }}').addEventListener('htmx:beforeSwap', () => {
+        resizeObserver.disconnect();
+        chart.dispose();
+    }, { once: true });
+})();
+</script>
+{% endmacro %}
+
+
+{# ============================================================================
+   STAT CARD
+   Single value display with min/max and trend
+   ============================================================================ #}
+{% macro stat_card(label, value, unit, min_val=none, max_val=none, trend=none, color='blue', decimals=1) %}
+<div class="stat-card bg-surface-10/50 rounded-lg p-4 flex flex-col justify-between h-full">
+    {# Label #}
+    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ label }}</div>
+
+    {# Main Value #}
+    <div class="flex items-baseline gap-1 my-2">
+        <span class="text-3xl font-bold text-{{ color }}-400">
+            {{ value | num(decimals) }}
+        </span>
+        <span class="text-slate-500 text-sm">{{ unit }}</span>
+
+        {# Trend Arrow #}
+        {% if trend %}
+        <span class="ml-2 text-sm
+            {% if trend == 'rising' %}text-green-400{% elif trend == 'falling' %}text-red-400{% else %}text-slate-500{% endif %}">
+            {% if trend == 'rising' %}
+            <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+            {% elif trend == 'falling' %}
+            <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            {% else %}
+            <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clip-rule="evenodd"/>
+            </svg>
+            {% endif %}
+        </span>
+        {% endif %}
+    </div>
+
+    {# Min/Max #}
+    {% if min_val is not none or max_val is not none %}
+    <div class="flex justify-between text-xs text-slate-500">
+        <span>Min: {{ min_val | num(decimals) }}{{ unit }}</span>
+        <span>Max: {{ max_val | num(decimals) }}{{ unit }}</span>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   CHART OPTIONS BUILDER
+   Generates common ECharts options structure
+   ============================================================================ #}
+{% macro build_chart_options(series_data, title='', y_axis_name='', y_axis_name_right='', show_legend=true) %}
+{
+    backgroundColor: 'transparent',
+    grid: {
+        left: 50,
+        right: {{ 50 if y_axis_name_right else 20 }},
+        top: {{ 40 if show_legend else 20 }},
+        bottom: 30
+    },
+    {% if show_legend %}
+    legend: {
+        data: {{ series_data | map(attribute='name') | list | tojson }},
+        textStyle: { color: '#9CA3AF' },
+        top: 0
+    },
+    {% endif %}
+    tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#1F2937',
+        borderColor: '#374151',
+        textStyle: { color: '#F3F4F6' },
+        axisPointer: { type: 'cross' }
+    },
+    xAxis: {
+        type: 'time',
+        axisLine: { lineStyle: { color: '#4B5563' } },
+        axisLabel: { color: '#9CA3AF', fontSize: 10 },
+        splitLine: { show: false }
+    },
+    yAxis: [
+        {
+            type: 'value',
+            name: '{{ y_axis_name }}',
+            nameTextStyle: { color: '#9CA3AF', fontSize: 10 },
+            axisLine: { lineStyle: { color: '#4B5563' } },
+            axisLabel: { color: '#9CA3AF', fontSize: 10 },
+            splitLine: { lineStyle: { color: '#374151', type: 'dashed' } }
+        }
+        {% if y_axis_name_right %},
+        {
+            type: 'value',
+            name: '{{ y_axis_name_right }}',
+            nameTextStyle: { color: '#9CA3AF', fontSize: 10 },
+            axisLine: { lineStyle: { color: '#4B5563' } },
+            axisLabel: { color: '#9CA3AF', fontSize: 10 },
+            splitLine: { show: false }
+        }
+        {% endif %}
+    ],
+    series: [
+        {% for series in series_data %}
+        {
+            name: '{{ series.name }}',
+            type: 'line',
+            smooth: true,
+            symbol: 'none',
+            lineStyle: { width: 2, color: '{{ series.color }}' },
+            itemStyle: { color: '{{ series.color }}' },
+            yAxisIndex: {{ 1 if series.y_axis == 'right' else 0 }},
+            data: {{ series.data | tojson }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+}
+{% endmacro %}
+
+
+{# ============================================================================
+   NO DATA MESSAGE
+   Shown when panel has no observations
+   ============================================================================ #}
+{% macro no_data_message() %}
+<div class="flex items-center justify-center h-full text-slate-500">
+    <div class="text-center">
+        <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-sm">No data available for this period</p>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   CHART PANEL
+   Renders a chart using pre-built ECharts options from the service.
+   This is the simplified version - service builds all the config.
+   ============================================================================ #}
+{% macro chart_panel(panel_def, panel_data, station, time_range, show_title=true, show_controls=true, show_footer=true, height=300, extra_classes='') %}
+<div class="panel-wrapper bg-surface-10 rounded-lg shadow-lg overflow-hidden {{ extra_classes }}"
+     id="panel-{{ panel_def.panel_type.value }}-{{ station.id }}"
+     data-panel-type="{{ panel_def.panel_type.value }}"
+     data-station-id="{{ station.id }}">
+
+    {# Panel Header #}
+    {% if show_title or show_controls %}
+    <div class="panel-header flex items-center justify-between px-4 py-2 border-b border-surface-20">
+        {% if show_title %}
+        <div class="flex items-center gap-2">
+            <span class="text-slate-300 text-sm font-medium">{{ panel_def.name }}</span>
+            {% if panel_data.observation_count == 0 %}
+            <span class="text-xs text-yellow-500">(No data)</span>
+            {% endif %}
+        </div>
+        {% else %}
+        <div></div>
+        {% endif %}
+
+        {% if show_controls and panel_def.supports_time_range %}
+        {{ time_selector(panel_def.panel_type.value, station.id, time_range, extra_classes) }}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# Panel Content #}
+    <div class="panel-content relative" style="height: {{ height }}px; padding: 1rem;">
+        {% if panel_data.observation_count == 0 %}
+            {{ no_data_message() }}
+        {% else %}
+            {# Overlay content slot (for stat overlays on charts) #}
+            {{ caller() if caller else '' }}
+
+            {# Chart container #}
+            <div id="chart-{{ panel_def.panel_type.value }}-{{ station.id }}"
+                 style="width: 100%; height: 100%;"></div>
+
+            {# ECharts initialization using pre-built config #}
+            <script nonce="{{ csp_nonce }}">
+            (function() {
+                const chartId = 'chart-{{ panel_def.panel_type.value }}-{{ station.id }}';
+                const chartDom = document.getElementById(chartId);
+
+                // Dispose existing chart if present (for HTMX refreshes)
+                const existing = echarts.getInstanceByDom(chartDom);
+                if (existing) existing.dispose();
+
+                // Initialize chart with dark theme
+                const chart = echarts.init(chartDom, 'dark');
+
+                // Get options from server-built config
+                const options = {{ panel_data.chart_options | tojson }};
+
+                // Convert valueFormatter string to function if present
+                if (options.tooltip && typeof options.tooltip.valueFormatter === 'string') {
+                    options.tooltip.valueFormatter = eval(options.tooltip.valueFormatter);
+                }
+
+                // Set options
+                chart.setOption(options);
+
+                // Handle resize
+                const resizeObserver = new ResizeObserver(() => chart.resize());
+                resizeObserver.observe(chartDom);
+
+                // Cleanup on HTMX swap
+                chartDom.addEventListener('htmx:beforeSwap', () => {
+                    resizeObserver.disconnect();
+                    chart.dispose();
+                }, { once: true });
+            })();
+            </script>
+        {% endif %}
+    </div>
+
+    {# Panel Footer #}
+    {% if show_footer and panel_data.last_observation %}
+    <div class="panel-footer px-4 py-1 border-t border-surface-20 text-xs text-slate-500">
+        Last updated: {{ panel_data.last_observation | time('short') }}
+        ({{ panel_data.observation_count }} observations)
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}

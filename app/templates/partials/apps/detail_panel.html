@@ -1,0 +1,74 @@
+{% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer_close %}
+{% from "macros/cards.html" import stat_card_compact, stat_grid %}
+{% from "macros/badges.html" import badge %}
+{% from "macros/buttons.html" import button, copy_button %}
+{% from "macros/forms.html" import input %}
+{% from "macros/analytics.html" import detail_section, kv_pair, kv_grid %}
+
+{% call panel_wrapper(max_width="max-w-lg") %}
+
+    {{ panel_header(app.name, subtitle=app.app_id) }}
+
+    {% call panel_content() %}
+        <div class="space-y-5">
+
+            {# Status #}
+            <div class="flex items-center gap-2">
+                {% if app.is_active %}
+                {{ badge("Active", variant="success") }}
+                {% else %}
+                {{ badge("Inactive", variant="default") }}
+                {% endif %}
+                {% if app.organization %}
+                <span class="text-sm text-slate-500">{{ app.organization }}</span>
+                {% endif %}
+            </div>
+
+            {# Stats #}
+            {% call stat_grid(columns=2, gap=3) %}
+                {{ stat_card_compact("Total Events", stats.total_events | default(0) | number_format, color="brand") }}
+                {{ stat_card_compact("Unique Users", stats.unique_users | default(0) | number_format, color="blue") }}
+            {% endcall %}
+
+            {# DSN #}
+            {% call detail_section("DSN (for iOS SDK)") %}
+                <div class="flex items-center gap-2">
+                    <code class="flex-1 text-xs text-slate-300 font-mono bg-surface-0 rounded px-3 py-2 overflow-x-auto" id="dsn-{{ app.app_id }}">{{ app.dsn }}</code>
+                    {{ copy_button("dsn-" ~ app.app_id, text="Copy", size="xs", use_inner_text=true) }}
+                </div>
+            {% endcall %}
+
+            {# Identifiers #}
+            {% call detail_section("Identifiers") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("Public ID", app.public_id, mono=true) }}
+                    {{ kv_pair("Project ID", app.project_id, mono=true) }}
+                {% endcall %}
+            {% endcall %}
+
+            {# Timestamps #}
+            {% call detail_section("Timestamps") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("Created", app.created_at | datetime('medium')) }}
+                    {{ kv_pair("Updated", app.updated_at | datetime('medium')) }}
+                {% endcall %}
+            {% endcall %}
+
+            {# Actions #}
+            <div class="flex items-center gap-2 pt-2">
+                {{ button("Edit", variant='primary', size='sm', icon_left='pencil-square',
+                          hx_get='/apps/' ~ app.app_id ~ '/edit',
+                          hx_target='#panel-container', hx_swap='innerHTML') }}
+                {{ button("View Dashboard", variant='secondary', size='sm', icon_left='chart-bar',
+                          href='/dashboard/overview?app_id=' ~ app.app_id) }}
+            </div>
+
+            {% if app.description %}
+            <p class="text-sm text-slate-500">{{ app.description }}</p>
+            {% endif %}
+        </div>
+    {% endcall %}
+
+    {{ panel_footer_close() }}
+
+{% endcall %}

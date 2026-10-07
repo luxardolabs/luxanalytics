@@ -1,0 +1,46 @@
+{% from "macros/tables.html" import th, td %}
+{% from "macros/badges.html" import badge, status_badge %}
+{% from "macros/buttons.html" import icon_view, icon_edit %}
+{% from "macros/layout.html" import empty_state %}
+
+{% if apps %}
+<div class="overflow-x-auto rounded-lg border border-surface-20">
+    <table class="w-full text-sm">
+        <thead>
+            <tr>
+                {{ th("Name") }}
+                {{ th("App ID") }}
+                {{ th("Organization") }}
+                {{ th("Status") }}
+                {{ th("Events", class="text-right") }}
+                {{ th("", class="w-24") }}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-surface-20">
+            {% for app in apps %}
+            <tr class="hover:bg-surface-10/50 transition-colors">
+                {% call td() %}<span class="font-medium text-white">{{ app.name }}</span>{% endcall %}
+                {% call td() %}<span class="font-mono text-xs text-slate-500">{{ app.app_id }}</span>{% endcall %}
+                {% call td() %}{{ app.organization | default('—', true) }}{% endcall %}
+                {% call td() %}
+                    {% if app.is_active %}
+                    {{ badge("Active", variant="success") }}
+                    {% else %}
+                    {{ badge("Inactive", variant="default") }}
+                    {% endif %}
+                {% endcall %}
+                {% call td(class="text-right tabular-nums") %}{{ app.event_count | default(0) | number_format }}{% endcall %}
+                {% call td() %}
+                    <div class="flex items-center gap-1 justify-end">
+                        {{ icon_view(hx_get='/apps/' ~ app.app_id ~ '/detail', hx_target='#panel-container', hx_swap='innerHTML') }}
+                        {{ icon_edit(hx_get='/apps/' ~ app.app_id ~ '/edit', hx_target='#panel-container', hx_swap='innerHTML') }}
+                    </div>
+                {% endcall %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+{{ empty_state("No apps registered", description="Create your first app to start collecting events", icon_name="squares-plus") }}
+{% endif %}

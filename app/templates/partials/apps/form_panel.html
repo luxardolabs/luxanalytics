@@ -1,0 +1,47 @@
+{% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer %}
+{% from "macros/buttons.html" import button, btn_cancel %}
+{% from "macros/forms.html" import input, textarea, toggle %}
+
+{% call panel_wrapper(max_width="max-w-lg") %}
+
+    {{ panel_header("Edit " ~ app.name if app else "New Application") }}
+
+    {% call panel_content() %}
+        <form id="app-form"
+              {% if app %}
+              hx-put="/apps/{{ app.app_id }}"
+              {% else %}
+              hx-post="/apps/"
+              {% endif %}
+              hx-target="#apps-list"
+              hx-swap="innerHTML">
+
+            <div class="space-y-4">
+                {{ input("name", label="Display Name", value=app.name if app else '', required=true, placeholder="My Analytics App") }}
+
+                {% if app %}
+                {{ input("app_id_display", label="App ID", value=app.app_id, help="Cannot be changed after creation.", class="opacity-60 cursor-not-allowed") }}
+                {% else %}
+                {{ input("app_id", label="App ID", required=true, placeholder="my_app_name",
+                         help="Lowercase, underscores only. Cannot be changed later.") }}
+                {% endif %}
+
+                {{ input("organization", label="Organization", value=app.organization if app else '', placeholder="Luxardo Labs") }}
+                {{ textarea("description", label="Description", value=app.description if app else '', placeholder="Brief description of this application") }}
+
+                {% if app %}
+                {{ toggle("is_active", label="Active", checked=app.is_active) }}
+                {% endif %}
+
+                <div id="form-errors"></div>
+            </div>
+        </form>
+    {% endcall %}
+
+    {% call panel_footer() %}
+        {{ btn_cancel(alpine_click="show = false; setTimeout(() => document.getElementById('panel-container').innerHTML = '', 300)") }}
+        {{ button("Save" if app else "Create App", variant='primary', size='sm', icon_left='check',
+                  onclick="document.getElementById('app-form').requestSubmit()") }}
+    {% endcall %}
+
+{% endcall %}

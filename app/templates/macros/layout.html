@@ -1,0 +1,763 @@
+{#
+    Layout Macros - Page layout helpers and structural elements for LuxAnalytics templates.
+    Dark Mode Theme with Orange (#ffa500) brand color.
+
+    Usage:
+        {% from "macros/layout.html" import page_header, empty_state, loading, alert_banner, page_section, collapsible_section %}
+#}
+
+{% from "macros/icons.html" import icon %}
+{% from "macros/buttons.html" import button %}
+
+
+{# ============================================================================
+   MARKETING HERO
+   Hero section for marketing/public pages with gradient background
+   ============================================================================ #}
+
+{# Marketing hero - gradient hero section for public pages #}
+{# size: 'large' (landing), 'medium' (default), 'small' (legal/terms) #}
+{# color: 'brand' (cyan), 'red', 'purple', 'green', 'amber', 'teal' #}
+{# aurora: true for animated gradient border effect #}
+{% macro marketing_hero(title, subtitle=none, icon_name=none, color='brand', size='medium', aurora=false, class="") %}
+{% set color_config = {
+    'brand': {
+        'gradient': 'rgba(255, 165, 0, 0.08), rgba(255, 175, 53, 0.03)',
+        'glow': 'rgba(255, 165, 0, 0.4)',
+        'shadow': 'rgba(255, 165, 0, 0.15)',
+        'icon_bg': 'bg-brand-500/15',
+        'icon_color': 'text-brand-500'
+    },
+    'red': {
+        'gradient': 'rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02)',
+        'glow': 'rgba(239, 68, 68, 0.4)',
+        'shadow': 'rgba(239, 68, 68, 0.15)',
+        'icon_bg': 'bg-red-500/15',
+        'icon_color': 'text-red-400'
+    },
+    'purple': {
+        'gradient': 'rgba(168, 85, 247, 0.08), rgba(168, 85, 247, 0.02)',
+        'glow': 'rgba(168, 85, 247, 0.4)',
+        'shadow': 'rgba(168, 85, 247, 0.15)',
+        'icon_bg': 'bg-purple-500/15',
+        'icon_color': 'text-purple-400'
+    },
+    'green': {
+        'gradient': 'rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.02)',
+        'glow': 'rgba(34, 197, 94, 0.4)',
+        'shadow': 'rgba(34, 197, 94, 0.15)',
+        'icon_bg': 'bg-green-500/15',
+        'icon_color': 'text-green-400'
+    },
+    'amber': {
+        'gradient': 'rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02)',
+        'glow': 'rgba(245, 158, 11, 0.4)',
+        'shadow': 'rgba(245, 158, 11, 0.15)',
+        'icon_bg': 'bg-amber-500/15',
+        'icon_color': 'text-amber-400'
+    },
+    'blue': {
+        'gradient': 'rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.02)',
+        'glow': 'rgba(59, 130, 246, 0.4)',
+        'shadow': 'rgba(59, 130, 246, 0.15)',
+        'icon_bg': 'bg-blue-500/15',
+        'icon_color': 'text-blue-400'
+    },
+    'teal': {
+        'gradient': 'rgba(20, 184, 166, 0.12), rgba(6, 182, 212, 0.05)',
+        'glow': 'rgba(20, 184, 166, 0.5)',
+        'shadow': 'rgba(20, 184, 166, 0.2)',
+        'icon_bg': 'bg-teal-500/15',
+        'icon_color': 'text-teal-400'
+    }
+} %}
+{% set size_config = {
+    'large': {'padding': 'py-16 sm:py-20 lg:py-24', 'title': 'text-4xl sm:text-5xl lg:text-6xl', 'subtitle_mt': 'mt-6'},
+    'medium': {'padding': 'py-16 sm:py-20', 'title': 'text-4xl sm:text-5xl', 'subtitle_mt': 'mt-6'},
+    'small': {'padding': 'py-12', 'title': 'text-4xl', 'subtitle_mt': 'mt-4'}
+} %}
+{% set cfg = color_config.get(color, color_config.brand) %}
+{% set sz = size_config.get(size, size_config.medium) %}
+
+{# Aurora wrapper if enabled #}
+{% if aurora %}
+<div class="hero-aurora-wrapper">
+    <div class="aurora-shadow"></div>
+{% endif %}
+
+<div class="relative overflow-hidden rounded-2xl border border-surface-20 mb-12 {{ class }}"
+     style="background: linear-gradient(135deg, {{ cfg.gradient }}), #0f172a; box-shadow: 0 8px 40px {{ cfg.shadow }};">
+    {# Glow accent #}
+    <div class="absolute top-0 right-0 w-96 h-96 rounded-full opacity-20"
+         style="background: radial-gradient(circle, {{ cfg.glow }} 0%, transparent 70%); transform: translate(30%, -30%);"></div>
+
+    <div class="relative px-6 sm:px-8 lg:px-12 {{ sz.padding }}">
+        <div class="text-center max-w-3xl mx-auto">
+            {# Optional icon #}
+            {% if icon_name %}
+            <div class="flex justify-center mb-6">
+                <div class="w-20 h-20 rounded-2xl flex items-center justify-center {{ cfg.icon_bg }}">
+                    {{ icon(icon_name, 'w-10 h-10 ' ~ cfg.icon_color) }}
+                </div>
+            </div>
+            {% endif %}
+
+            <h1 class="{{ sz.title }} font-extrabold tracking-tight text-white">
+                {{ title }}
+            </h1>
+
+            {% if subtitle %}
+            <p class="{{ sz.subtitle_mt }} text-xl text-slate-300{% if aurora %} aurora-text{% endif %}">
+                {{ subtitle|safe }}
+            </p>
+            {% endif %}
+
+            {# Optional caller content (e.g., CTA buttons) #}
+            {% if caller is defined %}
+            <div class="mt-8">
+                {{ caller() }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if aurora %}
+</div>
+<style>
+    .hero-aurora-wrapper {
+        position: relative;
+        z-index: 0;
+        isolation: isolate;
+    }
+    .aurora-shadow {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, #ffa500 0%, #3b82f6 25%, #7c3aed 50%, #f59e0b 75%, #ffa500 100%);
+        background-size: 400% 400%;
+        filter: blur(20px);
+        opacity: 0.2;
+        border-radius: 1.5rem;
+        animation: aurora-flow 8s ease-in-out infinite;
+        pointer-events: none;
+        z-index: -1;
+    }
+    .aurora-text {
+        font-size: clamp(1.35rem, 3.5vw, 2rem) !important;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        line-height: 1.2;
+        background: linear-gradient(135deg, #ffa500 0%, #3b82f6 25%, #7c3aed 50%, #f59e0b 75%, #ffa500 100%);
+        background-size: 400% 400%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: aurora-flow 8s ease-in-out infinite;
+    }
+    @keyframes aurora-flow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+</style>
+{% endif %}
+{% endmacro %}
+
+
+{# ============================================================================
+   MARKETING CTA
+   Call-to-action section for marketing pages with consistent button styling
+   ============================================================================ #}
+
+{# Marketing CTA - consistent call-to-action section for marketing pages
+   Always uses primary button for main action and secondary for alternate action.
+
+   Usage:
+       {{ marketing_cta('Ready to get started?', 'Connect your weather station today.', '/login', 'Get Started') }}
+       {{ marketing_cta('Ready to get started?', 'Connect your weather station today.', '/login', 'Get Started', secondary_href='/about', secondary_text='Learn More') }}
+#}
+{% macro marketing_cta(title, description=none, primary_href='/login', primary_text='Get Started', secondary_href=none, secondary_text=none) %}
+<div class="text-center py-12">
+    <h2 class="text-3xl font-bold text-white mb-4">{{ title }}</h2>
+    {% if description %}
+    <p class="text-slate-500 mb-8 max-w-xl mx-auto">{{ description }}</p>
+    {% endif %}
+    <div class="flex flex-wrap justify-center gap-4">
+        {{ button(primary_text, variant='primary', href=primary_href, size='lg') }}
+        {% if secondary_href and secondary_text %}
+        {{ button(secondary_text, variant='secondary', href=secondary_href, size='lg') }}
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   FEATURE CALLOUT
+   Promoted feature callout with icon, badge, and link - for highlighting special features
+   ============================================================================ #}
+
+{# Feature callout - highlighted feature promotion with optional badge
+   Uses design system colors: brand, green, blue, amber, purple, red
+
+   Usage:
+       {{ feature_callout(
+           title='LuxAnalytics Comfort Index',
+           description='We built something nobody else has: a single 0-10 score...',
+           icon='sparkles',
+           color='brand',
+           href='/features/comfort-index',
+           link_text='Learn about the Comfort Index',
+           badge='Only on LuxAnalytics'
+       ) }}
+#}
+{% macro feature_callout(title, description, icon='sparkles', color='brand', href=none, link_text=none, badge=none) %}
+{%- set color_config = {
+    'green':  {'rgb': '34, 197, 94', 'border': 'border-green-400/50', 'bg': 'bg-green-500/5', 'text': 'text-green-400', 'badge_bg': 'bg-green-400/20', 'badge_text': 'text-green-400'},
+    'blue':   {'rgb': '59, 130, 246', 'border': 'border-blue-400/50', 'bg': 'bg-blue-500/5', 'text': 'text-blue-400', 'badge_bg': 'bg-blue-400/20', 'badge_text': 'text-blue-400'},
+    'amber':  {'rgb': '245, 158, 11', 'border': 'border-amber-400/50', 'bg': 'bg-amber-500/5', 'text': 'text-amber-400', 'badge_bg': 'bg-amber-400/20', 'badge_text': 'text-amber-400'},
+    'purple': {'rgb': '168, 85, 247', 'border': 'border-purple-400/50', 'bg': 'bg-purple-500/5', 'text': 'text-purple-400', 'badge_bg': 'bg-purple-400/20', 'badge_text': 'text-purple-400'},
+    'red':    {'rgb': '239, 68, 68', 'border': 'border-red-400/50', 'bg': 'bg-red-500/5', 'text': 'text-red-400', 'badge_bg': 'bg-red-400/20', 'badge_text': 'text-red-400'},
+    'brand':  {'rgb': '255, 165, 0', 'border': 'border-brand-500/50', 'bg': 'bg-brand-500/5', 'text': 'text-brand-500', 'badge_bg': 'bg-brand-500/20', 'badge_text': 'text-brand-500'}
+} -%}
+{%- set c = color_config.get(color, color_config.brand) -%}
+{% from "macros/icons.html" import icon as render_icon, icon_box %}
+<div class="rounded-2xl border-2 {{ c.border }} p-8 mb-16 {{ c.bg }}">
+    <div class="flex flex-col md:flex-row items-start gap-6">
+        <div class="flex-shrink-0">
+            {{ icon_box(icon, color, 'lg') }}
+        </div>
+        <div class="flex-1">
+            <div class="flex items-center gap-3 mb-3">
+                <h2 class="text-2xl font-bold text-white">{{ title }}</h2>
+                {% if badge %}
+                <span class="px-2 py-1 text-xs font-bold rounded-full {{ c.badge_bg }} {{ c.badge_text }} uppercase tracking-wide">{{ badge }}</span>
+                {% endif %}
+            </div>
+            <p class="text-slate-300 mb-4">{{ description|safe }}</p>
+            {% if href and link_text %}
+            <a href="{{ href }}" class="inline-flex items-center gap-2 {{ c.text }} font-semibold hover:text-white transition-colors">
+                {{ link_text }}
+                {{ render_icon('chevron-right', 'w-4 h-4') }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   PAGE HEADER
+   Standard page header with title, description, and optional actions
+   ============================================================================ #}
+
+{# Page header - consistent page title treatment #}
+{% macro page_header(title, description=none, class="") %}
+<div class="mb-6 {{ class }}">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white">{{ title }}</h1>
+            {% if description %}
+            <p class="mt-1 text-sm text-slate-500">{{ description }}</p>
+            {% endif %}
+        </div>
+        {% if caller is defined %}
+        <div class="flex items-center gap-3">
+            {{ caller() }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   FILTER BAR
+   Standard filter bar for dashboards with time range, period, category selectors
+   Uses consistent spacing: pb-4 border-b for visual separation from content
+
+   Usage:
+   {% call filter_bar() %}
+       {{ filter_label('Time Range:') }}
+       {{ inline_tabs(tab_items, current=time_range) }}
+   {% endcall %}
+
+   For multiple filter groups:
+   {% call filter_bar() %}
+       <div class="flex items-center gap-2">
+           {{ filter_label('Period:') }}
+           {{ inline_tabs(period_items, current=selected_period) }}
+       </div>
+       <div class="flex items-center gap-2">
+           {{ filter_label('Category:') }}
+           {{ inline_tabs(category_items, current=selected_category) }}
+       </div>
+   {% endcall %}
+
+   Options:
+   - wrap: if true, adds sm:flex-wrap for dashboards with many controls
+   - class: additional CSS classes
+   ============================================================================ #}
+
+{% macro filter_bar(wrap=false, class="") %}
+<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 pb-4 border-b border-surface-20 {% if wrap %}sm:flex-wrap{% endif %} {{ class }}">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# Timeline-aware content container
+   Wraps dashboard content that should reload when the timeline picker changes.
+   Uses hx-include to read current period_type/offset from the picker's hidden inputs.
+
+   Args:
+     content_url: HTMX endpoint that returns the partial content
+     container_id: Unique DOM id for the container (default: "timeline-content")
+
+   Usage:
+     {% call timeline_content('/my-tenant/dashboards/storms/my-station/cards') %}
+       {% include "partials/storms/gallery_cards.html" %}
+     {% endcall %}
+#}
+{% macro timeline_content(content_url, container_id="timeline-content") %}
+<div id="{{ container_id }}"
+     hx-get="{{ content_url }}"
+     hx-include="#timeline-picker"
+     hx-trigger="timeline-changed from:body"
+     hx-swap="innerHTML">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# Section header - for content sections within a page #}
+{% macro section_header(title, description=none, class="") %}
+<div class="mb-4 {{ class }}">
+    <h2 class="text-lg font-semibold text-white">{{ title }}</h2>
+    {% if description %}
+    <p class="mt-0.5 text-sm text-slate-500">{{ description }}</p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# Page section - groups related content with optional title #}
+{% macro page_section(title=none, description=none, class="") %}
+<div class="mb-8 {{ class }}">
+    {% if title %}
+    {{ section_header(title, description) }}
+    {% endif %}
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   EMPTY STATES
+   ============================================================================ #}
+
+{# Empty state placeholder #}
+{% macro empty_state(title, description=none, icon_name="inbox", action_text=none, action_url=none, action_htmx=none, class="") %}
+<div class="text-center py-12 {{ class }}">
+    <div class="mx-auto w-16 h-16 rounded-xl flex items-center justify-center bg-brand-500/10" >
+        {{ icon(icon_name, class="h-8 w-8 text-slate-500") }}
+    </div>
+    <h3 class="mt-4 text-sm font-medium text-white">{{ title }}</h3>
+    {% if description %}
+    <p class="mt-1 text-sm text-slate-500">{{ description }}</p>
+    {% endif %}
+    {% if action_text and (action_url or action_htmx) %}
+    <div class="mt-6">
+        {% if action_url %}
+        {{ button(action_text, variant='primary', href=action_url) }}
+        {% elif action_htmx %}
+        <button type="button" {{ action_htmx|safe }}
+                class="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 text-slate-900 bg-brand-500 shadow-glow hover:shadow-glow-lg hover:-translate-y-0.5">
+            {{ action_text }}
+        </button>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# Compact empty state for smaller containers #}
+{% macro empty_state_compact(message, icon_name="inbox") %}
+<div class="text-center py-6">
+    <div class="mx-auto h-8 w-8 text-slate-500">
+        {{ icon(icon_name, class="h-8 w-8") }}
+    </div>
+    <p class="mt-2 text-sm text-slate-500">{{ message }}</p>
+</div>
+{% endmacro %}
+
+
+{# Panel empty state - for dashboard panel placeholders that maintain grid height #}
+{% macro panel_empty_state(message, height="160px", colspan=none) %}
+<div class="h-[{{ height }}] rounded-2xl bg-surface-10/50 flex items-center justify-center{% if colspan %} col-span-{{ colspan }}{% endif %}">
+    <span class="text-slate-500 text-base">{{ message }}</span>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   LOADING STATES
+   ============================================================================ #}
+
+{# Inline spinner for HTMX indicators - no padding, just the spinner #}
+{% macro inline_spinner(size='h-4 w-4', color='text-brand-500', id=none) %}
+<span {% if id %}id="{{ id }}"{% endif %} class="htmx-indicator inline-flex items-center">
+    <svg class="animate-spin {{ size }} {{ color }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+</span>
+{% endmacro %}
+
+{# Loading state with spinner #}
+{% macro loading(text="Loading...") %}
+<div class="p-6 text-center text-slate-500">
+    <svg class="animate-spin h-5 w-5 mx-auto text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+    <p class="mt-2">{{ text }}</p>
+</div>
+{% endmacro %}
+
+
+{# Loading state with animated weather icons - for AI/weather processing #}
+{% macro loading_weather(text="Analyzing weather data...") %}
+<style>
+    @keyframes weather-bounce-1 {
+        0%, 29%, 100% { transform: translateY(0) scale(1); color: #64748b; }
+        14% { transform: translateY(-10px) scale(1.2); color: #ffa500; }
+    }
+    @keyframes weather-bounce-2 {
+        0%, 29%, 100% { transform: translateY(0) scale(1); color: #64748b; }
+        14% { transform: translateY(-10px) scale(1.2); color: #60a5fa; }
+    }
+    @keyframes weather-bounce-3 {
+        0%, 29%, 100% { transform: translateY(0) scale(1); color: #64748b; }
+        14% { transform: translateY(-10px) scale(1.2); color: #3b82f6; }
+    }
+    @keyframes weather-bounce-4 {
+        0%, 29%, 100% { transform: translateY(0) scale(1); color: #64748b; }
+        14% { transform: translateY(-10px) scale(1.2); color: #a855f7; }
+    }
+    @keyframes weather-bounce-5 {
+        0%, 29%, 100% { transform: translateY(0) scale(1); color: #64748b; }
+        14% { transform: translateY(-10px) scale(1.2); color: #22d3ee; }
+    }
+    .weather-icon-1 { animation: weather-bounce-1 2.1s ease-in-out infinite; }
+    .weather-icon-2 { animation: weather-bounce-2 2.1s ease-in-out infinite 0.1s; }
+    .weather-icon-3 { animation: weather-bounce-3 2.1s ease-in-out infinite 0.2s; }
+    .weather-icon-4 { animation: weather-bounce-4 2.1s ease-in-out infinite 0.3s; }
+    .weather-icon-5 { animation: weather-bounce-5 2.1s ease-in-out infinite 0.4s; }
+</style>
+<div class="py-8">
+    <div class="flex flex-col items-center justify-center">
+        <div class="flex items-center justify-center gap-2">
+            <div class="w-10 h-10 weather-icon-1">{% include "icons/weather/wi-day-sunny.svg" %}</div>
+            <div class="w-10 h-10 weather-icon-2">{% include "icons/weather/wi-cloud.svg" %}</div>
+            <div class="w-10 h-10 weather-icon-3">{% include "icons/weather/wi-rain.svg" %}</div>
+            <div class="w-10 h-10 weather-icon-4">{% include "icons/weather/wi-lightning.svg" %}</div>
+            <div class="w-10 h-10 weather-icon-5">{% include "icons/weather/wi-snow.svg" %}</div>
+        </div>
+        <p class="mt-4 text-sm font-medium text-slate-500">{{ text }}</p>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Skeleton loading placeholder #}
+{% macro skeleton(type="text", lines=3, class="") %}
+{% if type == "text" %}
+<div class="animate-pulse space-y-2 {{ class }}">
+    {% for i in range(lines) %}
+    <div class="h-4 bg-surface-10/50 rounded {% if loop.last %}w-3/4{% else %}w-full{% endif %}"></div>
+    {% endfor %}
+</div>
+{% elif type == "card" %}
+<div class="bg-surface-10 animate-pulse rounded-xl border border-surface-20 p-6 {{ class }}">
+    <div class="h-4 bg-surface-10/50 rounded w-1/4 mb-4"></div>
+    <div class="space-y-2">
+        <div class="h-4 bg-surface-10/50 rounded w-full"></div>
+        <div class="h-4 bg-surface-10/50 rounded w-5/6"></div>
+    </div>
+</div>
+{% elif type == "avatar" %}
+<div class="animate-pulse flex items-center space-x-3 {{ class }}">
+    <div class="h-10 w-10 bg-surface-10/50 rounded-full"></div>
+    <div class="space-y-2">
+        <div class="h-4 bg-surface-10/50 rounded w-32"></div>
+        <div class="h-3 bg-surface-10/50 rounded w-24"></div>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{# ============================================================================
+   ALERTS & BANNERS
+   ============================================================================ #}
+
+{# Alert banner - full-width notification banner #}
+{% macro alert_banner(message, variant="info", dismissible=false, icon_name=none, action_text=none, action_url=none, class="") %}
+{% set variants = {
+    'info': {'bg': 'bg-blue-900/30', 'border': 'border-blue-500/30', 'text': 'text-blue-300', 'icon': 'info-circle', 'icon_color': 'text-blue-400'},
+    'success': {'bg': 'bg-green-900/30', 'border': 'border-green-500/30', 'text': 'text-green-300', 'icon': 'check-circle', 'icon_color': 'text-green-400'},
+    'warning': {'bg': 'bg-yellow-900/30', 'border': 'border-yellow-500/30', 'text': 'text-yellow-300', 'icon': 'warning', 'icon_color': 'text-yellow-400'},
+    'danger': {'bg': 'bg-red-900/30', 'border': 'border-red-500/30', 'text': 'text-red-300', 'icon': 'x-circle', 'icon_color': 'text-red-400'}
+} %}
+{% set config = variants.get(variant, variants.info) %}
+{% set final_icon = icon_name or config.icon %}
+<div class="{{ config.bg }} {{ config.border }} border rounded-xl p-4 {{ class }}"
+     {% if dismissible %}x-data="{ show: true }" x-show="show"{% endif %}>
+    <div class="flex">
+        <div class="flex-shrink-0">
+            {{ icon(final_icon, class="h-5 w-5 " ~ config.icon_color) }}
+        </div>
+        <div class="ml-3 flex-1">
+            <p class="text-sm {{ config.text }}">{{ message }}</p>
+            {% if action_text and action_url %}
+            <div class="mt-2">
+                <a href="{{ action_url }}" class="text-sm font-medium {{ config.text }} underline hover:no-underline">
+                    {{ action_text }}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% if dismissible %}
+        <div class="ml-auto pl-3">
+            <button type="button" @click="show = false" class="-mx-1.5 -my-1.5 p-1.5 rounded-lg {{ config.text }} hover:bg-surface-10/50 transition-colors">
+                {{ icon('x-mark', class='h-4 w-4') }}
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Page banner - dismissible banner for page-specific notifications with localStorage persistence #}
+{# Uses same visual styling as site_banners for consistency #}
+{# banner_key should be unique per banner type, tenant_id makes it per-tenant #}
+{% macro page_banner(banner_key, title, message, variant="brand", icon_name=none, link_url=none, link_text=none, tenant_id=none) %}
+{% set variant_config = {
+    'brand': {
+        'bg': 'bg-gradient-to-br from-brand-500/15 to-brand-500/5',
+        'border': 'border-brand-500/20',
+        'glow': 'shadow-glow',
+        'icon_color': 'text-brand-500',
+        'title_color': 'text-brand-200',
+        'text_color': 'text-brand-500/80',
+        'link_bg': 'bg-brand-500/20 text-brand-500 hover:bg-brand-500/30',
+        'default_icon': 'information-circle'
+    },
+    'warning': {
+        'bg': 'bg-gradient-to-br from-amber-400/15 to-orange-500/5',
+        'border': 'border-amber-500/30',
+        'glow': 'shadow-glow-warning',
+        'icon_color': 'text-amber-400',
+        'title_color': 'text-amber-300',
+        'text_color': 'text-amber-400/80',
+        'link_bg': 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30',
+        'default_icon': 'exclamation-triangle'
+    },
+    'danger': {
+        'bg': 'bg-gradient-to-br from-red-500/15 to-rose-600/5',
+        'border': 'border-red-500/30',
+        'glow': 'shadow-glow-error',
+        'icon_color': 'text-red-400',
+        'title_color': 'text-red-300',
+        'text_color': 'text-red-400/80',
+        'link_bg': 'bg-red-500/20 text-red-300 hover:bg-red-500/30',
+        'default_icon': 'exclamation-circle'
+    },
+    'success': {
+        'bg': 'bg-gradient-to-br from-emerald-400/15 to-teal-500/5',
+        'border': 'border-green-500/30',
+        'glow': 'shadow-glow-success',
+        'icon_color': 'text-emerald-400',
+        'title_color': 'text-emerald-300',
+        'text_color': 'text-emerald-400/80',
+        'link_bg': 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30',
+        'default_icon': 'check-circle'
+    }
+} %}
+{% set config = variant_config.get(variant, variant_config.brand) %}
+{% set banner_icon = icon_name or config.default_icon %}
+{% set storage_key = 'page_banner_' ~ banner_key ~ ('_' ~ tenant_id if tenant_id else '') %}
+
+<div class="rounded-xl border p-4 mb-4 {{ config.bg }} {{ config.border }} {{ config.glow }}"
+     x-data="{ dismissed: localStorage.getItem('{{ storage_key }}') === 'true' }"
+     x-show="!dismissed"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0">
+    <div class="flex items-start">
+        <div class="flex-shrink-0">
+            {{ icon(banner_icon, 'h-5 w-5 ' ~ config.icon_color) }}
+        </div>
+        <div class="ml-3 flex-1">
+            <h3 class="text-sm font-medium {{ config.title_color }}">
+                {{ title }}
+            </h3>
+            <div class="mt-1 text-sm {{ config.text_color }}">
+                {{ message }}
+            </div>
+            {% if link_url and link_text %}
+            <div class="mt-3">
+                <a href="{{ link_url }}"
+                   class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg transition-colors {{ config.link_bg }}">
+                    {{ link_text }}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        <div class="flex-shrink-0 ml-4">
+            <button type="button"
+                    @click="localStorage.setItem('{{ storage_key }}', 'true'); dismissed = true"
+                    class="rounded-lg p-1.5 hover:bg-white/10 transition-colors {{ config.icon_color }}">
+                {{ icon('x-mark', 'h-4 w-4') }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Inline alert - smaller, for form errors or inline messages #}
+{% macro alert_inline(message, variant="danger") %}
+{% set variants = {
+    'info': 'text-blue-400',
+    'success': 'text-green-400',
+    'warning': 'text-yellow-400',
+    'danger': 'text-red-400'
+} %}
+<p class="text-sm {{ variants.get(variant, variants.danger) }}">{{ message }}</p>
+{% endmacro %}
+
+
+{# ============================================================================
+   DIVIDERS
+   ============================================================================ #}
+
+{# Divider with optional text #}
+{% macro divider(text=none, class="") %}
+{% if text %}
+<div class="relative my-6 {{ class }}">
+    <div class="absolute inset-0 flex items-center">
+        <div class="w-full border-t border-surface-20"></div>
+    </div>
+    <div class="relative flex justify-center text-sm">
+        <span class="px-2 text-slate-500 bg-surface-gradient">{{ text }}</span>
+    </div>
+</div>
+{% else %}
+<hr class="my-6 border-surface-20 {{ class }}">
+{% endif %}
+{% endmacro %}
+
+
+{# ============================================================================
+   GRID LAYOUTS
+   ============================================================================ #}
+
+{# Responsive grid wrapper #}
+{% macro grid(columns=3, gap=6, class="") %}
+{% set col_classes = {
+    1: 'grid-cols-1',
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+    5: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
+    6: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'
+} %}
+{% set gap_classes = {
+    2: 'gap-2',
+    3: 'gap-3',
+    4: 'gap-4',
+    5: 'gap-5',
+    6: 'gap-6',
+    8: 'gap-8'
+} %}
+<div class="grid {{ col_classes.get(columns, col_classes[3]) }} {{ gap_classes.get(gap, gap_classes[6]) }} {{ class }}">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   PAGE WIDTH PRESETS
+   Prescriptive container widths for different page types.
+
+   Presets:
+   - narrow:   max-w-4xl (896px)  - Legal, onboarding, focused flows
+   - standard: max-w-7xl (1280px) - Marketing, feature pages, settings
+   - full:     max-w-[1800px]     - Dashboards, admin tables
+
+   Usage in base.html:
+       <div class="{{ page_width_class(page_width) }} mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+   Pages set their width via:
+       {% set page_width = 'full' %}
+   ============================================================================ #}
+
+{# Returns the Tailwind max-width class for a given preset #}
+{% macro page_width_class(preset='standard') %}
+{%- set widths = {
+    'narrow': 'max-w-4xl',
+    'standard': 'max-w-7xl',
+    'full': 'max-w-[1800px]'
+} -%}
+{{ widths.get(preset, widths.standard) }}
+{%- endmacro %}
+
+
+{# ============================================================================
+   COLLAPSIBLE SECTION
+   Card with a clickable header that collapses/expands content.
+   State persists in localStorage via storage_key.
+
+   Args:
+       title:       Header text
+       storage_key: localStorage key for persistence (must be unique per section)
+       default_open: Initial state when no localStorage value exists (default: false)
+       class:       Additional classes on the outer container
+
+   Usage:
+       {% call collapsible_section('Upcoming Windows', 'spray_windows') %}
+           <div>...content...</div>
+       {% endcall %}
+
+   The caller block is rendered inside the collapsible body.
+   The header supports a "badges" slot via caller args — pass badge HTML
+   as the second positional block or use the badges parameter.
+   ============================================================================ #}
+
+{% macro collapsible_section(title, storage_key, default_open=false, badges="", class="") %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 overflow-hidden {{ class }}"
+     x-data="{ open: JSON.parse(localStorage.getItem('{{ storage_key }}') ?? '{{ 'true' if default_open else 'false' }}') }"
+     x-effect="localStorage.setItem('{{ storage_key }}', open)">
+    <button type="button" @click="open = !open"
+            class="w-full px-4 py-3 flex items-center justify-between hover:bg-surface-10/20 transition-colors">
+        <div class="flex items-center gap-3">
+            <h3 class="font-semibold text-white">{{ title }}</h3>
+            {{ badges }}
+        </div>
+        <div :class="open ? 'rotate-180' : ''" class="transition-transform duration-200">
+            {{ icon('chevron-down', 'w-4 h-4 text-slate-500') }}
+        </div>
+    </button>
+    <div x-show="open" x-collapse>
+        <div class="border-t border-surface-20">
+            {{ caller() }}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+

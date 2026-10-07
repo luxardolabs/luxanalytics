@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — LuxAnalytics</title>
+    <link rel="stylesheet" href="/static/css/compiled.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="bg-surface-0 min-h-screen flex items-center justify-center px-4">
+
+    {% from "macros/forms.html" import input %}
+    {% from "macros/buttons.html" import button %}
+    {% from "macros/layout.html" import alert_banner %}
+
+    <div class="w-full max-w-sm">
+        <div class="text-center mb-8">
+            <svg class="w-10 h-10 text-brand-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            <h1 class="text-xl font-bold text-white">LuxAnalytics</h1>
+            <p class="text-sm text-slate-500 mt-1">Sign in to your dashboard</p>
+        </div>
+
+        {% if error %}
+        {{ alert_banner(error, variant='danger') }}
+        {% endif %}
+
+        <form method="POST" action="/login" class="space-y-4">
+            {{ input("username", label="Username", required=true, placeholder="admin") }}
+            {{ input("password", label="Password", type="password", required=true) }}
+            {% if next %}
+            <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
+            {{ button("Sign In", variant='primary', size='lg', type='submit', full_width=true) }}
+        </form>
+
+        <p class="text-center text-xs text-slate-500 mt-8">v{{ version | default('dev') }}</p>
+    </div>
+
+</body>
+</html>

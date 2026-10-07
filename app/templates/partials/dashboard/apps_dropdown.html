@@ -1,0 +1,13 @@
+<span class="text-xs text-slate-500 hidden md:inline">App:</span>
+<select name="app_id"
+        class="rounded-md border border-surface-20 bg-surface-10 px-3 py-1 text-sm text-slate-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-w-[140px]"
+        hx-post="/set-app-context"
+        hx-swap="none"
+        hx-on::after-request="window.location.reload()">
+    <option value="">All Apps</option>
+    {% for app in apps %}
+    <option value="{{ app.app_id }}" {% if current_app_id == app.app_id %}selected{% endif %}>
+        {{ app.app_id }}
+    </option>
+    {% endfor %}
+</select>

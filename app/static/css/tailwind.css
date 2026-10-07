@@ -1,0 +1,56 @@
+/*
+ * LuxAnalytics - Tailwind CSS Source
+ * Processed by Tailwind CLI to generate compiled.css
+ * Brand: Orange (#ffa500) on warm dark surfaces (#121212)
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  [x-cloak] {
+    display: none !important;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+}
+
+@layer components {
+  /* HTMX indicators */
+  .htmx-request .htmx-indicator {
+    opacity: 1;
+  }
+
+  .htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+  }
+
+  .htmx-swapping {
+    opacity: 0;
+    transition: opacity 200ms ease-out;
+  }
+
+  /* Loading spinner — brand orange */
+  .loading-spinner {
+    @apply inline-block w-4 h-4 border-2 border-surface-20 border-t-brand-500 rounded-full animate-spin;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

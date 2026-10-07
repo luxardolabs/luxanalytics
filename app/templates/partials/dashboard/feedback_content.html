@@ -1,0 +1,125 @@
+{% from "macros/cards.html" import stat_card, stat_card_compact, stat_grid %}
+{% from "macros/layout.html" import empty_state, grid %}
+{% from "macros/analytics.html" import analytics_card, value_breakdown, detail_section, kv_pair, kv_grid %}
+{% from "macros/tables.html" import th, td %}
+{% from "macros/badges.html" import badge %}
+{% from "macros/buttons.html" import icon_view %}
+
+{% if total_feedback > 0 %}
+
+{# ── Summary Stats ── #}
+{% call stat_grid(columns=6, class="mb-6") %}
+    {{ stat_card("Total Feedback", total_feedback | number_format, icon_name="chat-bubble-left-right", color="brand") }}
+    {{ stat_card("Unique Users", unique_users | number_format, icon_name="users", color="blue") }}
+    {{ stat_card("With Email", with_email | number_format, icon_name="envelope", color="green") }}
+    {{ stat_card_compact("Email Rate", (email_percentage | string) ~ "%", color="green") }}
+    {{ stat_card_compact("Avg Length", (avg_length | string) ~ " chars", color="purple") }}
+    {{ stat_card_compact("Premium", (premium_percentage | string) ~ "%", color="orange") }}
+{% endcall %}
+
+{% call grid(columns=3, class="mb-6") %}
+
+    {# Categories #}
+    {% call analytics_card("Categories") %}
+        {% if categories %}
+        <div class="space-y-3">
+            {% for cat in categories %}
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-white">{{ cat.name | friendly_name }}</span>
+                    <span class="text-xs text-slate-500">{{ cat.count }} ({{ cat.percentage }}%)</span>
+                </div>
+                <div class="w-full h-1.5 bg-surface-20 rounded-full overflow-hidden">
+                    <div class="h-full bg-brand-500/60 rounded-full" style="width: {{ cat.percentage }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        {{ empty_state("No categories", icon_name="tag") }}
+        {% endif %}
+    {% endcall %}
+
+    {# Top Features #}
+    {% call analytics_card("Top Features") %}
+        {% if top_features %}
+        <div class="space-y-2">
+            {% for feat in top_features %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-slate-300">{{ feat.name | friendly_name }}</span>
+                <span class="text-slate-500 text-xs tabular-nums">{{ feat.count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        {{ empty_state("No feature data", icon_name="squares-2x2") }}
+        {% endif %}
+    {% endcall %}
+
+    {# Top Screens #}
+    {% call analytics_card("Top Screens") %}
+        {% if top_screens %}
+        <div class="space-y-2">
+            {% for screen in top_screens %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-slate-300">{{ screen.name | friendly_name }}</span>
+                <span class="text-slate-500 text-xs tabular-nums">{{ screen.count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        {{ empty_state("No screen data", icon_name="device-phone-mobile") }}
+        {% endif %}
+    {% endcall %}
+
+{% endcall %}
+
+{# ── Recent Feedback ── #}
+{% if recent_feedback %}
+{% call analytics_card("Recent Feedback") %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr>
+                    {{ th("User") }}
+                    {{ th("Category") }}
+                    {{ th("Content Preview") }}
+                    {{ th("Time") }}
+                    {{ th("", class="w-12") }}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-surface-20">
+                {% for fb in recent_feedback %}
+                <tr class="hover:bg-surface-10/50 transition-colors">
+                    {% call td() %}
+                        <span class="font-mono text-xs">{{ fb.user_id | default('—', true) | truncate(16) }}</span>
+                    {% endcall %}
+                    {% call td() %}
+                        {% if fb.event_metadata %}
+                        {{ badge(fb.event_metadata.get('feedback_category', 'general') | friendly_name, variant="default") }}
+                        {% endif %}
+                    {% endcall %}
+                    {% call td() %}
+                        {% if fb.event_metadata and fb.event_metadata.get('feedback_content') %}
+                        <span class="text-slate-300">{{ fb.event_metadata.feedback_content | truncate(60) }}</span>
+                        {% else %}
+                        <span class="text-slate-500">No content</span>
+                        {% endif %}
+                    {% endcall %}
+                    {% call td() %}
+                        <span class="text-xs {{ fb.received_at | timeago_color }}">{{ fb.received_at | timeago }}</span>
+                    {% endcall %}
+                    {% call td() %}
+                        {{ icon_view(hx_get='/dashboard/events/detail/' ~ fb.id, hx_target='#panel-container', hx_swap='innerHTML') }}
+                    {% endcall %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endcall %}
+{% endif %}
+
+{% else %}
+{{ empty_state("No feedback yet", description="Send feedback_submitted events from your app", icon_name="chat-bubble-left-right") }}
+{% endif %}

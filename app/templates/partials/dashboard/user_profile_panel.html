@@ -1,0 +1,110 @@
+{% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer_close %}
+{% from "macros/cards.html" import stat_card_compact, stat_grid %}
+{% from "macros/badges.html" import badge %}
+{% from "macros/analytics.html" import detail_section, kv_pair, kv_grid %}
+{% from "macros/buttons.html" import button %}
+{% from "macros/tables.html" import th, td %}
+
+{% call panel_wrapper(max_width="max-w-2xl") %}
+
+    {{ panel_header("User Profile", subtitle=user_id | truncate(24)) }}
+
+    {% call panel_content() %}
+        <div class="space-y-4">
+
+            {# ── Summary Stats ── #}
+            {% call stat_grid(columns=3, gap=3) %}
+                {{ stat_card_compact("Events", total_events | number_format, color="brand") }}
+                {{ stat_card_compact("Sessions", total_sessions, color="blue") }}
+                {{ stat_card_compact("Devices", total_devices, color="green") }}
+            {% endcall %}
+
+            {# ── Activity Span ── #}
+            {% call detail_section("Activity") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("First Seen", first_seen | datetime('medium') if first_seen else '—') }}
+                    {{ kv_pair("Last Seen", last_seen | datetime('medium') if last_seen else '—') }}
+                    {{ kv_pair("Event Types", event_types) }}
+                    {{ kv_pair("Days Active", ((last_seen - first_seen).days + 1) if first_seen and last_seen else '—') }}
+                {% endcall %}
+            {% endcall %}
+
+            {# ── Screens Visited ── #}
+            {% if screens_visited %}
+            {% call detail_section("Screens Visited") %}
+                <div class="flex flex-wrap gap-1.5">
+                    {% for screen in screens_visited %}
+                    {{ badge(screen | friendly_name, variant="default") }}
+                    {% endfor %}
+                </div>
+            {% endcall %}
+            {% endif %}
+
+            {# ── Devices ── #}
+            {% if devices %}
+            {% call detail_section("Devices") %}
+                {% for d in devices %}
+                <div class="flex items-center justify-between text-sm py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
+                    <div>
+                        <span class="text-white font-medium">{{ d.device_model }}</span>
+                        <span class="text-slate-500 text-xs ml-2">iOS {{ d.os_version }} · v{{ d.app_version }}</span>
+                    </div>
+                    <div class="text-xs text-slate-500 tabular-nums">{{ d.event_count }} events</div>
+                </div>
+                {% endfor %}
+            {% endcall %}
+            {% endif %}
+
+            {# ── Sessions ── #}
+            {% if sessions %}
+            {% call detail_section("Sessions (" ~ sessions | length ~ ")") %}
+                {% for s in sessions %}
+                <div class="py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
+                    <div class="flex items-center justify-between">
+                        <button class="text-sm text-brand-500 hover:text-brand-400 transition-colors font-mono"
+                                hx-get="/dashboard/session/{{ s.session_id }}"
+                                hx-target="#panel-container"
+                                hx-swap="innerHTML">
+                            {{ s.session_id | truncate(12) }}
+                        </button>
+                        <div class="flex items-center gap-3 text-xs text-slate-500">
+                            <span class="tabular-nums">{{ s.event_count }} events</span>
+                            <span class="tabular-nums">{{ s.duration_seconds | duration }}</span>
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-0.5">
+                        {{ s.first_event | datetime('friendly') }}
+                    </div>
+                    {% if s.event_types %}
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        {% for et in s.event_types[:5] %}
+                        {{ badge(et | friendly_name, variant="default") }}
+                        {% endfor %}
+                        {% if s.event_types | length > 5 %}
+                        <span class="text-xs text-slate-500">+{{ s.event_types | length - 5 }} more</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% endcall %}
+            {% endif %}
+
+            {# ── Errors ── #}
+            {% if errors %}
+            {% call detail_section("Errors (" ~ errors | length ~ ")") %}
+                {% for e in errors %}
+                <div class="flex items-center justify-between text-sm py-1.5">
+                    <span class="text-red-400">{{ e.name | friendly_name }}</span>
+                    <span class="text-xs text-slate-500">{{ e.received_at | timeago }}</span>
+                </div>
+                {% endfor %}
+            {% endcall %}
+            {% endif %}
+
+        </div>
+    {% endcall %}
+
+    {{ panel_footer_close() }}
+
+{% endcall %}

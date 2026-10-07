@@ -1,0 +1,95 @@
+{% from "macros/cards.html" import stat_card, stat_grid %}
+{% from "macros/layout.html" import empty_state, grid %}
+{% from "macros/analytics.html" import analytics_card, value_breakdown %}
+{% from "macros/tables.html" import th, td %}
+{% from "macros/panels.html" import no_data_message %}
+
+{# ── Summary ── #}
+{% call stat_grid(columns=4, class="mb-6") %}
+    {{ stat_card("Total Errors", total_errors | default(0), icon_name="exclamation-triangle", color="red") }}
+    {{ stat_card("Error Types", error_types | default([]) | length, icon_name="tag", color="orange") }}
+    {{ stat_card("Auth Failures", auth_failures | default([]) | length, icon_name="lock-closed", color="blue") }}
+    {{ stat_card("Timeline Points", error_timeline | default([]) | length, icon_name="clock", color="brand") }}
+{% endcall %}
+
+{% call grid(columns=2, class="mb-6") %}
+    {# ── Error Timeline Chart ── #}
+    {% call analytics_card("Error Timeline") %}
+        {% if error_timeline %}
+        <div class="relative" style="height: 250px;">
+            <canvas id="error-timeline-chart"
+                    data-chart-config='{{ {
+                        "type": "bar",
+                        "data": {
+                            "labels": error_timeline | map(attribute="hour") | list,
+                            "datasets": [{
+                                "label": "Errors",
+                                "data": error_timeline | map(attribute="count") | list,
+                                "backgroundColor": "rgba(217, 74, 74, 0.6)",
+                                "borderColor": "#d94a4a",
+                                "borderWidth": 1
+                            }]
+                        },
+                        "options": {
+                            "responsive": true,
+                            "maintainAspectRatio": false,
+                            "plugins": {"legend": {"display": false}},
+                            "scales": {
+                                "x": {"ticks": {"color": "#64748b"}, "grid": {"color": "#1e293b"}},
+                                "y": {"beginAtZero": true, "ticks": {"color": "#64748b"}, "grid": {"color": "#1e293b"}}
+                            }
+                        }
+                    } | tojson_safe }}'></canvas>
+        </div>
+        {% else %}
+        {{ no_data_message() }}
+        {% endif %}
+    {% endcall %}
+
+    {# ── Auth Failures ── #}
+    {% call analytics_card("Authentication Failures") %}
+        {% if auth_failures %}
+        {{ value_breakdown(auth_failures) }}
+        {% else %}
+        {{ no_data_message() }}
+        {% endif %}
+    {% endcall %}
+{% endcall %}
+
+{# ── Error Types Detail ── #}
+{% if error_types %}
+{% call analytics_card("Error Types") %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr>
+                    {{ th("Error Type") }}
+                    {{ th("Count", class="text-right") }}
+                    {{ th("Top Screens") }}
+                    {{ th("Top Messages") }}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-surface-20">
+                {% for error in error_types %}
+                <tr class="hover:bg-surface-10/50 transition-colors align-top">
+                    {% call td() %}<span class="font-medium text-red-400">{{ error.type }}</span>{% endcall %}
+                    {% call td(class="text-right tabular-nums") %}{{ error.count }}{% endcall %}
+                    {% call td() %}
+                        {% for screen, cnt in error.top_screens[:3] %}
+                        <span class="text-xs">{{ screen }} ({{ cnt }})</span>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    {% endcall %}
+                    {% call td() %}
+                        {% for msg, cnt in error.top_messages[:2] %}
+                        <span class="text-xs text-slate-500">{{ msg | truncate(60) }}</span>{% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                    {% endcall %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endcall %}
+{% else %}
+{{ empty_state("No errors in this period", icon_name="check-circle") }}
+{% endif %}

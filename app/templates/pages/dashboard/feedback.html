@@ -1,0 +1,17 @@
+{% set page_width = 'full' %}
+{% extends "layouts/base.html" %}
+
+{% from "macros/layout.html" import page_header %}
+{% from "macros/analytics.html" import time_pills %}
+
+{% block title %}Feedback — LuxAnalytics{% endblock %}
+
+{% block content %}
+{% call page_header(title="Feedback", description=app_id | default("All Apps", true)) %}
+    {{ time_pills(hours, '#page-content', '/dashboard/feedback/content', '&app_id=' ~ (app_id or '')) }}
+{% endcall %}
+
+<div id="page-content">
+    {% include "partials/dashboard/feedback_content.html" %}
+</div>
+{% endblock %}

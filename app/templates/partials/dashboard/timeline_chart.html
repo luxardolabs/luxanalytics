@@ -1,0 +1,55 @@
+{% from "macros/layout.html" import empty_state_compact %}
+{% from "macros/panels.html" import no_data_message %}
+
+{% if timeline_data %}
+<div class="relative" style="height: 300px;">
+    <canvas id="overview-timeline-chart"
+            data-chart-config='{{ {
+                "type": "line",
+                "data": {
+                    "labels": timeline_data | map(attribute="hour") | list,
+                    "datasets": [{
+                        "label": "Events",
+                        "data": timeline_data | map(attribute="count") | list,
+                        "borderColor": "#ffa500",
+                        "backgroundColor": "rgba(255, 165, 0, 0.08)",
+                        "borderWidth": 2,
+                        "fill": true,
+                        "tension": 0.3,
+                        "pointRadius": 0,
+                        "pointHitRadius": 10
+                    }]
+                },
+                "options": {
+                    "responsive": true,
+                    "maintainAspectRatio": false,
+                    "interaction": {"intersect": false, "mode": "index"},
+                    "plugins": {
+                        "legend": {"display": false},
+                        "tooltip": {
+                            "backgroundColor": "#282828",
+                            "borderColor": "#3f3f3f",
+                            "borderWidth": 1,
+                            "titleColor": "#ffa500",
+                            "bodyColor": "#e2e8f0"
+                        }
+                    },
+                    "scales": {
+                        "x": {
+                            "type": "time",
+                            "time": {"tooltipFormat": "MMM d, h:mm a"},
+                            "ticks": {"color": "#64748b", "maxTicksLimit": 12},
+                            "grid": {"color": "#282828"}
+                        },
+                        "y": {
+                            "beginAtZero": true,
+                            "ticks": {"color": "#64748b"},
+                            "grid": {"color": "#282828"}
+                        }
+                    }
+                }
+            } | tojson_safe }}'></canvas>
+</div>
+{% else %}
+{{ no_data_message() }}
+{% endif %}

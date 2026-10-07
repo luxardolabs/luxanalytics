@@ -1,0 +1,26 @@
+{% set page_width = 'standard' %}
+{% extends "layouts/base.html" %}
+
+{% from "macros/layout.html" import page_header, loading %}
+{% from "macros/buttons.html" import button %}
+{% from "macros/forms.html" import input %}
+
+{% block title %}Apps — LuxAnalytics{% endblock %}
+
+{% block content %}
+{% call page_header(title="Applications", description="Manage registered apps and DSN keys") %}
+    {{ button("New App", variant='primary', size='sm', icon_left='plus',
+              hx_get='/apps/new', hx_target='#panel-container', hx_swap='innerHTML') }}
+{% endcall %}
+
+<div class="mb-4">
+    {{ input("q", placeholder="Search apps...", class="max-w-sm") }}
+</div>
+
+<div id="apps-list"
+     hx-get="/apps/list"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    {{ loading("Loading apps...") }}
+</div>
+{% endblock %}

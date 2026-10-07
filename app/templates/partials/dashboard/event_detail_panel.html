@@ -1,0 +1,120 @@
+{% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer_close %}
+{% from "macros/cards.html" import stat_card_compact, stat_grid %}
+{% from "macros/badges.html" import badge %}
+{% from "macros/analytics.html" import detail_section, kv_pair, kv_grid %}
+
+{% call panel_wrapper(max_width="max-w-xl") %}
+
+    {{ panel_header(event.name | friendly_name, subtitle=event.received_at | datetime('friendly')) }}
+
+    {% call panel_content() %}
+        <div class="space-y-4">
+
+            {# ── Identity ── #}
+            {% call stat_grid(columns=2, gap=3) %}
+                {{ stat_card_compact("App", event.app_id, color="brand") }}
+                {{ stat_card_compact("Platform", event.platform | default('ios'), color="blue") }}
+            {% endcall %}
+
+            {# ── Feedback-specific view ── #}
+            {% if event.name == 'feedback_submitted' and event.event_metadata %}
+            {% set meta = event.event_metadata %}
+
+            {% call stat_grid(columns=3, gap=3) %}
+                {{ stat_card_compact("Category", meta.get('feedback_category', 'General') | friendly_name, color="brand") }}
+                {{ stat_card_compact("From", meta.get('contact_email', 'Anonymous') | truncate(20), color="green") }}
+                {{ stat_card_compact("Feature", meta.get('feature', meta.get('screen', 'Unknown')) | friendly_name, color="purple") }}
+            {% endcall %}
+
+            {# Feedback content #}
+            {% if meta.get('feedback_content') %}
+            {% call detail_section("Feedback Content") %}
+                <p class="text-sm text-slate-300 leading-relaxed">{{ meta.feedback_content }}</p>
+                <div class="text-xs text-slate-500 mt-2">{{ meta.get('feedback_length', '0') }} characters</div>
+            {% endcall %}
+            {% endif %}
+
+            {# User context #}
+            {% call detail_section("User Context") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("User ID", event.user_id, mono=true) }}
+                    {{ kv_pair("Premium", "Yes" if meta.get('is_premium') == 'true' else "No") }}
+                    {{ kv_pair("Usage Stats", "Shared" if meta.get('include_usage_stats') == 'true' else "Not shared") }}
+                    {{ kv_pair("Cards", meta.get('total_cards_range', 'Unknown')) }}
+                {% endcall %}
+            {% endcall %}
+
+            {# Device info #}
+            {% call detail_section("Device") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("Model", (meta.get('device_model', 'Unknown')) ~ " (" ~ (meta.get('device_type', '')) ~ ")") }}
+                    {{ kv_pair("OS", "iOS " ~ meta.get('system_version', meta.get('os_version', 'Unknown'))) }}
+                    {{ kv_pair("App Version", (meta.get('app_version', 'Unknown')) ~ " (" ~ (meta.get('build_number', '')) ~ ")") }}
+                    {{ kv_pair("Distribution", "TestFlight" if meta.get('is_testflight') == 'true' else "App Store") }}
+                    {{ kv_pair("Locale", meta.get('locale', 'Unknown')) }}
+                    {{ kv_pair("Timezone", meta.get('timezone', 'Unknown')) }}
+                {% endcall %}
+            {% endcall %}
+
+            {% else %}
+            {# ── Standard event view ── #}
+
+            {# Actor #}
+            {% call detail_section("Actor") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("User ID", event.user_id, mono=true) }}
+                    {{ kv_pair("Session ID", event.session_id | truncate(24) if event.session_id else none, mono=true) }}
+                    {{ kv_pair("Device ID", event.device_id | truncate(24) if event.device_id else none, mono=true) }}
+                    {{ kv_pair("Device", event.device_model) }}
+                {% endcall %}
+            {% endcall %}
+
+            {# Device Context #}
+            {% call detail_section("Device Context") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("OS Version", event.os_version) }}
+                    {{ kv_pair("App Version", event.app_version) }}
+                {% endcall %}
+            {% endcall %}
+
+            {% endif %}
+
+            {# ── Timestamps (always shown) ── #}
+            {% call detail_section("Timestamps") %}
+                {% call kv_grid() %}
+                    {{ kv_pair("Client Time", event.timestamp | datetime('medium')) }}
+                    {{ kv_pair("Received", event.received_at | datetime('medium')) }}
+                {% endcall %}
+            {% endcall %}
+
+            {# ── Properties (always shown if present) ── #}
+            {% if event.properties %}
+            {% call detail_section("Properties") %}
+                <div class="space-y-1.5">
+                    {% for key, value in event.properties.items() %}
+                    <div class="flex items-start justify-between text-sm">
+                        <span class="text-slate-500 shrink-0 mr-3">{{ key }}</span>
+                        <span class="text-slate-300 text-right font-mono text-xs break-all">{{ value }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endcall %}
+            {% endif %}
+
+            {# ── Raw JSON (collapsed) ── #}
+            {% if event.event_metadata %}
+            <details class="bg-surface-10/50 rounded-lg overflow-hidden">
+                <summary class="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-surface-10 transition-colors">
+                    Raw Metadata JSON
+                </summary>
+                <div class="px-4 pb-4">
+                    <pre class="text-xs text-slate-300 font-mono bg-surface-0 rounded p-3 overflow-x-auto max-h-[300px] overflow-y-auto">{{ event.event_metadata | tojson_safe(indent=2) }}</pre>
+                </div>
+            </details>
+            {% endif %}
+        </div>
+    {% endcall %}
+
+    {{ panel_footer_close() }}
+
+{% endcall %}

@@ -1,0 +1,141 @@
+{#
+Analytics Macros - LuxAnalytics-specific components extending the LuxAnalytics macro system.
+
+Patterns unique to analytics dashboards:
+- Time range pill selectors (hours-based)
+- Value breakdown lists (device models, OS versions, etc.)
+- Key-value detail sections (for slider panels)
+- Analytics card (titled panel for dashboard sections)
+
+Usage:
+  {% from "macros/analytics.html" import time_pills, value_breakdown, detail_section, kv_pair, kv_grid, analytics_card %}
+#}
+
+{% from "macros/icons.html" import icon %}
+{% from "macros/layout.html" import loading %}
+
+
+{# ============================================================================
+   TIME PILLS - Hour-based time range selector as pill buttons
+   ============================================================================ #}
+{% macro time_pills(current_hours, hx_target, base_url, extra_params='') %}
+{% set periods = [
+    (1, '1H'),
+    (6, '6H'),
+    (24, '24H'),
+    (168, '7D'),
+    (720, '30D'),
+    (2160, '90D'),
+    (8760, '1Y'),
+    (0, 'All'),
+] %}
+<div class="flex gap-1" x-data="{ selected: {{ current_hours }} }">
+    {% for hours, label in periods %}
+    <button type="button"
+            class="px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-200"
+            :class="selected === {{ hours }}
+                ? 'bg-brand-500 text-slate-900 shadow-glow'
+                : 'bg-surface-10/50 text-slate-500 hover:bg-surface-20 hover:text-white'"
+            @click="selected = {{ hours }}"
+            hx-get="{{ base_url }}?hours={{ hours }}{{ extra_params }}"
+            hx-target="{{ hx_target }}"
+            hx-swap="innerHTML">
+        {{ label }}
+    </button>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   VALUE BREAKDOWN - Sorted list with counts and progress bars
+   For device models, OS versions, locales, error types, etc.
+   ============================================================================ #}
+{% macro value_breakdown(items, max_items=10, show_bar=true) %}
+{% set total = items | map(attribute='1') | sum if items else 0 %}
+{% if items %}
+<div class="space-y-2.5">
+    {% for name, count in items[:max_items] %}
+    <div class="flex items-center justify-between text-sm">
+        <span class="text-slate-300 truncate mr-3">{{ name }}</span>
+        <div class="flex items-center gap-2 shrink-0">
+            {% if show_bar and total > 0 %}
+            <div class="w-20 h-1.5 bg-surface-10/50 rounded-full overflow-hidden">
+                <div class="h-full bg-brand-500/60 rounded-full" style="width: {{ (count / total * 100) | round(1) }}%"></div>
+            </div>
+            {% endif %}
+            <span class="text-slate-500 text-xs tabular-nums w-10 text-right">{{ count | number_format }}</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% if items | length > max_items %}
+    <div class="text-xs text-slate-500 pt-1">+ {{ items | length - max_items }} more</div>
+    {% endif %}
+</div>
+{% else %}
+<p class="text-sm text-slate-500">No data</p>
+{% endif %}
+{% endmacro %}
+
+
+{# ============================================================================
+   DETAIL SECTION - Titled section for slider panels
+   ============================================================================ #}
+{% macro detail_section(title) %}
+<div class="bg-surface-10/50 rounded-lg p-4 space-y-3">
+    <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">{{ title }}</h4>
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   KV PAIR - Single key-value for detail panels
+   ============================================================================ #}
+{% macro kv_pair(label, value, mono=false) %}
+<div>
+    <span class="text-slate-500 text-xs">{{ label }}</span>
+    <div class="text-slate-300 text-sm mt-0.5 {% if mono %}font-mono text-xs{% endif %}">{{ value | default('—', true) }}</div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   KV GRID - Grid of key-value pairs
+   ============================================================================ #}
+{% macro kv_grid(columns=2) %}
+<div class="grid grid-cols-{{ columns }} gap-x-4 gap-y-3">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   ANALYTICS CARD - Panel with title header for dashboard sections
+   ============================================================================ #}
+{% macro analytics_card(title, id=none) %}
+<div {% if id %}id="{{ id }}"{% endif %} class="bg-surface-10 rounded-lg shadow-lg overflow-hidden border border-surface-20">
+    {% if title %}
+    <div class="px-5 py-3 border-b border-surface-20 bg-panel-header">
+        <h3 class="text-sm font-medium text-slate-300">{{ title }}</h3>
+    </div>
+    {% endif %}
+    <div class="p-5">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   CHART AREA - Lazy-loaded chart container
+   ============================================================================ #}
+{% macro chart_area(id, hx_url, height=300) %}
+<div id="{{ id }}"
+     hx-get="{{ hx_url }}"
+     hx-trigger="load"
+     hx-swap="innerHTML"
+     style="min-height: {{ height }}px;">
+    {{ loading("Loading chart...") }}
+</div>
+{% endmacro %}

@@ -1,0 +1,32 @@
+{% set page_width = 'full' %}
+{% extends "layouts/base.html" %}
+
+{% from "macros/layout.html" import page_header, filter_bar %}
+{% from "macros/forms.html" import filter_label, form_group %}
+{% from "macros/analytics.html" import time_pills %}
+
+{% block title %}Events — LuxAnalytics{% endblock %}
+
+{% block content %}
+{% call page_header(title="Events", description=app_id | default("All Apps", true)) %}
+    {{ time_pills(hours, '#page-content', '/dashboard/events/content', '&app_id=' ~ (app_id or '') ~ '&event_name=' ~ (event_name or '')) }}
+{% endcall %}
+
+<form hx-get="/dashboard/events/content"
+      hx-target="#page-content"
+      hx-swap="innerHTML"
+      hx-trigger="keyup changed delay:400ms from:find input">
+    <input type="hidden" name="hours" value="{{ hours }}">
+    <input type="hidden" name="app_id" value="{{ app_id or '' }}">
+    {% call filter_bar() %}
+        {{ filter_label('Event:') }}
+        {{ form_group('', 'event_name', value=event_name or '', placeholder='Filter by event name...', class='w-48') }}
+        {{ filter_label('Search:') }}
+        {{ form_group('', 'search_q', placeholder='Search user, session...', class='w-48') }}
+    {% endcall %}
+</form>
+
+<div id="page-content">
+    {% include "partials/dashboard/events_content.html" %}
+</div>
+{% endblock %}

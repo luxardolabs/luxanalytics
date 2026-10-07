@@ -1,0 +1,92 @@
+{% from "macros/cards.html" import stat_card, stat_grid %}
+{% from "macros/layout.html" import empty_state, grid, section_header %}
+{% from "macros/analytics.html" import analytics_card, value_breakdown %}
+{% from "macros/tables.html" import th, td %}
+{% from "macros/badges.html" import badge %}
+
+{# ── Summary ── #}
+{% call stat_grid(columns=4, class="mb-6") %}
+    {{ stat_card("Total Events", total_events | default(0) | number_format, icon_name="bolt", color="brand") }}
+    {{ stat_card("Features", features | default([]) | length, icon_name="squares-2x2", color="blue") }}
+    {{ stat_card("Screens", screens | default([]) | length, icon_name="device-phone-mobile", color="green") }}
+    {{ stat_card("Button Taps", buttons | default([]) | length, icon_name="cursor-arrow-rays", color="purple") }}
+{% endcall %}
+
+{# ── Features + Screens ── #}
+{% call grid(columns=2, class="mb-6") %}
+
+    {# Features with event breakdown #}
+    {% call analytics_card("Feature Usage") %}
+        {% if features %}
+        <div class="space-y-4">
+            {% for feature in features %}
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-medium text-white">{{ feature.name | friendly_name }}</span>
+                    <span class="text-xs text-slate-500 tabular-nums">{{ feature.total | number_format }} events</span>
+                </div>
+                {% if feature.top_events %}
+                <div class="flex flex-wrap gap-1">
+                    {% for event_name, count in feature.top_events %}
+                    {{ badge(event_name ~ " (" ~ count ~ ")", variant="default") }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        {{ empty_state("No feature data", description="Send events with 'feature' in metadata", icon_name="squares-2x2") }}
+        {% endif %}
+    {% endcall %}
+
+    {# Screens with event breakdown #}
+    {% call analytics_card("Screen Views") %}
+        {% if screens %}
+        <div class="space-y-4">
+            {% for screen in screens %}
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-medium text-white">{{ screen.name | friendly_name }}</span>
+                    <span class="text-xs text-slate-500 tabular-nums">{{ screen.total | number_format }} views</span>
+                </div>
+                {% if screen.top_events %}
+                <div class="flex flex-wrap gap-1">
+                    {% for event_name, count in screen.top_events %}
+                    {{ badge(event_name ~ " (" ~ count ~ ")", variant="default") }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        {{ empty_state("No screen data", description="Send events with 'screen' in metadata", icon_name="device-phone-mobile") }}
+        {% endif %}
+    {% endcall %}
+
+{% endcall %}
+
+{# ── Button Taps ── #}
+{% if buttons %}
+{% call analytics_card("Button Taps") %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr>
+                    {{ th("Screen : Button") }}
+                    {{ th("Taps", class="text-right") }}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-surface-20">
+                {% for key, count in buttons %}
+                <tr class="hover:bg-surface-10/50 transition-colors">
+                    {% call td() %}<span class="font-mono text-xs">{{ key }}</span>{% endcall %}
+                    {% call td(class="text-right tabular-nums") %}{{ count | number_format }}{% endcall %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endcall %}
+{% endif %}

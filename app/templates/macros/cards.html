@@ -1,0 +1,1279 @@
+{#
+    Card Macros - Card containers, stat displays, and avatars for LuxAnalytics templates.
+    Dark Mode Theme with Orange (#ffa500) brand color.
+
+    Usage:
+        {% from "macros/cards.html" import card, stat_card_compact, avatar %}
+
+    Available macros:
+        - card, card_with_actions      - Basic card containers
+        - stat_card, stat_card_compact - Stat display cards
+        - chart_card                   - Chart.js container card
+        - avatar                       - Gradient circle with initial or icon
+        - settings_card, quick_action_card, email_template_card
+#}
+
+{% from "macros/icons.html" import icon %}
+
+
+{# ============================================================================
+   SCALE CARD - AQI/Comfort Index style range cards with hover glow
+   ============================================================================ #}
+
+{#
+Scale card for AQI levels, comfort index scores, or any range-based scale.
+Displays a range badge, title, description, and optional image.
+
+Usage:
+    {{ scale_card('0-50', 'Good', 'Air quality is satisfactory. Little to no health risk.', 'green') }}
+    {{ scale_card('151-200', 'Unhealthy', 'Everyone may experience effects.', 'red', image='/static/images/head/hard-pass.webp', image_alt='Unhealthy') }}
+
+Parameters:
+    range:      Range text for the badge (e.g., "0-50", "300+")
+    title:      Level title (e.g., "Good", "Moderate", "Hazardous")
+    description: Description text
+    color:      Color name: green, yellow, orange, red, purple, maroon (for hazardous)
+    image:      Optional image URL for circle_image
+    image_alt:  Alt text for image (defaults to title)
+
+NOTE: Uses inline RGB values for gradient backgrounds and hover glows.
+#}
+{% macro scale_card(range, title, description, color='green', image=none, image_alt=none) %}
+{%- set color_config = {
+    'green':  {'rgb': '34, 197, 94', 'text': 'text-green-400', 'badge_bg': 'bg-green-500/20', 'badge_border': 'border-green-400/30'},
+    'yellow': {'rgb': '250, 204, 21', 'text': 'text-yellow-400', 'badge_bg': 'bg-yellow-500/20', 'badge_border': 'border-yellow-400/30'},
+    'orange': {'rgb': '251, 146, 60', 'text': 'text-orange-400', 'badge_bg': 'bg-orange-500/20', 'badge_border': 'border-orange-400/30'},
+    'red':    {'rgb': '239, 68, 68', 'text': 'text-red-400', 'badge_bg': 'bg-red-500/20', 'badge_border': 'border-red-400/30'},
+    'purple': {'rgb': '168, 85, 247', 'text': 'text-purple-400', 'badge_bg': 'bg-purple-500/20', 'badge_border': 'border-purple-400/30'},
+    'maroon': {'rgb': '127, 29, 29', 'text': 'text-red-500', 'badge_bg': 'bg-red-900/30', 'badge_border': 'border-red-700/30'}
+} -%}
+{%- set c = color_config.get(color, color_config.green) -%}
+<div class="relative overflow-hidden rounded-2xl border p-6 transition-all duration-300"
+     style="border-color: rgba({{ c.rgb }}, 0.4); background: linear-gradient(135deg, rgba({{ c.rgb }}, 0.15), rgba({{ c.rgb }}, 0.05)); box-shadow: 0 4px 20px rgba({{ c.rgb }}, 0.08);"
+     onmouseenter="this.style.boxShadow='0 8px 40px rgba({{ c.rgb }}, 0.25)'; this.style.borderColor='rgba({{ c.rgb }}, 0.6)'"
+     onmouseleave="this.style.boxShadow='0 4px 20px rgba({{ c.rgb }}, 0.08)'; this.style.borderColor='rgba({{ c.rgb }}, 0.4)'">
+    <div class="flex items-center gap-6">
+        <div class="flex-shrink-0 w-24 h-16 rounded-xl flex items-center justify-center {{ c.badge_bg }} border {{ c.badge_border }}">
+            <span class="text-2xl font-black {{ c.text }}">{{ range }}</span>
+        </div>
+        <div class="flex-1">
+            <h3 class="text-xl font-bold {{ c.text }} mb-1">{{ title }}</h3>
+            <p class="text-slate-300">{{ description }}</p>
+        </div>
+        {%- if image -%}
+        {% from "macros/cards.html" import circle_image %}
+        {{ circle_image(image, image_alt or title, color) }}
+        {%- endif -%}
+    </div>
+</div>
+{%- endmacro %}
+
+
+{# ============================================================================
+   SHOWCASE CARD - Feature/Dashboard showcase cards with hover effects
+   ============================================================================ #}
+
+{#
+Showcase card for feature pages and dashboard directories.
+Links to demos with consistent hover glow effects.
+
+Usage:
+    {{ showcase_card('Live', 'Real-time conditions', 'Your station current readings...', 'bolt', 'blue', '/wx/demo/dashboards/live/demo') }}
+    {{ showcase_card('Air Quality', 'AQI & pollutants', 'Track the air you breathe...', 'sparkles', 'violet', '/wx/demo/dashboards/air-quality/demo', badge='Pro') }}
+
+For live ping icon (animated):
+    {{ showcase_card('Live', 'Real-time conditions', 'description...', 'live', 'blue', '/url', icon_type='ping') }}
+
+Parameters:
+    title:       Card title (required)
+    subtitle:    Short subtitle text (required)
+    description: Longer description (required)
+    icon:        Icon name (or 'live' for ping icon)
+    color:       Color name: blue, purple, violet, cyan, amber, emerald, yellow, teal, green, red, brand
+    href:        Link URL (required)
+    icon_type:   'icon' (default) or 'ping' for animated live ping
+    link_text:   CTA text (default: "Try the demo")
+    badge:       Optional badge text (e.g., "Pro", "New", "Beta")
+
+NOTE: Uses inline RGB values for gradient backgrounds and hover shadows.
+#}
+{% macro showcase_card(title, subtitle, description, icon_name, color='brand', href='#', icon_type='icon', link_text='Try the demo', badge=none) %}
+{%- set color_config = {
+    'blue':    {'rgb': '59, 130, 246', 'text': 'text-blue-400', 'text_hover': 'group-hover:text-blue-300'},
+    'purple':  {'rgb': '168, 85, 247', 'text': 'text-purple-400', 'text_hover': 'group-hover:text-purple-300'},
+    'violet':  {'rgb': '139, 92, 246', 'text': 'text-violet-400', 'text_hover': 'group-hover:text-violet-300'},
+    'cyan':    {'rgb': '34, 211, 238', 'text': 'text-cyan-400', 'text_hover': 'group-hover:text-cyan-300'},
+    'amber':   {'rgb': '245, 158, 11', 'text': 'text-amber-400', 'text_hover': 'group-hover:text-amber-300'},
+    'emerald': {'rgb': '52, 211, 153', 'text': 'text-emerald-400', 'text_hover': 'group-hover:text-emerald-300'},
+    'yellow':  {'rgb': '250, 204, 21', 'text': 'text-yellow-400', 'text_hover': 'group-hover:text-yellow-300'},
+    'teal':    {'rgb': '45, 212, 191', 'text': 'text-teal-400', 'text_hover': 'group-hover:text-teal-300'},
+    'green':   {'rgb': '34, 197, 94', 'text': 'text-green-400', 'text_hover': 'group-hover:text-green-300'},
+    'red':     {'rgb': '239, 68, 68', 'text': 'text-red-400', 'text_hover': 'group-hover:text-red-300'},
+    'brand':   {'rgb': '255, 165, 0', 'text': 'text-brand-500', 'text_hover': 'group-hover:text-brand-200'}
+} -%}
+{%- set c = color_config.get(color, color_config.brand) -%}
+{% from "macros/icons.html" import icon, live_ping %}
+<a href="{{ href }}" class="group block">
+    <div class="h-full rounded-2xl border p-6 transition-all"
+         style="border-color: rgba({{ c.rgb }}, 0.3); background: linear-gradient(135deg, rgba({{ c.rgb }}, 0.10), rgba({{ c.rgb }}, 0.05));"
+         onmouseenter="this.style.borderColor='rgba({{ c.rgb }}, 0.5)'; this.style.boxShadow='0 10px 40px rgba({{ c.rgb }}, 0.15)'"
+         onmouseleave="this.style.borderColor='rgba({{ c.rgb }}, 0.3)'; this.style.boxShadow='none'">
+        <div class="flex items-start gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                 style="background: rgba({{ c.rgb }}, 0.2); border: 1px solid rgba({{ c.rgb }}, 0.3);">
+                {%- if icon_type == 'ping' -%}
+                {{ live_ping('md', color) }}
+                {%- else -%}
+                {{ icon(icon_name, 'w-6 h-6 ' ~ c.text) }}
+                {%- endif -%}
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h3 class="text-xl font-bold text-white {{ c.text_hover }} transition-colors">{{ title }}</h3>
+                    {%- if badge -%}
+                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-400 border border-amber-400/30">{{ badge }}</span>
+                    {%- endif -%}
+                </div>
+                <p class="{{ c.text }} text-sm">{{ subtitle }}</p>
+            </div>
+        </div>
+        <p class="text-slate-300 mb-4">{{ description }}</p>
+        <div class="flex items-center gap-2 text-sm {{ c.text }} {{ c.text_hover }}">
+            <span>{{ link_text }}</span>
+            {{ icon('arrow-right', 'w-4 h-4 transition-transform group-hover:translate-x-1') }}
+        </div>
+    </div>
+</a>
+{%- endmacro %}
+
+
+{# ============================================================================
+   DASHBOARD GROUP - Container for grouping related dashboards/features
+   ============================================================================ #}
+
+{#
+Dashboard group container for visually grouping related items.
+Used on feature directory pages to group dashboards by category.
+
+Usage:
+    {% call dashboard_group('Real-time Dashboards', 'What\'s happening right now', 'bolt', 'blue') %}
+        {{ showcase_card(...) }}
+        {{ showcase_card(...) }}
+    {% endcall %}
+
+Parameters:
+    title:       Group title (required)
+    subtitle:    Short description (required)
+    icon:        Icon name for the header
+    color:       Color name: blue, amber, purple, green, red, brand, etc.
+
+NOTE: Uses inline RGB values for consistent theming with showcase_card.
+#}
+{% macro dashboard_group(title, subtitle, icon_name, color='brand') %}
+{%- set color_config = {
+    'blue':    {'rgb': '59, 130, 246', 'text': 'text-blue-400'},
+    'purple':  {'rgb': '168, 85, 247', 'text': 'text-purple-400'},
+    'violet':  {'rgb': '139, 92, 246', 'text': 'text-violet-400'},
+    'cyan':    {'rgb': '34, 211, 238', 'text': 'text-cyan-400'},
+    'amber':   {'rgb': '245, 158, 11', 'text': 'text-amber-400'},
+    'emerald': {'rgb': '52, 211, 153', 'text': 'text-emerald-400'},
+    'yellow':  {'rgb': '250, 204, 21', 'text': 'text-yellow-400'},
+    'teal':    {'rgb': '45, 212, 191', 'text': 'text-teal-400'},
+    'green':   {'rgb': '34, 197, 94', 'text': 'text-green-400'},
+    'red':     {'rgb': '239, 68, 68', 'text': 'text-red-400'},
+    'brand':   {'rgb': '255, 165, 0', 'text': 'text-brand-500'}
+} -%}
+{%- set c = color_config.get(color, color_config.brand) -%}
+{% from "macros/icons.html" import icon %}
+<div class="rounded-2xl border p-6 md:p-8 transition-all duration-300"
+     style="border-color: rgba({{ c.rgb }}, 0.2); background: linear-gradient(135deg, rgba({{ c.rgb }}, 0.03), transparent);"
+     onmouseenter="this.style.borderColor='rgba({{ c.rgb }}, 0.3)'"
+     onmouseleave="this.style.borderColor='rgba({{ c.rgb }}, 0.2)'">
+    <div class="flex items-center gap-4 mb-6 pb-6 border-b" style="border-color: rgba({{ c.rgb }}, 0.15);">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+             style="background: rgba({{ c.rgb }}, 0.15); border: 1px solid rgba({{ c.rgb }}, 0.3);">
+            {{ icon(icon_name, 'w-6 h-6 ' ~ c.text) }}
+        </div>
+        <div>
+            <h2 class="text-2xl font-bold text-white">{{ title }}</h2>
+            <p class="text-slate-500 text-sm">{{ subtitle }}</p>
+        </div>
+    </div>
+    {{ caller() }}
+</div>
+{%- endmacro %}
+
+
+{# ============================================================================
+   METRIC CARD - Simple card with colored top accent and hover glow
+   ============================================================================ #}
+
+{#
+Metric card for feature pages - simple card with colored top border and title.
+Great for listing features, metrics, or capabilities in a visually distinct way.
+
+Usage:
+    {{ metric_card('Feels Like', 'amber', '"It\'s 72°F but feels like 78°F" — combines temperature, humidity, and wind.') }}
+    {{ metric_card('Frost Risk', 'blue', 'Not just "is it 32°F?" but actual frost probability.') }}
+
+Parameters:
+    title:       Card title (required)
+    color:       Color name: green, blue, amber, purple, red, brand (matches icon_box from icons.html)
+    description: Card description text
+
+NOTE: Uses exact same color palette as icon_box macro for design system consistency.
+#}
+{% macro metric_card(title, color='brand', description='') %}
+{#- Color configurations - EXACTLY matches icon_box from icons.html -#}
+{%- set color_config = {
+    'green':  {'rgb': '34, 197, 94', 'text': 'text-green-400'},
+    'blue':   {'rgb': '59, 130, 246', 'text': 'text-blue-400'},
+    'amber':  {'rgb': '245, 158, 11', 'text': 'text-amber-400'},
+    'purple': {'rgb': '168, 85, 247', 'text': 'text-purple-400'},
+    'red':    {'rgb': '239, 68, 68', 'text': 'text-red-400'},
+    'brand':  {'rgb': '255, 165, 0', 'text': 'text-brand-500'}
+} -%}
+{%- set c = color_config.get(color, color_config.brand) -%}
+<div class="p-4 rounded-xl bg-surface-0 border border-surface-20 transition-all duration-300 cursor-default"
+     style="border-top: 2px solid rgba({{ c.rgb }}, 0.5);"
+     onmouseenter="this.style.boxShadow='0 0 20px rgba({{ c.rgb }}, 0.3)'; this.style.borderColor='rgba({{ c.rgb }}, 0.4)'"
+     onmouseleave="this.style.boxShadow='none'; this.style.borderColor='rgba(51, 65, 85, 0.5)'; this.style.borderTopColor='rgba({{ c.rgb }}, 0.5)'">
+    <h3 class="font-semibold {{ c.text }} mb-2">{{ title }}</h3>
+    {%- if description -%}
+    <p class="text-sm text-slate-500">{{ description }}</p>
+    {%- endif -%}
+</div>
+{%- endmacro %}
+
+
+{# ============================================================================
+   FEATURE LINK - Navigation links for "Explore More Features" sections
+   ============================================================================ #}
+
+{#
+Feature link for "Explore More Features" navigation sections.
+Compact link card with icon_box and hover effects.
+
+Usage:
+    {{ feature_link('Comfort Index', 'sparkles', '/features/comfort-index', 'brand', active=true) }}
+    {{ feature_link('Hyperlocal', 'map-pin', '/features/hyperlocal', 'green') }}
+
+Parameters:
+    title:    Link text (required)
+    icon:     Icon name for icon_box (required)
+    href:     Link URL (required)
+    color:    Color name: green, blue, amber, purple, red, brand (matches icon_box)
+    active:   If true, shows as highlighted/selected state (colored border + bg)
+
+NOTE: Uses exact same color palette as icon_box and metric_card for design system consistency.
+#}
+{% macro feature_link(title, icon, href, color='brand', active=false) %}
+{%- set color_config = {
+    'green':  {'rgb': '34, 197, 94', 'border_hover': 'hover:border-green-500/50', 'bg_hover': 'hover:bg-green-500/5', 'border_active': 'border-green-400/50', 'bg_active': 'bg-green-500/5', 'text_active': 'text-green-400'},
+    'blue':   {'rgb': '59, 130, 246', 'border_hover': 'hover:border-blue-500/50', 'bg_hover': 'hover:bg-blue-500/5', 'border_active': 'border-blue-400/50', 'bg_active': 'bg-blue-500/5', 'text_active': 'text-blue-400'},
+    'amber':  {'rgb': '245, 158, 11', 'border_hover': 'hover:border-amber-500/50', 'bg_hover': 'hover:bg-amber-500/5', 'border_active': 'border-amber-400/50', 'bg_active': 'bg-amber-500/5', 'text_active': 'text-amber-400'},
+    'purple': {'rgb': '168, 85, 247', 'border_hover': 'hover:border-purple-500/50', 'bg_hover': 'hover:bg-purple-500/5', 'border_active': 'border-purple-400/50', 'bg_active': 'bg-purple-500/5', 'text_active': 'text-purple-400'},
+    'red':    {'rgb': '239, 68, 68', 'border_hover': 'hover:border-red-500/50', 'bg_hover': 'hover:bg-red-500/5', 'border_active': 'border-red-400/50', 'bg_active': 'bg-red-500/5', 'text_active': 'text-red-400'},
+    'brand':  {'rgb': '255, 165, 0', 'border_hover': 'hover:border-brand-500/50', 'bg_hover': 'hover:bg-brand-500/5', 'border_active': 'border-brand-500/50', 'bg_active': 'bg-brand-500/5', 'text_active': 'text-brand-500'}
+} -%}
+{%- set c = color_config.get(color, color_config.brand) -%}
+{% from "macros/icons.html" import icon_box %}
+{% if active %}
+<a href="{{ href }}" class="flex items-center gap-3 p-3 rounded-xl border {{ c.border_active }} {{ c.bg_active }} transition-all group">
+    <div class="flex-shrink-0">{{ icon_box(icon, color, 'sm') }}</div>
+    <span class="text-sm {{ c.text_active }} group-hover:text-white transition-colors">{{ title }}</span>
+</a>
+{% else %}
+<a href="{{ href }}" class="flex items-center gap-3 p-3 rounded-xl border border-surface-20 {{ c.border_hover }} {{ c.bg_hover }} transition-all group">
+    <div class="flex-shrink-0">{{ icon_box(icon, color, 'sm') }}</div>
+    <span class="text-sm text-slate-300 group-hover:text-white transition-colors">{{ title }}</span>
+</a>
+{% endif %}
+{%- endmacro %}
+
+
+{# ============================================================================
+   EXPLORE MORE FEATURES - Full section for feature page footers
+   ============================================================================ #}
+
+{#
+Renders the complete "Explore More Features" section for feature pages.
+Automatically excludes the current page from the list.
+
+Usage:
+    {{ explore_more_features('ask') }}           - excludes Ask LuxAnalytics
+    {{ explore_more_features('dashboards') }}    - excludes Dashboards
+    {{ explore_more_features('comfort-index') }} - excludes Comfort Index
+
+Parameters:
+    current:  The current page key to exclude from links
+              Valid keys: dashboards, comfort-index, hyperlocal, multi-station,
+                         derived-metrics, history, alerts, visualizations, ask, air-quality, kiosk, eink
+#}
+{% macro explore_more_features(current) %}
+{%- set all_features = [
+    {'key': 'dashboards', 'title': 'Dashboards', 'icon': 'squares-2x2', 'href': '/features/dashboards', 'color': 'brand'},
+    {'key': 'comfort-index', 'title': 'Comfort Index', 'icon': 'sparkles', 'href': '/features/comfort-index', 'color': 'brand'},
+    {'key': 'hyperlocal', 'title': 'Hyperlocal', 'icon': 'map-pin', 'href': '/features/hyperlocal', 'color': 'green'},
+    {'key': 'multi-station', 'title': 'Multi-Station', 'icon': 'squares-2x2', 'href': '/features/multi-station', 'color': 'blue'},
+    {'key': 'derived-metrics', 'title': 'Derived Metrics', 'icon': 'beaker', 'href': '/features/derived-metrics', 'color': 'amber'},
+    {'key': 'history', 'title': 'Forever History', 'icon': 'clock', 'href': '/features/history', 'color': 'purple'},
+    {'key': 'alerts', 'title': 'Smart Alerts', 'icon': 'bell', 'href': '/features/alerts', 'color': 'red'},
+    {'key': 'visualizations', 'title': 'Visualizations', 'icon': 'chart-bar', 'href': '/features/visualizations', 'color': 'green'},
+    {'key': 'ask', 'title': 'Ask LuxAnalytics', 'icon': 'chat-bubble-left', 'href': '/features/ask', 'color': 'brand'},
+    {'key': 'air-quality', 'title': 'Air Quality', 'icon': 'sparkles', 'href': '/features/air-quality', 'color': 'purple'},
+    {'key': 'kiosk', 'title': 'Kiosk Mode', 'icon': 'tv', 'href': '/features/kiosk', 'color': 'purple'},
+    {'key': 'eink', 'title': 'E-Ink Display', 'icon': 'device-tablet', 'href': '/features/eink', 'color': 'teal'}
+] -%}
+<div class="border-t border-surface-20 pt-12 mb-12">
+    <h2 class="text-lg font-semibold text-slate-500 mb-6">Explore More Features</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        {%- for feature in all_features -%}
+            {%- if feature.key != current -%}
+        {{ feature_link(feature.title, feature.icon, feature.href, feature.color) }}
+            {%- endif -%}
+        {%- endfor -%}
+    </div>
+</div>
+{%- endmacro %}
+
+
+{# ============================================================================
+   BASIC CARDS
+   ============================================================================ #}
+
+{# Basic card container #}
+{% macro card(title=none, subtitle=none, class="") %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 {{ class }}">
+    {% if title %}
+    <div class="px-6 py-4 border-b border-surface-20">
+        <h2 class="text-lg font-medium text-white">{{ title }}</h2>
+        {% if subtitle %}
+        <p class="mt-1 text-sm text-slate-500">{{ subtitle }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div class="{% if title %}{% else %}p-6{% endif %}">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Card with header actions #}
+{% macro card_with_actions(title, action_text=none, action_url=none, action_htmx=none) %}
+<div class="bg-surface-10 rounded-xl border border-surface-20">
+    <div class="px-6 py-4 border-b border-surface-20 flex justify-between items-center">
+        <h2 class="text-lg font-medium text-white">{{ title }}</h2>
+        {% if action_text and action_url %}
+        <a href="{{ action_url }}" class="text-sm font-medium transition-colors text-brand-500 hover:text-brand-200">
+            {{ action_text }} &rarr;
+        </a>
+        {% elif action_text and action_htmx %}
+        <button type="button" {{ action_htmx|safe }} class="text-sm font-medium transition-colors text-brand-500 hover:text-brand-200">
+            {{ action_text }}
+        </button>
+        {% endif %}
+    </div>
+    <div>
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Section card - for grouping related settings/content with a header #}
+{% macro section_card(title, description=none, class="") %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 {{ class }}">
+    <div class="px-5 py-4 border-b border-surface-20">
+        <h3 class="text-sm font-semibold text-white">{{ title }}</h3>
+        {% if description %}
+        <p class="mt-0.5 text-xs text-slate-500">{{ description }}</p>
+        {% endif %}
+    </div>
+    <div class="p-5">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   SETTINGS CARD - Dark mode with colored icon and subtle glow
+   ============================================================================ #}
+
+{# Settings card with icon header - for settings pages
+   Colors: 5 semantic colors only - brand (default), success, warning, danger, neutral
+   Example:
+   {% call settings_card('Account', 'building-office', 'neutral') %}
+       <form>...</form>
+   {% endcall %}
+#}
+{% macro settings_card(title, icon_name, color="brand", subtitle=none, class="") %}
+{#- 5 semantic colors only: brand, success, warning, danger, neutral -#}
+{% set color_map = {
+    'brand':   {'rgb': '255, 165, 0', 'icon_bg': 'bg-brand-500/80', 'icon_text': 'text-slate-900', 'gradient': 'linear-gradient(135deg, rgba(255, 165, 0, 0.15), rgba(255, 175, 53, 0.05))'},
+    'success': {'rgb': '52, 211, 153', 'icon_bg': 'bg-emerald-600', 'icon_text': 'text-white', 'gradient': 'linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(16, 185, 129, 0.05))'},
+    'warning': {'rgb': '251, 191, 36', 'icon_bg': 'bg-amber-600', 'icon_text': 'text-white', 'gradient': 'linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.05))'},
+    'danger':  {'rgb': '239, 68, 68', 'icon_bg': 'bg-red-600', 'icon_text': 'text-white', 'gradient': 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.05))'},
+    'neutral': {'rgb': '100, 116, 139', 'icon_bg': 'bg-surface-20', 'icon_text': 'text-white', 'gradient': 'linear-gradient(135deg, rgba(100, 116, 139, 0.15), rgba(71, 85, 105, 0.05))'}
+} %}
+{% set colors = color_map.get(color, color_map.brand) %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 overflow-hidden flex flex-col transition-all duration-300 {{ class }}"
+     style="box-shadow: 0 4px 20px rgba({{ colors.rgb }}, 0.08);"
+     onmouseenter="this.style.boxShadow='0 8px 40px rgba({{ colors.rgb }}, 0.15)'; this.style.borderColor='rgba({{ colors.rgb }}, 0.3)'"
+     onmouseleave="this.style.boxShadow='0 4px 20px rgba({{ colors.rgb }}, 0.08)'; this.style.borderColor='rgba(51, 65, 85, 0.5)'">
+    <div class="px-5 py-4 border-b border-surface-20" style="background: {{ colors.gradient }};">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 {{ colors.icon_bg }} rounded-lg flex items-center justify-center flex-shrink-0">
+                {{ icon(icon_name, 'w-5 h-5 ' ~ colors.icon_text) }}
+            </div>
+            <div>
+                <h3 class="font-semibold text-white">{{ title }}</h3>
+                {% if subtitle %}<p class="text-xs text-slate-500">{{ subtitle }}</p>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="p-5 flex flex-col flex-grow">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Admin card - compact card for admin dashboard telemetry/info panels
+   Smaller than settings_card, no hover effects (read-only data)
+   Colors: 5 semantic colors only - brand, success, warning, danger, neutral (default)
+   Optional: subtitle (small text below title), header_suffix (inline HTML after title), header_right (HTML aligned right)
+   Example:
+   {% call admin_card('System Metrics', 'chart-bar', 'brand') %}
+       <div class="grid grid-cols-2 gap-3">...</div>
+   {% endcall %}
+   {% call admin_card('Stations', 'signal', 'brand', subtitle='5 assigned', header_right='<a href="/manage">Manage</a>') %}
+       ...
+   {% endcall %}
+#}
+{% macro admin_card(title, icon_name, color="neutral", class="", subtitle=none, header_suffix=none, header_right=none) %}
+{#- 5 semantic colors only: brand, success, warning, danger, neutral -#}
+{#- Brand is BRIGHT so needs dark icons (slate-900), others use white -#}
+{% set color_map = {
+    'brand':   {'gradient': 'linear-gradient(135deg, rgba(255, 165, 0, 0.15) 0%, rgba(255, 175, 53, 0.05) 100%)', 'icon_bg': 'bg-brand-500/80', 'icon_text': 'text-slate-900'},
+    'success': {'gradient': 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(20, 184, 166, 0.05) 100%)', 'icon_bg': 'bg-emerald-600', 'icon_text': 'text-white'},
+    'warning': {'gradient': 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(249, 115, 22, 0.05) 100%)', 'icon_bg': 'bg-amber-600', 'icon_text': 'text-white'},
+    'danger':  {'gradient': 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%)', 'icon_bg': 'bg-red-600', 'icon_text': 'text-white'},
+    'neutral': {'gradient': 'bg-surface-10/50', 'icon_bg': 'bg-surface-20', 'icon_text': 'text-white'}
+} %}
+{% set colors = color_map.get(color, color_map.neutral) %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 overflow-hidden {{ class }}">
+    <div class="px-4 py-3 border-b border-surface-20" {% if colors.gradient.startswith('linear') %}style="background: {{ colors.gradient }};"{% else %}class="{{ colors.gradient }}"{% endif %}>
+        <div class="flex items-center {% if header_right %}justify-between{% endif %}">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 {{ colors.icon_bg }} rounded-lg flex items-center justify-center flex-shrink-0">
+                    {{ icon(icon_name, 'w-4 h-4 ' ~ colors.icon_text) }}
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-semibold text-white">{{ title }}</h3>
+                        {% if header_suffix %}{{ header_suffix | safe }}{% endif %}
+                    </div>
+                    {% if subtitle %}<p class="text-xs text-slate-500">{{ subtitle }}</p>{% endif %}
+                </div>
+            </div>
+            {% if header_right %}{{ header_right | safe }}{% endif %}
+        </div>
+    </div>
+    <div class="p-4">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Quick action card - clickable card with icon for navigation
+   Colors: 5 semantic colors only - brand (default), success, warning, danger, neutral
+   Example:
+   {{ quick_action_card('Stations', 'signal', '/settings/stations', 'brand', '5 active') }}
+#}
+{% macro quick_action_card(title, icon_name, href, color="brand", subtitle=none) %}
+{#- 5 semantic colors only: brand, success, warning, danger, neutral -#}
+{#- Brand is BRIGHT so needs dark icons (slate-900), others use white -#}
+{% set color_map = {
+    'brand':   {'rgb': '255, 165, 0', 'gradient': 'from-brand-500 to-brand-500', 'text': 'text-brand-500', 'icon': 'text-slate-900'},
+    'success': {'rgb': '52, 211, 153', 'gradient': 'from-emerald-400 to-teal-500', 'text': 'text-emerald-400', 'icon': 'text-white'},
+    'warning': {'rgb': '251, 191, 36', 'gradient': 'from-amber-400 to-orange-500', 'text': 'text-amber-400', 'icon': 'text-white'},
+    'danger':  {'rgb': '239, 68, 68', 'gradient': 'from-red-400 to-rose-500', 'text': 'text-red-400', 'icon': 'text-white'},
+    'neutral': {'rgb': '100, 116, 139', 'gradient': 'from-slate-500 to-slate-700', 'text': 'text-slate-500', 'icon': 'text-white'}
+} %}
+{% set colors = color_map.get(color, color_map.brand) %}
+<a href="{{ href }}" class="group bg-surface-10 rounded-xl border border-surface-20 p-5 transition-all duration-300"
+   style="box-shadow: 0 4px 20px rgba({{ colors.rgb }}, 0.08);"
+   onmouseenter="this.style.boxShadow='0 8px 40px rgba({{ colors.rgb }}, 0.2)'; this.style.borderColor='rgba({{ colors.rgb }}, 0.3)'"
+   onmouseleave="this.style.boxShadow='0 4px 20px rgba({{ colors.rgb }}, 0.08)'; this.style.borderColor='rgba(51, 65, 85, 0.5)'">
+    <div class="flex items-center gap-4">
+        <div class="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br {{ colors.gradient }} flex items-center justify-center group-hover:scale-105 transition-transform">
+            {{ icon(icon_name, 'w-6 h-6 ' ~ colors.icon) }}
+        </div>
+        <div>
+            <h3 class="font-semibold text-white group-hover:{{ colors.text }} transition-colors">{{ title }}</h3>
+            {% if subtitle %}
+            <p class="text-xs text-slate-500">{{ subtitle }}</p>
+            {% endif %}
+        </div>
+    </div>
+</a>
+{% endmacro %}
+
+
+{# ============================================================================
+   STAT CARDS
+   ============================================================================ #}
+
+{# Stat card for dashboard metrics #}
+{% macro stat_card(title, value, icon_name="chart", color="brand", htmx_url=none, htmx_trigger="load") %}
+{% set color_map = {
+    'brand': {'rgb': '255, 165, 0', 'icon_bg': 'bg-brand-500/15', 'text': 'text-brand-500'},
+    'green': {'rgb': '34, 197, 94', 'icon_bg': 'bg-green-500/15', 'text': 'text-green-400'},
+    'yellow': {'rgb': '251, 191, 36', 'icon_bg': 'bg-yellow-500/15', 'text': 'text-yellow-400'},
+    'amber': {'rgb': '251, 191, 36', 'icon_bg': 'bg-amber-500/15', 'text': 'text-amber-400'},
+    'red': {'rgb': '239, 68, 68', 'icon_bg': 'bg-red-500/15', 'text': 'text-red-400'},
+    'blue': {'rgb': '59, 130, 246', 'icon_bg': 'bg-blue-500/15', 'text': 'text-blue-400'},
+    'purple': {'rgb': '168, 85, 247', 'icon_bg': 'bg-purple-500/15', 'text': 'text-purple-400'},
+    'gray': {'rgb': '107, 114, 128', 'icon_bg': 'bg-surface-20/15', 'text': 'text-slate-500'}
+} %}
+{% set colors = color_map.get(color, color_map.brand) %}
+<div class="group bg-surface-10 rounded-xl border border-surface-20 p-6 transition-all duration-300 cursor-default"
+     style="box-shadow: 0 4px 20px rgba({{ colors.rgb }}, 0.08);"
+     onmouseenter="this.style.boxShadow='0 8px 40px rgba({{ colors.rgb }}, 0.2)'; this.style.borderColor='rgba({{ colors.rgb }}, 0.3)'"
+     onmouseleave="this.style.boxShadow='0 4px 20px rgba({{ colors.rgb }}, 0.08)'; this.style.borderColor='rgba(51, 65, 85, 0.5)'">
+    <div class="flex items-center">
+        <div class="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center {{ colors.icon_bg }}">
+            {{ icon(icon_name, class='w-7 h-7 ' ~ colors.text) }}
+        </div>
+        <div class="ml-4">
+            <p class="text-sm text-slate-500 mb-1">{{ title }}</p>
+            {% if htmx_url %}
+            <p class="text-3xl font-bold {{ colors.text }}"
+               hx-get="{{ htmx_url }}"
+               hx-trigger="{{ htmx_trigger }}"
+               hx-swap="innerHTML">
+                {{ value }}
+            </p>
+            {% else %}
+            <p class="text-3xl font-bold {{ colors.text }}">{{ value }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# Stat card - standard stat display with icon, value, and optional subtitle #}
+{# Uses 5 semantic colors: brand, success, warning, danger, neutral #}
+{% macro stat_card_compact(title, value, icon_name=none, color="brand", subtitle=none, trend=none, trend_direction=none) %}
+{% set color_map = {
+    'brand':   {'icon_bg': 'bg-brand-500/20', 'text': 'text-brand-500'},
+    'success': {'icon_bg': 'bg-emerald-500/20', 'text': 'text-emerald-400'},
+    'warning': {'icon_bg': 'bg-amber-500/20', 'text': 'text-amber-400'},
+    'danger':  {'icon_bg': 'bg-red-500/20', 'text': 'text-red-400'},
+    'neutral': {'icon_bg': 'bg-surface-20/20', 'text': 'text-slate-500'}
+} %}
+{% set colors = color_map.get(color, color_map.brand) %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 px-4 py-3">
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="text-xs font-medium text-slate-500">{{ title }}</p>
+            <p class="text-xl font-bold text-white mt-1">{{ value }}</p>
+        </div>
+        {% if icon_name %}
+        <div class="w-10 h-10 {{ colors.icon_bg }} rounded-lg flex items-center justify-center">
+            {{ icon(icon_name, class="w-5 h-5 " ~ colors.text) }}
+        </div>
+        {% endif %}
+    </div>
+    {% if subtitle %}
+    <p class="text-sm text-slate-500 mt-2">{{ subtitle }}</p>
+    {% elif trend %}
+    <p class="mt-2 text-sm {% if trend_direction == 'up' %}text-green-400{% elif trend_direction == 'down' %}text-red-400{% else %}text-slate-500{% endif %}">
+        {% if trend_direction == 'up' %}&uarr;{% elif trend_direction == 'down' %}&darr;{% endif %}
+        {{ trend }}
+    </p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# Stat grid - responsive grid of stats #}
+{% macro stat_grid(columns=4, gap=4, class="") %}
+{% set col_classes = {
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+    5: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
+    6: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'
+} %}
+{% set gap_classes = {
+    2: 'gap-2',
+    3: 'gap-3',
+    4: 'gap-4',
+    5: 'gap-5',
+    6: 'gap-6'
+} %}
+<div class="grid {{ col_classes.get(columns, col_classes[4]) }} {{ gap_classes.get(gap, gap_classes[4]) }} {{ class }}">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   EMAIL TEMPLATE CARD
+   ============================================================================ #}
+
+{# Email template card with preview, usage, and toggle actions #}
+{% macro email_template_card(template) %}
+<div class="bg-surface-10 rounded-xl border border-surface-20 p-5 flex flex-col h-full">
+
+    {# Header Row #}
+    <div class="flex items-start justify-between mb-3">
+        <div class="flex items-center gap-2 flex-wrap">
+            <h3 class="text-base font-semibold text-white">{{ template.display_name }}</h3>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                {% if template.category == 'transactional' %}bg-brand-500/20 text-brand-500
+                {% elif template.category == 'scheduled' %}bg-purple-500/20 text-purple-400
+                {% elif template.category == 'system' %}bg-amber-500/20 text-amber-400
+                {% else %}bg-surface-20/50 text-slate-300{% endif %}">
+                {{ template.category }}
+            </span>
+        </div>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+            {# View Usage Icon #}
+            <button type="button"
+                    hx-get="/admin/email/templates/{{ template.template_name }}/usage"
+                    hx-target="#panel-container"
+                    hx-swap="innerHTML"
+                    class="w-7 h-7 rounded-md bg-surface-10/50 hover:bg-surface-20 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
+                    title="View Usage History">
+                {{ icon('chart-bar', 'w-4 h-4') }}
+            </button>
+            {# Preview Template Icon #}
+            <button type="button"
+                    hx-get="/admin/email/templates/{{ template.template_name }}/preview"
+                    hx-target="#panel-container"
+                    hx-swap="innerHTML"
+                    class="w-7 h-7 rounded-md bg-brand-500/20 hover:bg-brand-500/30 flex items-center justify-center text-brand-500 transition-colors"
+                    title="Preview Template">
+                {{ icon('eye', 'w-4 h-4') }}
+            </button>
+            {# Enabled/Disabled Icon Toggle #}
+            {% if template.enabled %}
+            <button type="button"
+                    hx-post="/admin/email/templates/{{ template.template_name }}/toggle"
+                    hx-target="#panel-container"
+                    hx-swap="innerHTML"
+                    class="w-7 h-7 rounded-md bg-green-500/20 hover:bg-green-500/30 flex items-center justify-center text-green-400 transition-colors"
+                    title="Enabled - Click to disable">
+                {{ icon('check', 'w-4 h-4') }}
+            </button>
+            {% else %}
+            <button type="button"
+                    hx-post="/admin/email/templates/{{ template.template_name }}/toggle"
+                    hx-target="#panel-container"
+                    hx-swap="innerHTML"
+                    class="w-7 h-7 rounded-md bg-red-500/20 hover:bg-red-500/30 flex items-center justify-center text-red-400 transition-colors"
+                    title="Disabled - Click to enable">
+                {{ icon('x-mark', 'w-4 h-4') }}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Description #}
+    <p class="text-sm text-slate-500 mb-2">{{ template.description or 'No description available' }}</p>
+
+    {# Metadata (compact) #}
+    <div class="text-sm text-slate-500 space-y-1 mb-3">
+        <div><span class="font-medium text-slate-500">File:</span> <code class="bg-surface-10/50 text-slate-300 px-1.5 py-0.5 rounded">{{ template.template_name }}.html</code></div>
+        <div><span class="font-medium text-slate-500">Trigger:</span> {{ template.trigger }}</div>
+        {% if template.default_subject %}
+        <div><span class="font-medium text-slate-500">Subject:</span> {{ template.default_subject }}</div>
+        {% endif %}
+    </div>
+
+    {# Required Variables (if present) #}
+    {% if template.required_variables %}
+    <div class="mb-3">
+        <div class="flex flex-wrap gap-1.5">
+            {% for var in template.required_variables %}
+            <code class="text-xs bg-brand-500/10 text-brand-500 px-2 py-0.5 rounded">{{ var }}</code>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Spacer to push stats to bottom #}
+    <div class="flex-grow"></div>
+
+    {# Usage Stats (compact, always at bottom) #}
+    <div class="mt-3 pt-3 border-t border-surface-20">
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <p class="text-sm font-medium text-slate-500 mb-1">Total Sent</p>
+                <p class="text-base font-semibold text-white">{{ template.total_sent|default(0) }}</p>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-slate-500 mb-1">Last Sent</p>
+                <p class="text-sm font-semibold text-white">
+                    {% if template.last_sent_at %}
+                        {{ template.last_sent_at | timeago }}
+                    {% else %}
+                        Never
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   CHART CARD - Container for Chart.js charts with title and empty state
+   ============================================================================ #}
+
+{# Chart card with optional icon, configurable height, and empty state
+   Usage:
+   {{ chart_card('Traffic Over Time', 'trafficChart', chart_data) }}
+   {{ chart_card('CPU Usage', 'cpuChart', chart_data.cpu_datasets, height='h-48', icon_name='cpu-chip') }}
+
+   With legend slot:
+   {% call chart_card('Token Usage', 'tokenChart', chart_data, icon_name='currency-dollar') %}
+       <div class="mt-4 flex items-center justify-center gap-6 text-sm">
+           <span class="text-purple-400">Input tokens</span>
+           <span class="text-cyan-400">Output tokens</span>
+       </div>
+   {% endcall %}
+#}
+{% macro chart_card(title, canvas_id, chart_data, height="h-64", icon_name=none, empty_message="No data available") %}
+<div class="bg-surface-10 rounded-xl border border-surface-20">
+    <div class="px-6 py-4 border-b border-surface-20">
+        <h3 class="text-lg font-semibold text-white flex items-center">
+            {% if icon_name %}
+            {{ icon(icon_name, 'h-5 w-5 mr-2') }}
+            {% endif %}
+            {{ title }}
+        </h3>
+    </div>
+    <div class="p-6">
+        {% if chart_data %}
+        <div class="{{ height }}">
+            <canvas id="{{ canvas_id }}" data-chart='{{ chart_data | tojson }}'></canvas>
+        </div>
+        {{ caller() if caller else '' }}
+        {% else %}
+        <div class="{{ height }} flex items-center justify-center">
+            <p class="text-sm text-slate-500">{{ empty_message }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   AVATAR - Gradient circle/square with initial letter or icon
+   ============================================================================ #}
+
+{#
+Avatar macro for user/tenant/group initials or icon displays.
+
+Usage:
+    {{ avatar(text='John Doe') }}                 -> "J" in brand gradient circle
+    {{ avatar(text='A', color='neutral') }}       -> "A" in neutral gradient circle
+    {{ avatar(icon_name='user', size='lg') }}     -> user icon in circle
+
+Note: For square icon boxes, use the icon_box() macro instead:
+    {{ icon_box('signal', 'brand', 'lg') }}
+
+Parameters:
+    text:       String to extract initial from (uses first character, uppercased)
+    icon_name:  Icon name instead of text initial
+    size:       'xs' | 'sm' | 'md' (default) | 'lg' | 'xl'
+    color:      'brand' (default) | 'success' | 'warning' | 'danger' | 'neutral'
+    ring:       true/false - adds a subtle ring glow effect
+    shape:      'circle' (default) | 'square' - circle uses rounded-full, square uses rounded-lg/xl
+    shadow:     true/false - adds a colored shadow (good for page headers)
+#}
+{% macro avatar(text=none, icon_name=none, size='md', color='brand', ring=false, shape='circle', shadow=false, picture=none) %}
+{#- Size configurations: [container, text, icon, ring, square radius] -#}
+{%- set size_config = {
+    'xs': {'box': 'w-6 h-6', 'text': 'text-xs', 'icon': 'w-3 h-3', 'ring': 'ring-1', 'square': 'rounded'},
+    'sm': {'box': 'w-8 h-8', 'text': 'text-sm', 'icon': 'w-4 h-4', 'ring': 'ring-2', 'square': 'rounded-lg'},
+    'md': {'box': 'w-10 h-10', 'text': 'text-sm', 'icon': 'w-5 h-5', 'ring': 'ring-2', 'square': 'rounded-lg'},
+    'lg': {'box': 'w-12 h-12', 'text': 'text-lg', 'icon': 'w-6 h-6', 'ring': 'ring-2', 'square': 'rounded-xl'},
+    'xl': {'box': 'w-16 h-16', 'text': 'text-2xl', 'icon': 'w-8 h-8', 'ring': 'ring-4', 'square': 'rounded-xl'}
+} -%}
+{#- 5 semantic colors only: brand, success, warning, danger, neutral -#}
+{#- Brand is BRIGHT so needs dark text (slate-900), others use white -#}
+{%- set color_config = {
+    'brand':   {'gradient': 'from-brand-500 to-brand-500', 'ring': 'ring-brand-500/20', 'shadow': 'shadow-lg shadow-brand-500/20', 'text': 'text-slate-900'},
+    'success': {'gradient': 'from-emerald-400 to-teal-500', 'ring': 'ring-emerald-500/20', 'shadow': 'shadow-lg shadow-emerald-500/20', 'text': 'text-white'},
+    'warning': {'gradient': 'from-amber-400 to-orange-500', 'ring': 'ring-amber-500/20', 'shadow': 'shadow-lg shadow-amber-500/20', 'text': 'text-white'},
+    'danger':  {'gradient': 'from-red-500 to-rose-600', 'ring': 'ring-red-500/20', 'shadow': 'shadow-lg shadow-red-500/20', 'text': 'text-white'},
+    'neutral': {'gradient': 'from-slate-500 to-slate-700', 'ring': 'ring-slate-500/20', 'shadow': 'shadow-lg shadow-slate-500/20', 'text': 'text-white'}
+} -%}
+{%- set s = size_config[size] or size_config['md'] -%}
+{%- set c = color_config[color] or color_config['brand'] -%}
+{%- set radius = 'rounded-full' if shape == 'circle' else s.square -%}
+{%- if picture -%}
+<img src="{{ picture }}" alt="{{ text or '' }}" class="{{ s.box }} {{ radius }} object-cover flex-shrink-0{% if ring %} {{ s.ring }} {{ c.ring }}{% endif %}">
+{%- else -%}
+<div class="{{ s.box }} {{ radius }} bg-gradient-to-br {{ c.gradient }} flex items-center justify-center flex-shrink-0{% if ring %} {{ s.ring }} {{ c.ring }}{% endif %}{% if shadow %} {{ c.shadow }}{% endif %}">
+    {%- if icon_name -%}
+    {{ icon(icon_name, s.icon ~ ' ' ~ c.text) }}
+    {%- elif text -%}
+    <span class="{{ s.text }} font-semibold {{ c.text }}">{{ text[0]|upper }}</span>
+    {%- endif -%}
+</div>
+{%- endif -%}
+{%- endmacro %}
+
+
+{# ============================================================================
+   CIRCLE IMAGE - Circular image with colored border
+   ============================================================================ #}
+
+{#
+Circle image for displaying photos in a circular frame with colored border.
+
+Usage:
+    {{ circle_image('/static/images/head/luxardo-day.webp', 'Luxardo Day', 'teal') }}
+    {{ circle_image('/static/images/avatar.jpg', 'Profile', 'brand', size='lg') }}
+
+Parameters:
+    src:        Image source URL (required)
+    alt:        Alt text for accessibility (required)
+    color:      Border color: teal, cyan, sky, blue, yellow, orange, red, brand, green, purple
+    size:       'sm' (w-12 h-12) | 'md' (w-16 h-16) | 'lg' (w-20 h-20, default) | 'xl' (w-24 h-24)
+    class:      Additional CSS classes
+#}
+{% macro circle_image(src, alt, color='brand', size='lg', class='') %}
+{%- set size_config = {
+    'sm': 'w-12 h-12',
+    'md': 'w-16 h-16',
+    'lg': 'w-20 h-20',
+    'xl': 'w-24 h-24'
+} -%}
+{%- set color_config = {
+    'teal':   'border-teal-400/50',
+    'cyan':   'border-cyan-400/50',
+    'sky':    'border-sky-400/50',
+    'blue':   'border-blue-400/50',
+    'yellow': 'border-yellow-400/50',
+    'orange': 'border-orange-400/50',
+    'red':    'border-red-400/50',
+    'brand':  'border-brand-500/50',
+    'green':  'border-green-400/50',
+    'purple': 'border-purple-400/50',
+    'amber':  'border-amber-400/50'
+} -%}
+{%- set s = size_config.get(size, size_config.lg) -%}
+{%- set c = color_config.get(color, color_config.brand) -%}
+<img src="{{ src }}" alt="{{ alt }}" class="hidden sm:block {{ s }} rounded-full object-cover border-2 {{ c }} flex-shrink-0 {{ class }}">
+{%- endmacro %}
+
+
+{# ============================================================================
+   CARD SECTION HEADER - Gradient background for card section headers
+   ============================================================================ #}
+
+{#
+Card section header with subtle gradient background.
+
+Usage:
+    {% call card_section_header() %}
+        <h3 class="font-semibold text-white">Title</h3>
+    {% endcall %}
+
+Parameters:
+    color:  'brand' (default) | 'success' | 'warning' | 'danger' | 'neutral'
+    class:  Additional CSS classes
+#}
+{% macro card_section_header(color='brand', class='') %}
+{#- 5 semantic colors only: brand, success, warning, danger, neutral -#}
+{#- Brand uses pure brand gradient (no sky/blue mixing) -#}
+{%- set color_config = {
+    'brand':   'from-brand-500/15 to-brand-500/5',
+    'success': 'from-emerald-400/15 to-teal-500/5',
+    'warning': 'from-amber-400/15 to-orange-500/5',
+    'danger':  'from-red-500/15 to-rose-600/5',
+    'neutral': 'from-slate-500/15 to-slate-700/5'
+} -%}
+{%- set gradient = color_config[color] or color_config['brand'] -%}
+<div class="px-6 py-4 border-b border-surface-20 bg-gradient-to-br {{ gradient }} {{ class }}">
+    {{ caller() }}
+</div>
+{%- endmacro %}
+
+
+{# ============================================================================
+   ICON BOX - Gradient container for icons
+   ============================================================================ #}
+
+{#
+Icon box with gradient background for section headers, list items, badges.
+
+Usage:
+    {{ icon_box('signal', 'brand', 'lg') }}
+    {{ icon_box('server', 'success', 'md') }}
+    {{ icon_box('exclamation-triangle', 'danger', 'sm') }}
+
+Parameters:
+    icon_name:  Heroicon name (required)
+    color:      'brand' (default) | 'success' | 'warning' | 'danger' | 'neutral'
+    size:       'xs' | 'sm' | 'md' (default) | 'lg' | 'xl'
+#}
+{% macro icon_box(icon_name, color='brand', size='md') %}
+{#- Size configurations: [container, icon, radius] -#}
+{%- set size_config = {
+    'xs': {'box': 'w-6 h-6', 'icon': 'w-3 h-3', 'radius': 'rounded'},
+    'sm': {'box': 'w-8 h-8', 'icon': 'w-4 h-4', 'radius': 'rounded-lg'},
+    'md': {'box': 'w-10 h-10', 'icon': 'w-5 h-5', 'radius': 'rounded-lg'},
+    'lg': {'box': 'w-12 h-12', 'icon': 'w-6 h-6', 'radius': 'rounded-xl'},
+    'xl': {'box': 'w-16 h-16', 'icon': 'w-8 h-8', 'radius': 'rounded-xl'}
+} -%}
+{#- 5 semantic colors only: brand, success, warning, danger, neutral -#}
+{#- Brand is BRIGHT so needs dark icons (slate-900), others use white -#}
+{%- set color_config = {
+    'brand':   {'gradient': 'from-brand-500 to-brand-500', 'icon': 'text-slate-900'},
+    'success': {'gradient': 'from-emerald-400 to-teal-500', 'icon': 'text-white'},
+    'warning': {'gradient': 'from-amber-400 to-orange-500', 'icon': 'text-white'},
+    'danger':  {'gradient': 'from-red-500 to-rose-600', 'icon': 'text-white'},
+    'neutral': {'gradient': 'from-slate-500 to-slate-700', 'icon': 'text-white'}
+} -%}
+{%- set s = size_config[size] or size_config['md'] -%}
+{%- set c = color_config[color] or color_config['brand'] -%}
+<div class="{{ s.box }} {{ s.radius }} bg-gradient-to-br {{ c.gradient }} flex items-center justify-center flex-shrink-0">
+    {{ icon(icon_name, s.icon ~ ' ' ~ c.icon) }}
+</div>
+{%- endmacro %}
+
+
+{# ============================================================================
+   DASHBOARD CHART CARD - User-facing chart container for dashboards
+   ============================================================================ #}
+
+{#
+Dashboard chart card for user-facing pages (history, forecast, etc.)
+Clean, minimal design without admin-style gradients.
+
+Usage:
+    {% call dashboard_chart_card('Temperature', icon_name='thermometer') %}
+        <div id="chart-temp" style="width: 100%; height: 100%;"></div>
+    {% endcall %}
+
+    {% call dashboard_chart_card('Pressure', icon_name='gauge', height=320) %}
+        <div id="chart-pressure" style="width: 100%; height: 100%;"></div>
+    {% endcall %}
+
+Parameters:
+    title:          Card title (required)
+    icon_name:      Optional icon name (heroicons)
+    height:         Chart container height in px (default: 280)
+    empty_message:  Message when no data (default: "No data available")
+    class:          Additional CSS classes for the card
+    header_right:   Optional HTML for right side of header
+#}
+{% macro dashboard_chart_card(title, icon_name=none, height=280, empty_message="No data available", class="", header_right=none) %}
+<div class="rounded-xl bg-surface-10/50 border border-surface-20 overflow-hidden {{ class }}">
+    <div class="px-4 py-2.5 border-b border-surface-20 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            {% if icon_name %}
+            <div class="w-6 h-6 rounded-md bg-surface-10/50 flex items-center justify-center">
+                {# Support both heroicons and weather icons (wi-* prefix) #}
+                {% if icon_name.startswith('wi-') %}
+                <span class="inline-flex items-center justify-center shrink-0 [&>svg]:w-full [&>svg]:h-full w-3.5 h-3.5 text-slate-500" aria-hidden="true">{% include 'icons/weather/' ~ icon_name ~ '.svg' ignore missing %}</span>
+                {% else %}
+                {{ icon(icon_name, 'w-3.5 h-3.5 text-slate-500') }}
+                {% endif %}
+            </div>
+            {% endif %}
+            <span class="text-slate-300 text-sm font-medium">{{ title }}</span>
+        </div>
+        {% if header_right %}
+        <div class="flex items-center">
+            {{ header_right | safe }}
+        </div>
+        {% endif %}
+    </div>
+    <div class="p-2" style="height: {{ height }}px;">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{#
+Dashboard chart card with built-in empty state handling.
+Use this when you need automatic empty state display.
+
+Usage:
+    {{ dashboard_chart_card_auto('Temperature', 'thermometer', chart_data, 'chart-temp-' ~ station.id) }}
+
+Parameters:
+    title:          Card title (required)
+    icon_name:      Icon name for header (heroicons)
+    chart_data:     The chart data (if falsy, shows empty state)
+    chart_id:       The chart container ID
+    height:         Chart container height in px (default: 280)
+    empty_message:  Message when no data
+#}
+{% macro dashboard_chart_card_auto(title, icon_name, chart_data, chart_id, height=280, empty_message="No data available") %}
+{% from "macros/panels.html" import chart_script %}
+<div class="rounded-xl bg-surface-10/50 border border-surface-20 overflow-hidden">
+    <div class="px-4 py-2.5 border-b border-surface-20">
+        <div class="flex items-center gap-2">
+            {% if icon_name %}
+            <div class="w-6 h-6 rounded-md bg-surface-10/50 flex items-center justify-center">
+                {# Support both heroicons and weather icons (wi-* prefix) #}
+                {% if icon_name.startswith('wi-') %}
+                <span class="inline-flex items-center justify-center shrink-0 [&>svg]:w-full [&>svg]:h-full w-3.5 h-3.5 text-slate-500" aria-hidden="true">{% include 'icons/weather/' ~ icon_name ~ '.svg' ignore missing %}</span>
+                {% else %}
+                {{ icon(icon_name, 'w-3.5 h-3.5 text-slate-500') }}
+                {% endif %}
+            </div>
+            {% endif %}
+            <span class="text-slate-300 text-sm font-medium">{{ title }}</span>
+        </div>
+    </div>
+    <div class="p-2" style="height: {{ height }}px;">
+        {% if chart_data %}
+        <div id="{{ chart_id }}" style="width: 100%; height: 100%;"></div>
+        {{ chart_script(chart_id, chart_data) }}
+        {% else %}
+        <div class="flex items-center justify-center h-full text-slate-500 text-sm">{{ empty_message }}</div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================================
+   ACCURACY CHART CARD - Metric-colored chart card for forecast accuracy
+   ============================================================================ #}
+
+{#
+Accuracy chart card with metric-specific header colors.
+Used on the forecast accuracy dashboard to visually distinguish chart types.
+
+Follows the LuxAnalytics design system pattern (see settings_card, admin_card):
+- RGB values for inline styles (gradients, shadows, borders)
+- White title text for consistency
+- Inline icon colors to avoid Tailwind class scanning issues
+
+Usage:
+    {{ accuracy_chart_card('temperature', 'Temperature', chart_data, 'chart-temp-' ~ station.id) }}
+    {{ accuracy_chart_card('humidity', 'Humidity', chart_data, 'chart-humidity-' ~ station.id, subtitle='Relative') }}
+
+Parameters:
+    metric:         Metric type: temperature, humidity, pressure, wind, uv, precipitation
+    title:          Card title (required)
+    chart_data:     The chart data JSON (if falsy, shows empty state)
+    chart_id:       The chart container ID
+    subtitle:       Optional subtitle text
+    height:         Chart container height in px (default: 280)
+    empty_message:  Message when no data
+#}
+{% macro accuracy_chart_card(metric, title, chart_data, chart_id, subtitle=none, height=280, empty_message="No data available", date_range=none) %}
+{#- Metric color configurations using RGB values from core/colors.py panel themes
+    - temperature: panel_temperature_theme() orange "251, 146, 60" (hot range)
+    - humidity:    panel_humidity_theme() cyan "34, 211, 238" (humid range)
+    - pressure:    panel_pressure_theme() violet "167, 139, 250" (stormy)
+    - precipitation: panel_rain_theme() blue "59, 130, 246" (moderate)
+    - wind:        panel_wind_theme() teal "45, 212, 191" (calm/gentle)
+    - uv:          panel_solar_theme() yellow "250, 204, 21" (moderate UV)
+-#}
+{%- set metric_colors = {
+    'temperature': {
+        'rgb': '251, 146, 60',
+        'gradient': 'linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(239, 68, 68, 0.05))',
+        'icon': 'wi-thermometer'
+    },
+    'humidity': {
+        'rgb': '34, 211, 238',
+        'gradient': 'linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(59, 130, 246, 0.05))',
+        'icon': 'wi-humidity'
+    },
+    'pressure': {
+        'rgb': '167, 139, 250',
+        'gradient': 'linear-gradient(135deg, rgba(167, 139, 250, 0.15), rgba(139, 92, 246, 0.05))',
+        'icon': 'wi-barometer'
+    },
+    'precipitation': {
+        'rgb': '59, 130, 246',
+        'gradient': 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.05))',
+        'icon': 'wi-rain'
+    },
+    'wind': {
+        'rgb': '45, 212, 191',
+        'gradient': 'linear-gradient(135deg, rgba(45, 212, 191, 0.15), rgba(20, 184, 166, 0.05))',
+        'icon': 'wi-strong-wind'
+    },
+    'uv': {
+        'rgb': '250, 204, 21',
+        'gradient': 'linear-gradient(135deg, rgba(250, 204, 21, 0.15), rgba(245, 158, 11, 0.05))',
+        'icon': 'wi-day-sunny'
+    }
+} -%}
+{%- set colors = metric_colors.get(metric, metric_colors.temperature) -%}
+<div class="rounded-xl bg-surface-10/50 border border-surface-20 overflow-hidden transition-all duration-300"
+     style="border-color: rgba({{ colors.rgb }}, 0.2); box-shadow: 0 4px 20px rgba({{ colors.rgb }}, 0.08);"
+     onmouseenter="this.style.boxShadow='0 8px 40px rgba({{ colors.rgb }}, 0.2)'; this.style.borderColor='rgba({{ colors.rgb }}, 0.4)'"
+     onmouseleave="this.style.boxShadow='0 4px 20px rgba({{ colors.rgb }}, 0.08)'; this.style.borderColor='rgba({{ colors.rgb }}, 0.2)'">
+    <div class="px-4 py-2.5 border-b border-surface-20" style="background: {{ colors.gradient }};">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-md flex items-center justify-center"
+                     style="background: rgba({{ colors.rgb }}, 0.2);">
+                    <span class="inline-flex items-center justify-center shrink-0 [&>svg]:w-full [&>svg]:h-full w-3.5 h-3.5"
+                          style="color: rgb({{ colors.rgb }});"
+                          aria-hidden="true">{% include 'icons/weather/' ~ colors.icon ~ '.svg' ignore missing %}</span>
+                </div>
+                <span class="text-white text-sm font-medium">{{ title }}</span>
+                {% if subtitle %}
+                <span class="text-sm text-slate-500 ml-1">({{ subtitle }})</span>
+                {% endif %}
+            </div>
+            {% if date_range %}
+            <span class="text-sm text-slate-500">{{ date_range }}</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="p-2" style="height: {{ height }}px;">
+        {% if chart_data %}
+        <div id="{{ chart_id }}" style="width: 100%; height: 100%;"></div>
+        <script nonce="{{ csp_nonce }}">
+        (function() {
+            const existingChart = echarts.getInstanceByDom(document.getElementById('{{ chart_id }}'));
+            if (existingChart) existingChart.dispose();
+
+            const chart = echarts.init(document.getElementById('{{ chart_id }}'), 'dark');
+            const options = {{ chart_data | safe }};
+
+            // Clean up Y-axis label formatting to avoid floating point ugliness
+            // (e.g., 29.00000002 → 29, 18.390938 → 18.4)
+            function cleanAxisFormatter(value) {
+                if (value === 0) return '0';
+                const absVal = Math.abs(value);
+                if (absVal >= 100) return Math.round(value).toString();
+                if (absVal >= 10) return (Math.round(value * 10) / 10).toString();
+                if (absVal >= 1) return (Math.round(value * 100) / 100).toString();
+                return (Math.round(value * 1000) / 1000).toString();
+            }
+
+            // Apply formatter to all Y axes
+            if (options.yAxis) {
+                const axes = Array.isArray(options.yAxis) ? options.yAxis : [options.yAxis];
+                axes.forEach(function(axis) {
+                    if (axis.axisLabel) {
+                        axis.axisLabel.formatter = cleanAxisFormatter;
+                    }
+                });
+            }
+
+            // Format axis pointer labels (crosshair labels) based on aggregation level
+            const aggregateLevel = options._aggregateLevel || null;
+            function formatAxisPointerTime(params) {
+                const date = new Date(params.value);
+                if (aggregateLevel === '1 day') {
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                } else if (aggregateLevel === '1 hour') {
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const hourStr = date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).toLowerCase();
+                    return dateStr + ', ' + hourStr;
+                } else {
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+                    return dateStr + ', ' + timeStr;
+                }
+            }
+
+            // Apply to X-axis pointer label
+            if (options.xAxis && options.xAxis.axisPointer) {
+                options.xAxis.axisPointer.label = options.xAxis.axisPointer.label || {};
+                options.xAxis.axisPointer.label.formatter = formatAxisPointerTime;
+            } else if (options.xAxis) {
+                options.xAxis.axisPointer = { label: { formatter: formatAxisPointerTime } };
+            }
+
+            // Build unit label for axis pointers and tooltips
+            // No space before ° or %, space before other units (mph, mb, etc.)
+            const rawUnit = options._unitLabel || '';
+            const unitLabel = (rawUnit.startsWith('°') || rawUnit === '%') ? rawUnit : (rawUnit ? ' ' + rawUnit : '');
+
+            // Apply clean formatter with units to Y-axis pointer labels
+            if (options.yAxis) {
+                const yAxes = Array.isArray(options.yAxis) ? options.yAxis : [options.yAxis];
+                yAxes.forEach(function(axis) {
+                    axis.axisPointer = axis.axisPointer || {};
+                    axis.axisPointer.label = axis.axisPointer.label || {};
+                    axis.axisPointer.label.formatter = function(params) {
+                        return cleanAxisFormatter(params.value) + unitLabel;
+                    };
+                });
+            }
+
+            // Custom tooltip formatter for friendly time display
+            // Format based on aggregation level:
+            // - "1 day" → just date (e.g., "Jan 15, 2024")
+            // - "1 hour" → date + hour (e.g., "Jan 15, 1pm")
+            // - null → full datetime (e.g., "Jan 15, 2024, 2:30 pm")
+            // unitLabel and aggregateLevel already declared above
+            options.tooltip.formatter = function(params) {
+                if (!params || !params.length) return '';
+                const ts = params[0].data[0];
+                const date = new Date(ts);
+
+                // Format timestamp based on aggregation level
+                let timestampStr;
+                if (aggregateLevel === '1 day') {
+                    // Daily: just show date
+                    timestampStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                } else if (aggregateLevel === '1 hour') {
+                    // Hourly: show date + hour (e.g., "Jan 15, 1pm")
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const hourStr = date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).toLowerCase();
+                    timestampStr = dateStr + ', ' + hourStr;
+                } else {
+                    // Raw: full datetime (e.g., "Jan 15, 2024, 2:30 pm")
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+                    timestampStr = dateStr + ', ' + timeStr;
+                }
+
+                let html = '<div class="text-xs text-slate-500 mb-1">' + timestampStr + '</div>';
+                params.forEach(function(p) {
+                    if (p.data && p.data[1] != null) {
+                        const color = p.color || '#fff';
+                        const val = typeof p.data[1] === 'number' ? p.data[1].toFixed(1) : p.data[1];
+                        html += '<div class="flex items-center gap-2"><span style="background:' + color + ';width:8px;height:2px;border-radius:1px;"></span><span>' + p.seriesName + ':</span><span class="font-medium">' + val + unitLabel + '</span></div>';
+                    }
+                });
+                return html;
+            };
+
+            chart.setOption(options);
+
+            const resizeObserver = new ResizeObserver(() => chart.resize());
+            resizeObserver.observe(document.getElementById('{{ chart_id }}'));
+            document.getElementById('{{ chart_id }}').addEventListener('htmx:beforeSwap', () => {
+                resizeObserver.disconnect();
+                chart.dispose();
+            }, { once: true });
+        })();
+        </script>
+        {% else %}
+        <div class="flex items-center justify-center h-full text-slate-500 text-sm">{{ empty_message }}</div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+

@@ -1,0 +1,26 @@
+{% from "macros/layout.html" import empty_state_compact %}
+
+{% if top_events %}
+{% set pie_data = [] %}
+{% for e in top_events %}
+{% set _ = pie_data.append({"name": e.name | friendly_name, "value": e.count}) %}
+{% endfor %}
+
+<div style="height: 250px;"
+     data-echart-config='{{ {
+         "backgroundColor": "transparent",
+         "tooltip": {"trigger": "item", "formatter": "{b}: {c} ({d}%)"},
+         "series": [{
+             "type": "pie",
+             "radius": ["40%", "70%"],
+             "center": ["50%", "50%"],
+             "avoidLabelOverlap": true,
+             "itemStyle": {"borderRadius": 6, "borderColor": "#121212", "borderWidth": 2},
+             "label": {"color": "#94a3b8", "fontSize": 11},
+             "emphasis": {"label": {"show": true, "fontSize": 14, "fontWeight": "bold", "color": "#ffffff"}},
+             "data": pie_data
+         }]
+     } | tojson_safe }}'></div>
+{% else %}
+{{ empty_state_compact("No events") }}
+{% endif %}

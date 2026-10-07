@@ -1,0 +1,138 @@
+{% from "macros/cards.html" import stat_card, stat_card_compact, stat_grid %}
+{% from "macros/layout.html" import empty_state, grid %}
+{% from "macros/analytics.html" import analytics_card %}
+{% from "macros/badges.html" import badge, info_box %}
+
+{% if operations %}
+
+{# ── Global Summary ── #}
+{% if performance_summary and performance_summary.global_stats %}
+{% set gs = performance_summary.global_stats %}
+{% call stat_grid(columns=4, class="mb-6") %}
+    {{ stat_card("Measurements", total_measurements | default(0) | number_format, icon_name="chart-bar", color="brand") }}
+    {{ stat_card("Median", (gs.median | string) ~ "ms", icon_name="clock", color="green") }}
+    {{ stat_card("P95", (gs.p95 | string) ~ "ms", icon_name="exclamation-triangle", color="orange") }}
+    {{ stat_card("Operations", operations | length, icon_name="cog-6-tooth", color="purple") }}
+{% endcall %}
+{% endif %}
+
+{# ── Insights ── #}
+{% if insights %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+    {% for insight in insights %}
+    {% set variant_map = {'positive': 'brand', 'warning': 'amber', 'attention': 'danger'} %}
+    {% call info_box(title=insight.title, variant=variant_map.get(insight.type, 'brand')) %}
+        <p class="text-sm text-slate-300">{{ insight.description }}</p>
+    {% endcall %}
+    {% endfor %}
+</div>
+{% endif %}
+
+{# ── Dynamic Performance Thresholds ── #}
+{% if performance_summary and performance_summary.performance_thresholds %}
+<div class="mb-6">
+{% call analytics_card("Dynamic Performance Categories") %}
+    <p class="text-sm text-slate-500 mb-4">Categories auto-calculated from your actual performance distribution:</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {% set cat_colors = {
+            'excellent': 'border-green-500/30 bg-green-500/5 text-green-400',
+            'good': 'border-green-500/20 bg-green-500/5 text-green-300',
+            'average': 'border-amber-500/20 bg-amber-500/5 text-amber-400',
+            'slow': 'border-orange-500/20 bg-orange-500/5 text-orange-400',
+            'very_slow': 'border-red-500/20 bg-red-500/5 text-red-400'
+        } %}
+        {% for category, threshold in performance_summary.performance_thresholds.items() %}
+        <div class="rounded-lg border p-3 {{ cat_colors.get(category, '') }}">
+            <div class="font-semibold capitalize text-sm">{{ category | replace('_', ' ') }}</div>
+            <div class="text-xs text-slate-500 mt-1">{{ threshold }}</div>
+        </div>
+        {% endfor %}
+    </div>
+{% endcall %}
+</div>
+{% endif %}
+
+{# ── Operations — grid of cards ── #}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for op in operations %}
+    <div class="bg-surface-10 rounded-lg border border-surface-20 overflow-hidden">
+        {# Header — colored by status #}
+        <div class="p-4 border-b border-surface-20
+            {% if op.is_fast_operation %}bg-green-500/5{% elif op.needs_attention %}bg-red-500/5{% else %}bg-surface-10{% endif %}">
+            <div class="flex justify-between items-start gap-3">
+                <div>
+                    <h4 class="text-white font-semibold">{{ op.operation | friendly_name }}</h4>
+                    <div class="text-xs text-slate-500 mt-1">
+                        {{ op.total_count | number_format }} measurements
+                        {% if op.is_fast_operation %}
+                        <span class="text-green-400 font-medium ml-1">· Fast</span>
+                        {% elif op.is_slow_operation %}
+                        <span class="text-orange-400 font-medium ml-1">· Slow</span>
+                        {% endif %}
+                        {% if op.needs_attention %}
+                        <span class="text-red-400 font-medium ml-1">· Attention</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {# Big numbers #}
+                <div class="flex gap-4 text-center shrink-0">
+                    <div>
+                        <div class="text-lg font-bold {% if op.success_rate >= 99 %}text-green-400{% elif op.success_rate >= 95 %}text-amber-400{% else %}text-red-400{% endif %}">{{ op.success_rate }}%</div>
+                        <div class="text-xs text-slate-500">Success</div>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-blue-400">{{ op.median_ms }}ms</div>
+                        <div class="text-xs text-slate-500">Median</div>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-purple-400">{{ op.p95_ms }}ms</div>
+                        <div class="text-xs text-slate-500">P95</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Body — distribution + range #}
+        <div class="p-4">
+            {# Performance Distribution Bar #}
+            <div class="mb-4">
+                <h5 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Performance Distribution</h5>
+                {% set dist_colors = {'excellent': 'bg-green-500', 'good': 'bg-green-400', 'average': 'bg-amber-400', 'slow': 'bg-orange-500', 'very_slow': 'bg-red-500'} %}
+                <div class="flex h-5 rounded overflow-hidden mb-2 bg-surface-20">
+                    {% for category, data in op.performance_distribution.items() %}
+                    {% if data.percentage > 0 %}
+                    <div class="{{ dist_colors.get(category, 'bg-surface-20') }}" style="width: {{ data.percentage }}%"
+                         title="{{ category }}: {{ data.count }} ({{ data.percentage }}%)"></div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="flex flex-wrap gap-3 text-xs">
+                    {% for category, data in op.performance_distribution.items() %}
+                    {% if data.percentage > 0 %}
+                    <span class="flex items-center gap-1">
+                        <span class="w-2.5 h-2.5 rounded-sm {{ dist_colors.get(category, '') }}"></span>
+                        <strong class="capitalize">{{ category | replace('_', ' ') }}:</strong>
+                        <span class="text-slate-500">{{ data.percentage }}% ({{ data.count }})</span>
+                    </span>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            {# Duration Range #}
+            <div>
+                <h5 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Duration Range</h5>
+                <div class="flex justify-between items-center bg-surface-10/50 rounded-lg p-3 text-sm">
+                    <span class="text-slate-300">Min: <strong class="text-white">{{ op.min_ms }}ms</strong></span>
+                    <span class="text-slate-300">Mean: <strong class="text-white">{{ op.mean_ms }}ms</strong></span>
+                    <span class="text-slate-300">Max: <strong class="text-white">{{ op.max_ms }}ms</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+{{ empty_state("No Performance Data", description="No performance measurements found. Send performance_measured events from your app.", icon_name="clock") }}
+{% endif %}
