@@ -1,0 +1,17 @@
+# luxlint — fleet code-style + type standard (sibling of .luxarch.toml).
+# Carries only where to look + the repo's facts; the ruff/mypy config lives in the image.
+# Run via `make lint` / `make mypy`; schema: `luxlint --doc REFERENCE`.
+
+[source]
+# tests/ and alembic/ are first-party code we maintain, so they are style-held like app/.
+paths = ["app", "tests", "alembic"]
+
+# Python 3.14 app (Dockerfile: python:3.14-slim) — check ruff/mypy at 3.14.
+[python]
+target = "py314"
+
+# First-party JS lives at the canonical app/static/js; third-party is under app/static/vendor.
+[js]
+source_type = "script"
+ecma_version = "2022"
+globals = ["htmx", "Alpine", "Chart", "echarts"]

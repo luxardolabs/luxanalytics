@@ -1,0 +1,16 @@
+# luxaudit — fleet dependency-vulnerability (SCA) guard. Run via `make audit`.
+# The pinned scanner + fleet ignore-policy ship IN the image; the advisory feed is fetched at run
+# time, so a green result is a statement about today, not a property of this commit.
+#
+# Source: poetry.lock — the Dockerfile's `poetry install` builds from it. requirements.txt is a
+# stale manifest nothing builds from (fastapi 0.104 vs the locked 0.115); its removal is tracked.
+#
+# An [[ignore]] entry HIDES a real finding and is OWNER-ONLY (luxarch --doc
+# FLEET-ONBOARDING-STANDARD §3). None are claimed.
+
+[source]
+paths = ["poetry.lock"]
+
+# [[ignore]]
+# id       = "GHSA-xxxx-xxxx-xxxx"
+# evidence = "why this advisory does not apply here + the tracking ticket"

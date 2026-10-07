@@ -42,3 +42,9 @@ Thumbs.db
 
 # Stray build artifact (a mis-parsed version path); not source
 /1.0/
+
+# Claude Code hook session state (luxarch --emit hooks)
+.claude/.hooks-heartbeat
+.claude/.luxpm-searched.json
+.claude/settings.json.bak
+.claude/.push-hold

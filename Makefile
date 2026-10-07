@@ -1,19 +1,27 @@
-.PHONY: help build up down restart logs shell test migrate clean dev prod css css-watch \
-       local-build local-build-latest external-build external-build-latest release release-latest \
-       buildx-setup \
-       prod-push prod-deploy prod-restart prod-logs prod-status prod-shell prod-nginx prod-release
+# =============================================================================
+# LuxAnalytics — analytics event collector API (FastAPI + PostgreSQL + Redis)
+# =============================================================================
+
+# Private topology (registry hosts, prod node, registry credential) is kept OUT of this tree:
+# set it in an untracked Makefile.local (see Makefile.local.example). Included FIRST so its
+# values win over the empty defaults below.
+-include Makefile.local
 
 # =============================================================================
 # Configuration
 # =============================================================================
 APP_NAME := luxanalytics
-LOCAL_REGISTRY := docker.registry.example:5000
-EXTERNAL_REGISTRY := registry.example
-BUILDER_NAME := luxanalytics-builder
+
+# The fleet registry: holds this app's local images AND the three guard images.
+REGISTRY ?=
+# The external registry production pulls from, and its push/pull credential.
+EXTERNAL_REGISTRY ?=
+EXTERNAL_REGISTRY_USER ?=
+EXTERNAL_REGISTRY_PASSWORD ?=
 
 # Image name
 IMAGE_NAME := luxanalytics
-LOCAL_IMAGE := $(LOCAL_REGISTRY)/luxardolabs/$(IMAGE_NAME)
+LOCAL_IMAGE := $(REGISTRY)/luxardolabs/$(IMAGE_NAME)
 EXTERNAL_IMAGE := $(EXTERNAL_REGISTRY)/luxardolabs/$(IMAGE_NAME)
 
 # Version from directory path: /luxanalytics/1.0/3 -> 1.0.3
@@ -34,6 +42,198 @@ ifdef NOCACHE
 else
   CACHE_FLAG :=
 endif
+
+# =============================================================================
+# Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
+# =============================================================================
+LUXARCH_VERSION  := 0.265.0
+LUXLINT_VERSION  := 0.61.0
+LUXAUDIT_VERSION := 0.13.0
+LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
+LUXLINT  := $(REGISTRY)/luxardolabs/luxlint:$(LUXLINT_VERSION)
+LUXAUDIT := $(REGISTRY)/luxardolabs/luxaudit:$(LUXAUDIT_VERSION)
+GUARD_RUN = docker run --rm -v $(PWD):/repo
+
+# Host TLS cert dir for the local nginx (compose.yml); set in Makefile.local.
+TLS_CERTS_DIR ?=
+export TLS_CERTS_DIR
+
+.DEFAULT_GOAL := help
+
+.PHONY: help check guard-version-check guard-upgrade guard-registry honest lint mypy format test arch plan \
+        audit gitleaks gitleaks-staged onboard-check \
+        build build-fast up down restart logs logs-app logs-db shell shell-db test-local migrate migrate-down \
+        migrate-create clean status health ps backup restore work quick css css-watch check-env \
+        local-build local-build-latest external-build external-build-latest release release-latest \
+        buildx-setup version images \
+        prod-push prod-deploy prod-restart prod-stop prod-logs prod-status prod-shell prod-shell-db \
+        prod-nginx prod-migrate prod-backup prod-version prod-release
+
+# THE fleet gate — byte-identical composition across every app repo. Make stops at the FIRST
+# failing step; for every architecture red at once, run `make plan`.
+check: guard-version-check honest lint mypy test arch audit gitleaks ## THE fleet gate — run before every commit
+
+guard-registry:
+	@[ -n "$(REGISTRY)" ] || { echo "REGISTRY unset — copy Makefile.local.example to Makefile.local"; exit 1; }
+
+guard-version-check: guard-registry ## FATAL: fail if any guard pin is behind the published latest
+	@rc=0; for g in luxarch luxlint luxaudit; do \
+	  pin=$$(case $$g in luxarch) echo $(LUXARCH_VERSION);; luxlint) echo $(LUXLINT_VERSION);; luxaudit) echo $(LUXAUDIT_VERSION);; esac); \
+	  docker pull -q $(REGISTRY)/luxardolabs/$$g:latest >/dev/null 2>&1 || true; \
+	  latest=$$(docker run --rm $(REGISTRY)/luxardolabs/$$g:latest --version 2>/dev/null | awk '{print $$2}'); \
+	  if [ -n "$$latest" ] && [ "$$latest" != "$$pin" ]; then \
+	    printf '✗ %s pinned %s, latest %s — behind. Preview: --new-rules --since %s; then make guard-upgrade\n' "$$g" "$$pin" "$$latest" "$$pin"; rc=1; \
+	  fi; done; exit $$rc
+
+# luxarch:guard-upgrade asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit guard-upgrade`.
+guard-upgrade:  ## Bump every guard pin to the published latest (prints what newly bites)
+	@for g in luxarch luxlint luxaudit; do \
+	  docker pull -q $(REGISTRY)/luxardolabs/$$g:latest >/dev/null 2>&1 || true; \
+	  latest=$$(docker run --rm $(REGISTRY)/luxardolabs/$$g:latest --version 2>/dev/null | awk '{print $$2}'); \
+	  var=$$(echo $$g | tr a-z A-Z)_VERSION; \
+	  old=$$(sed -n -E "s/^$$var[[:space:]]*:=[[:space:]]*//p" Makefile); \
+	  if [ -z "$$old" ]; then echo "!! no $$var pin found in Makefile — NOT bumped"; continue; fi; \
+	  if [ -z "$$latest" ]; then echo "!! could not read $$g:latest — $$var left at $$old"; continue; fi; \
+	  checked=1; \
+	  sed -i -E "s|^($$var[[:space:]]*:=[[:space:]]*).*|\\1$$latest|" Makefile; \
+	  new=$$(sed -n -E "s/^$$var[[:space:]]*:=[[:space:]]*//p" Makefile); \
+	  if [ "$$new" != "$$latest" ]; then echo "!! $$var did NOT change (still $$new)"; exit 1; fi; \
+	  if [ "$$old" != "$$latest" ]; then echo "$$var $$old -> $$latest"; bumped=1; fi; \
+	  [ "$$g" = luxarch ] && [ "$$old" != "$$latest" ] && docker run --rm -v $(PWD):/repo $(REGISTRY)/luxardolabs/luxarch:$$latest --new-rules --since $$old || true; \
+	done; \
+	if [ -n "$$bumped" ]; then echo "pins bumped — re-run make check"; \
+	elif [ -n "$$checked" ]; then echo "all pins already at latest"; \
+	else echo "!! could not reach the registry — NO pin was checked; currency NOT established"; exit 1; fi
+
+honest: guard-registry ## HONESTY gate — a green `make check` must mean nothing was silently unchecked
+	@$(GUARD_RUN) $(LUXARCH) --assert-scans
+	@$(GUARD_RUN) $(LUXLINT) --preflight
+
+lint: guard-registry ## ruff + format + eslint + secret checks (canonical config, mount-only)
+	@$(GUARD_RUN) $(LUXLINT)
+
+mypy: guard-registry ## mypy (fleet typed deps baked, mount-only)
+	@$(GUARD_RUN) $(LUXLINT) --mypy
+
+# THE canonical fixer (the only luxlint mode that writes). Never shell the formatter directly:
+# with no local config it applies its default width and rewrites the tree wrong.
+format: guard-registry ## Auto-fix + format Python and Markdown via luxlint (writes back)
+	@docker run --rm --user $$(id -u):$$(id -g) -e HOME=/tmp -v $(PWD):/repo $(LUXLINT) --format
+
+test: ## Run the test suite (in the running app container)
+	docker compose exec luxanalytics_app pytest tests/ -v
+
+arch: guard-registry ## Architecture conformance via luxarch (reads .luxarch.toml)
+	@$(GUARD_RUN) $(LUXARCH)
+
+plan: guard-registry ## The full red board — every arch red, phase-ordered + file-clustered
+	@$(GUARD_RUN) $(LUXARCH) --plan
+
+audit: guard-registry ## Dependency CVEs (SCA) against the live advisory feed
+	@$(GUARD_RUN) -v luxaudit-cache:/root/.cache/trivy $(LUXAUDIT)
+
+# The machine gate for "is this repo ONBOARDED": wiring + honesty, NOT green.
+# See luxarch --doc FLEET-ONBOARDING-STANDARD §5.
+onboard-check: guard-registry ## Prove the repo is onboarded: all three guards on + honest + privacy wired
+	@set +e; fail=0; \
+	$(GUARD_RUN) $(LUXARCH)  --version       >/dev/null || { echo "luxarch not wired";  fail=1; }; \
+	$(GUARD_RUN) $(LUXARCH)  --assert-scans  >/dev/null 2>&1 || { echo "luxarch: a rule family scanned NOTHING (hollow green) — point it at real code or remove the surface"; fail=1; }; \
+	$(GUARD_RUN) $(LUXLINT)  --preflight               || { echo "mypy tail NOT honest (luxlint --preflight)"; fail=1; }; \
+	$(GUARD_RUN) $(LUXAUDIT) 2>&1 | grep -q "scan could not run" && { echo "luxaudit can't scan — supply-chain blind"; fail=1; }; \
+	$(GUARD_RUN) $(LUXLINT)  --version       >/dev/null || { echo "luxlint not wired";  fail=1; }; \
+	$(GUARD_RUN) $(LUXAUDIT) --version       >/dev/null || { echo "luxaudit not wired"; fail=1; }; \
+	[ -f hooks/pre-commit ] || { echo "secret git-hooks NOT wired (luxlint --emit-hooks | sh, commit hooks/)"; fail=1; }; \
+	[ ! -d .github/workflows ] || { echo "public CI present — make check is the sole gate (remove .github/workflows)"; fail=1; }; \
+	! sed 's/#.*//' Makefile 2>/dev/null | grep -qE '^[[:space:]]+[^#]*\bruff[[:space:]]+format\b' || { echo "Makefile RUNS a bare formatter in a recipe (wrong width) — use 'luxlint --format'"; fail=1; }; \
+	$(MAKE) -s gitleaks >/dev/null 2>&1 || { echo "gitleaks found secrets in FULL history — scrub before onboarding is complete"; fail=1; }; \
+	[ $$fail -eq 0 ] && echo "onboard-check: all three guards on + honest + privacy wired + history clean ✓" || { echo "onboard-check FAILED"; exit 1; }
+
+# luxarch:gitleaks asset v10 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit gitleaks`.
+# ── The privacy gate: BOTH surfaces ─────────────────────────────────────────────────────────────
+# Emitted by `luxarch --emit gitleaks`. Drop in verbatim.
+#
+# `gitleaks` scans DIFF CONTENT. A commit's author/committer address lives in the commit object
+# HEADER and never appears in a patch, so no content rule can ever match it — it is a surface the
+# scanner does not read. A repo reported `no leaks found` over 963 commits while 29 of them carried a
+# personal address in both the author and committer fields, and it would have reported exactly the
+# same thing after the scrub: identical output, opposite truth. Measured across the fleet, EIGHT
+# repos carry a personal address in history and two of them are PUBLIC.
+
+# Commit identities this repo accepts. The fleet account's `users.noreply.github.com` address, plus
+# GitHub's own web-UI committer. Widen ONLY for a real outside contributor, with a comment saying who.
+# NOT for the org account's real address: a role mailbox in commit metadata is published with every
+# clone exactly like a personal one (six fleet repos carried it, one PUBLIC). Its
+# omission here is the policy, not an oversight: the answer is the scrub printed below, and the
+# repo's agent performs it once the OWNER approves the force-push.
+# Anchored on the CLOSING BRACKET, because the compared line is `Name <email>` — not a bare
+# address. The first cut allowed `^noreply@github.com$$`, which can NEVER match a
+# `Name <email>` line, so the GitHub web-UI identity was silently DENIED and the canonical
+# recipe would have refused on any repo carrying a web-UI commit. Measured across the fleet: it
+# denied 4 of 6 distinct identity lines instead of the 3 real offenders.
+# It was missed because the only repo it was tested on has no web-UI commits, so the broken
+# branch never ran. The bracket also closes a substring hole: unanchored,
+# `<x@users.noreply.github.com.attacker.test>` would have been allowed.
+GIT_IDENTITY_OK ?= <[^>]*users\.noreply\.github\.com>$$|<noreply@github\.com>$$
+
+# The secret scanner, PINNED and MIRRORED in the fleet registry. The fleet bans a moving tag
+# everywhere it can see one, and this used to ship `ghcr.io/gitleaks/gitleaks:latest` inside the asset every
+# repo adopts verbatim: the privacy gate could not run with ghcr unreachable or the local copy pruned, and
+# nothing recorded which scanner said "no leaks found". New detection rules still arrive, through the fleet's
+# own mechanism: luxarch bumps this pin in a release, and `repo.emitted_assets_current` tells you to re-emit.
+# v5: the HOST is never written here. v4 inlined the private registry, so dropping
+# this asset in "verbatim" put the host into a committed Makefile, and on a public repo the fleet's
+# own gitleaks disclosure tier refused the commit. The mirror lives beside the guards, so the ref is
+# derived from wherever this repo already pulls luxlint (`$(LUXLINT)`, which the scan below needs
+# anyway). It works whichever variable holds your guard registry (REGISTRY, LUXARCH_REGISTRY, …).
+# Recursive `=` so it resolves at use, whatever order LUXLINT is defined in.
+# v9: PINNED BY DIGEST, and buildable off-network. The digest is the scanner's identity; the registry is
+# only where it is fetched from. Beside a registry-qualified `$(LUXLINT)` it pulls the fleet mirror; with
+# a local guard build (`luxlint:local`, on a machine with no access to the fleet registry, such as an
+# airgapped laptop) it pulls the public image. v8 derived `./gitleaks:…` there, an unpullable reference, so the
+# privacy gate could not run at all. The mirror and the public image share the digest, so both
+# resolve to the same bits, and a tampered or re-tagged copy fails the pull instead of scanning.
+GITLEAKS_IMAGE = $(if $(findstring /,$(LUXLINT)),$(dir $(LUXLINT)),zricethezav/)gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+
+gitleaks: ## secret scan over FULL HISTORY + the commit-identity pass (the hooks cover commit/push)
+	@set -e; C=$$(mktemp); trap 'rm -f "$$C"' EXIT INT TERM; \
+	docker run --rm -v $(PWD):/repo $(LUXLINT) --emit-config gitleaks > "$$C"; \
+	docker run --rm -v $(PWD):/repo -v "$$C":/gl.toml:ro -w /repo \
+	  $(GITLEAKS_IMAGE) git /repo -c /gl.toml --redact -v
+	@# The identity pass — the half gitleaks structurally cannot do. Cheap: one `git log`.
+	@# Walks what THIS repo publishes (branches, tags, HEAD), NOT `--all`: a remote-tracking ref caches the
+	@# remote's state, which during a scrub is by definition the un-rewritten history you are about to
+	@# force-push over — `--all` refused the verified fix, and any `git fetch` re-armed it.
+	@bad=$$(git log --branches --tags HEAD --pretty='%an <%ae>%n%cn <%ce>' 2>/dev/null | sort -u \
+	  | grep -vE '$(GIT_IDENTITY_OK)' || true); \
+	if [ -n "$$bad" ]; then \
+	  echo "REFUSING: a non-fleet identity appears in commit METADATA (author/committer):"; \
+	  echo "$$bad" | sed 's/^/    /'; \
+	  echo "gitleaks cannot see this — it scans diffs, not commit headers, so it reported no leaks."; \
+	  echo "An address here is attached to every affected commit forever, not to one line of one file."; \
+	  echo "Scrub per FLEET-ONBOARDING-STANDARD §2: mirror backup -> git filter-repo -> re-verify with"; \
+	  echo "  git log --branches --tags HEAD --pretty='%an <%ae>%n%cn <%ce>' | sort -u"; \
+	  echo "-> ask the OWNER to approve the force-push, then do it yourself. Never force-push unapproved."; \
+	  exit 1; \
+	fi
+
+# v6: the STAGED scan the commit hook calls (`hooks/pre-commit` → `make gitleaks-staged`) is part of the
+# asset now. v5 shipped only the full-history half, so 9 of 10 adopting repos hand-wrote this target
+# and the tenth had none, leaving its pre-commit hook pointing at a missing recipe. If your Makefile
+# carries its own `gitleaks-staged`, delete it when you re-emit: this one replaces it.
+# v7: `-w /repo` is LOAD-BEARING. Without it git runs outside the repo, falls back to `git diff
+# --no-index`, rejects `--staged`, and gitleaks EXITS 0: v6 let a staged secret through while printing
+# a git error (measured on a planted GitHub token: v6 exit 0, v7 "leaks found: 1" exit 1).
+# v8: the denylist goes to a PER-RUN `mktemp` file, removed on exit. v7 wrote a fixed
+# `/tmp/gl.toml` that outlived the run: on a host where commit and push run as different users, the
+# next user's redirect was refused (`fs.protected_regular=1`, the Fedora default, blocks O_CREAT on
+# another user's file in sticky /tmp even for root), so the privacy gate failed every commit or push
+# after a user switch (2 of 2 measured). Two repos scanning at once also shared one file, so one could
+# scan with the other's carve-outs. The full-history scan now also passes `-w /repo`, like the staged one.
+gitleaks-staged: ## secret scan of the STAGED changes (run by hooks/pre-commit)
+	@set -e; C=$$(mktemp); trap 'rm -f "$$C"' EXIT INT TERM; \
+	docker run --rm -v $(PWD):/repo $(LUXLINT) --emit-config gitleaks > "$$C"; \
+	docker run --rm -v $(PWD):/repo -v "$$C":/gl.toml:ro -w /repo \
+	  $(GITLEAKS_IMAGE) protect --staged /repo -c /gl.toml --redact -v
 
 # =============================================================================
 # Help
@@ -57,7 +257,7 @@ help:
 	@echo "  make css         - Build Tailwind CSS"
 	@echo "  make css-watch   - Watch and rebuild CSS on changes"
 	@echo ""
-	@echo "Local Registry ($(LOCAL_REGISTRY)):"
+	@echo "Local Registry ($(REGISTRY)):"
 	@echo "  make local-build         - Build and push to local registry"
 	@echo "  make local-build-latest  - Build and push with :latest tag"
 	@echo ""
@@ -71,12 +271,24 @@ help:
 	@echo ""
 
 # =============================================================================
-# Buildx Setup
+# Buildx Setup — the ONE shared fleet builder (emitted asset)
 # =============================================================================
+# luxarch:buildx-setup asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit buildx-setup`.
+BUILDX_BUILDER ?= luxardo-builder
 buildx-setup:
-	@docker buildx inspect $(BUILDER_NAME) > /dev/null 2>&1 || \
-		docker buildx create --name $(BUILDER_NAME) --use --driver docker-container
-	@docker buildx use $(BUILDER_NAME)
+	@mkdir -p $(HOME)/.docker
+	@[ -f $(HOME)/.docker/buildkitd.toml ] || printf '[worker.oci]\n  gc = true\n  [[worker.oci.gcpolicy]]\n    keepBytes = "20GB"\n    all = true\n' > $(HOME)/.docker/buildkitd.toml
+	@docker buildx inspect $(BUILDX_BUILDER) >/dev/null 2>&1 || \
+	  docker buildx create --name $(BUILDX_BUILDER) --driver docker-container \
+	    --buildkitd-config $(HOME)/.docker/buildkitd.toml --use
+	@docker buildx use $(BUILDX_BUILDER)
+	@strays=$$(docker buildx ls 2>/dev/null | awk '$$2=="docker-container"{print $$1}' \
+	  | grep -v '^\\_' | sed 's/\*$$//' | grep -vxF "$(BUILDX_BUILDER)" | tr '\n' ' '); \
+	if [ -n "$$strays" ] && [ -z "$(ALLOW_STRAY_BUILDERS)" ]; then \
+	  echo "REFUSING: stray per-project buildx builders are running: $$strays"; \
+	  echo "Remove them:  docker buildx rm $$strays"; \
+	  exit 1; \
+	fi
 
 # =============================================================================
 # Local Registry
@@ -104,7 +316,7 @@ local-build-latest: local-build
 external-build: buildx-setup css
 	@echo "Building and pushing to external registry..."
 	@echo "Image: $(EXTERNAL_IMAGE):$(BUILD_VERSION)"
-	@echo "REDACTED-REGISTRY-CREDENTIAL" | docker login $(EXTERNAL_REGISTRY) -u luxardolabs --password-stdin
+	@printf '%s' "$(EXTERNAL_REGISTRY_PASSWORD)" | docker login $(EXTERNAL_REGISTRY) -u $(EXTERNAL_REGISTRY_USER) --password-stdin
 	docker buildx build --platform linux/amd64 \
 		$(BUILD_ARGS) \
 		-t $(EXTERNAL_IMAGE):$(BUILD_VERSION) \
@@ -114,7 +326,7 @@ external-build: buildx-setup css
 
 external-build-latest: buildx-setup css
 	@echo "Building and pushing to external registry with :latest..."
-	@echo "REDACTED-REGISTRY-CREDENTIAL" | docker login $(EXTERNAL_REGISTRY) -u luxardolabs --password-stdin
+	@printf '%s' "$(EXTERNAL_REGISTRY_PASSWORD)" | docker login $(EXTERNAL_REGISTRY) -u $(EXTERNAL_REGISTRY_USER) --password-stdin
 	docker buildx build --platform linux/amd64 \
 		$(BUILD_ARGS) \
 		-t $(EXTERNAL_IMAGE):$(BUILD_VERSION) \
@@ -190,9 +402,6 @@ shell:
 shell-db:
 	docker compose exec luxanalytics_db psql -U luxanalytics -d luxanalytics
 
-test:
-	docker compose exec luxanalytics_app pytest tests/ -v
-
 test-local:
 	cd src && pytest tests/ -v
 
@@ -257,11 +466,12 @@ check-env:
 	@test -f .env.dev && echo "✅ .env.dev" || echo "❌ .env.dev"
 
 # =============================================================================
-# Production Deployment (OVH prod-node via jump host)
+# Production Deployment (prod node via jump host; set in Makefile.local)
 # =============================================================================
-PROD_JUMP := jump.example
-PROD_HOST := root@prod-node.example
-PROD_PATH := /opt/luxardolabs/luxanalytics
+# The prod node and its jump host come from Makefile.local.
+PROD_JUMP ?=
+PROD_HOST ?=
+PROD_PATH ?= /opt/luxardolabs/luxanalytics
 PROD_SSH := ssh $(PROD_JUMP) "ssh $(PROD_HOST)
 
 prod-push:
@@ -274,7 +484,7 @@ prod-push:
 
 prod-deploy:
 	@echo "Deploying LuxAnalytics $(BUILD_VERSION) to production..."
-	@$(PROD_SSH) 'echo REDACTED-REGISTRY-CREDENTIAL | docker login $(EXTERNAL_REGISTRY) -u luxardolabs --password-stdin && cd $(PROD_PATH) && docker compose --env-file .env.prod pull && docker compose --env-file .env.prod up -d && docker logout $(EXTERNAL_REGISTRY)'"
+	@$(PROD_SSH) 'printf %s $(EXTERNAL_REGISTRY_PASSWORD) | docker login $(EXTERNAL_REGISTRY) -u $(EXTERNAL_REGISTRY_USER) --password-stdin && cd $(PROD_PATH) && docker compose --env-file .env.prod pull && docker compose --env-file .env.prod up -d && docker logout $(EXTERNAL_REGISTRY)'"
 	@echo "✅ Deployed $(BUILD_VERSION)"
 
 prod-restart:

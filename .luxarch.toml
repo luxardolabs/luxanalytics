@@ -1,0 +1,9 @@
+# Architecture-conformance config for luxarch (the fleet arch guard).
+# Run via `make arch`; schema: `luxarch --doc REFERENCE`.
+#
+# Facts only. No allowlist entries: every one needs a written evidence line, and none has
+# been earned yet. Reds stay red and are tracked in LuxPM (LUXANALYTI-42 onboarding).
+
+[[target]]
+kind = "fastapi-web"
+app = "app"
