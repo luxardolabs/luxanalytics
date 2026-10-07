@@ -1,25 +1,10 @@
-{% from "macros/tables.html" import th, td, pagination_controls %}
+{% from "macros/tables.html" import td, pagination_controls, data_table %}
 {% from "macros/layout.html" import empty_state %}
 {% from "macros/badges.html" import badge %}
 {% from "macros/buttons.html" import icon_view, button %}
 
 {% if events %}
-<div class="overflow-x-auto rounded-lg border border-surface-20">
-    <table class="w-full text-sm">
-        <thead>
-            <tr>
-                {% if not app_id %}{{ th("App") }}{% endif %}
-                {{ th("Event") }}
-                {{ th("User") }}
-                {{ th("Session") }}
-                {{ th("Device") }}
-                {{ th("OS") }}
-                {{ th("Key Data") }}
-                {{ th("Time") }}
-                {{ th("", class="w-12") }}
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-surface-20">
+{% call data_table(columns, bordered=true) %}
             {% for event in events %}
             <tr class="hover:bg-surface-10/50 transition-colors">
                 {% if not app_id %}
@@ -92,10 +77,8 @@
                 {% endcall %}
             </tr>
             {% endfor %}
-        </tbody>
-    </table>
-    {{ pagination_controls(pagination, pagination_base_url, query_params) }}
-</div>
+{% endcall %}
+{{ pagination_controls(pagination, pagination_base_url, query_params) }}
 {% else %}
 {{ empty_state("No events found", description="Try adjusting your filters or time range", icon_name="magnifying-glass") }}
 {% endif %}

@@ -144,10 +144,15 @@ class DashboardViewService:
             pagination = build_pagination(
                 page=page, total=total, per_page=EVENTS_PER_PAGE
             )
+        # The App column only when the list spans every app.
+        columns: list[str | dict[str, str]] = [] if app_id else ["App"]
+        columns += ["Event", "User", "Session", "Device", "OS", "Key Data", "Time"]
+        columns.append({"label": "", "class": "w-12"})
         return {
             **self._filtered(
                 app_id, hours, {"events": events, "pagination": pagination}
             ),
+            "columns": columns,
             "event_name": event_name,
             # Page links go to the full events PAGE (it takes ?page= and the same filters); the
             # content route is an HTMX fragment and must not be navigated to.

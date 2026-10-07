@@ -1,7 +1,7 @@
 {% from "macros/cards.html" import stat_card, stat_card_compact, stat_grid %}
 {% from "macros/layout.html" import empty_state, grid %}
 {% from "macros/analytics.html" import analytics_card, value_breakdown %}
-{% from "macros/tables.html" import th, td %}
+{% from "macros/tables.html" import th, td, data_table %}
 {% from "macros/badges.html" import badge, info_box %}
 
 {% if requires_app %}
@@ -176,18 +176,7 @@
     {# Dwell Times #}
     {% if dwell_times %}
     {% call analytics_card("Time Spent Per Screen") %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr>
-                        {{ th("Screen") }}
-                        {{ th("Visits", class="text-right") }}
-                        {{ th("Avg Time", class="text-right") }}
-                        {{ th("Median", class="text-right") }}
-                        {{ th("Max", class="text-right") }}
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-surface-20">
+        {% call data_table(["Screen", {"label": "Visits", "class": "text-right"}, {"label": "Avg Time", "class": "text-right"}, {"label": "Median", "class": "text-right"}, {"label": "Max", "class": "text-right"}]) %}
                     {% for d in dwell_times %}
                     <tr class="hover:bg-surface-10/50 transition-colors">
                         {% call td() %}<span class="text-white font-medium">{{ d.screen | friendly_name }}</span>{% endcall %}
@@ -201,9 +190,7 @@
                         {% call td(class="text-right tabular-nums text-slate-500") %}{{ d.max_seconds }}s{% endcall %}
                     </tr>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        {% endcall %}
     {% endcall %}
     {% endif %}
 
@@ -271,16 +258,7 @@
 {% if button_flows %}
 {% call analytics_card("Button Interaction Flows") %}
     {% set max_interactions = button_flows[0][1] if button_flows else 1 %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr>
-                    {{ th("Screen → Button") }}
-                    {{ th("Interactions", class="text-right") }}
-                    {{ th("Flow Strength") }}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-surface-20">
+    {% call data_table(["Screen → Button", {"label": "Interactions", "class": "text-right"}, "Flow Strength"]) %}
                 {% for flow, count in button_flows %}
                 {% set strength = (count / max_interactions * 100) | round(1) %}
                 <tr class="hover:bg-surface-10/50 transition-colors">
@@ -300,9 +278,7 @@
                     {% endcall %}
                 </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% endcall %}
 {% endcall %}
 {% endif %}
 

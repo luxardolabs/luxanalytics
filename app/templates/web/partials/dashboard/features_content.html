@@ -1,7 +1,7 @@
 {% from "macros/cards.html" import stat_card, stat_grid %}
 {% from "macros/layout.html" import empty_state, grid %}
 {% from "macros/analytics.html" import analytics_card, value_breakdown %}
-{% from "macros/tables.html" import th, td %}
+{% from "macros/tables.html" import th, td, data_table %}
 {% from "macros/badges.html" import badge %}
 
 {# ── Summary ── #}
@@ -70,23 +70,13 @@
 {# ── Button Taps ── #}
 {% if buttons %}
 {% call analytics_card("Button Taps") %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr>
-                    {{ th("Screen : Button") }}
-                    {{ th("Taps", class="text-right") }}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-surface-20">
+    {% call data_table(["Screen : Button", {"label": "Taps", "class": "text-right"}]) %}
                 {% for key, count in buttons %}
                 <tr class="hover:bg-surface-10/50 transition-colors">
                     {% call td() %}<span class="font-mono text-xs">{{ key }}</span>{% endcall %}
                     {% call td(class="text-right tabular-nums") %}{{ count | number_format }}{% endcall %}
                 </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% endcall %}
 {% endcall %}
 {% endif %}

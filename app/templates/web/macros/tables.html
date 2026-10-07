@@ -2,7 +2,7 @@
     Table Macros - Table components for LuxAnalytics templates.
 
     Usage:
-        {% from "macros/tables.html" import th, td %}
+        {% from "macros/tables.html" import data_table, td %}
 #}
 
 
@@ -19,6 +19,24 @@
 <td class="px-6 py-4 whitespace-nowrap {{ class }}">
     {{ caller() }}
 </td>
+{% endmacro %}
+
+{# Data table: the ONE branded <table> (fw.template_table). Headers render through th() (scope="col");
+   rows come from the call body. A column is a label, or {"label": "Events", "class": "text-right"}.
+   Usage: {% call data_table(["Name", {"label": "Events", "class": "text-right"}], bordered=true) %}<tr>…</tr>{% endcall %} #}
+{% macro data_table(columns, bordered=false, class="") %}
+<div class="overflow-x-auto{% if bordered %} rounded-lg border border-surface-20{% endif %}{% if class %} {{ class }}{% endif %}">
+    <table class="w-full text-sm">
+        <thead>
+            <tr>
+                {% for col in columns %}{% if col is mapping %}{{ th(col["label"], class=col.get("class", "")) }}{% else %}{{ th(col) }}{% endif %}{% endfor %}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-surface-20">
+            {{ caller() }}
+        </tbody>
+    </table>
+</div>
 {% endmacro %}
 
 

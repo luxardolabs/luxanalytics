@@ -2,7 +2,7 @@
 {% from "macros/layout.html" import empty_state, grid %}
 {% from "macros/analytics.html" import analytics_card, value_breakdown %}
 {% from "macros/badges.html" import badge, info_box %}
-{% from "macros/tables.html" import th, td %}
+{% from "macros/tables.html" import th, td, data_table %}
 
 {# ── Computed values ── #}
 {% set events_per_device = (total_events / unique_devices) | round(1) if unique_devices > 0 else 0 %}
@@ -33,19 +33,7 @@
 {% if device_details %}
 <div class="mb-6">
 {% call analytics_card("Device Details") %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr>
-                    {{ th("Device") }}
-                    {{ th("Model & OS") }}
-                    {{ th("App Version") }}
-                    {{ th("Events", class="text-right") }}
-                    {{ th("Days Active", class="text-right") }}
-                    {{ th("Distribution") }}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-surface-20">
+    {% call data_table(["Device", "Model & OS", "App Version", {"label": "Events", "class": "text-right"}, {"label": "Days Active", "class": "text-right"}, "Distribution"]) %}
                 {% for d in device_details %}
                 <tr class="hover:bg-surface-10/50 transition-colors">
                     {% call td() %}
@@ -75,9 +63,7 @@
                     {% endcall %}
                 </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% endcall %}
 {% endcall %}
 </div>
 {% endif %}

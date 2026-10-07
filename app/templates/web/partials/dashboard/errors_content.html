@@ -1,7 +1,7 @@
 {% from "macros/cards.html" import stat_card, stat_grid %}
 {% from "macros/layout.html" import empty_state, grid %}
 {% from "macros/analytics.html" import analytics_card, value_breakdown %}
-{% from "macros/tables.html" import th, td %}
+{% from "macros/tables.html" import th, td, data_table %}
 {% from "macros/panels.html" import no_data_message %}
 
 {# ── Summary ── #}
@@ -59,17 +59,7 @@
 {# ── Error Types Detail ── #}
 {% if error_types %}
 {% call analytics_card("Error Types") %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr>
-                    {{ th("Error Type") }}
-                    {{ th("Count", class="text-right") }}
-                    {{ th("Top Screens") }}
-                    {{ th("Top Messages") }}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-surface-20">
+    {% call data_table(["Error Type", {"label": "Count", "class": "text-right"}, "Top Screens", "Top Messages"]) %}
                 {% for error in error_types %}
                 <tr class="hover:bg-surface-10/50 transition-colors align-top">
                     {% call td() %}<span class="font-medium text-red-400">{{ error.type }}</span>{% endcall %}
@@ -86,9 +76,7 @@
                     {% endcall %}
                 </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% endcall %}
 {% endcall %}
 {% else %}
 {{ empty_state("No errors in this period", icon_name="check-circle") }}

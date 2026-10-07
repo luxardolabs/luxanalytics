@@ -1,7 +1,7 @@
 {% from "macros/cards.html" import stat_card, stat_card_compact, stat_grid %}
 {% from "macros/layout.html" import empty_state, grid %}
 {% from "macros/analytics.html" import analytics_card, value_breakdown %}
-{% from "macros/tables.html" import th, td %}
+{% from "macros/tables.html" import th, td, data_table %}
 {% from "macros/badges.html" import badge %}
 {% from "macros/buttons.html" import button, copy_button %}
 
@@ -26,19 +26,7 @@
 {% if most_common_keys %}
 <div class="mb-6">
 {% call analytics_card("All Properties Keys") %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr>
-                    {{ th("Key") }}
-                    {{ th("Occurrences", class="text-right") }}
-                    {{ th("% of Events", class="text-right") }}
-                    {{ th("Types") }}
-                    {{ th("Example Values") }}
-                    {{ th("", class="w-12") }}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-surface-20">
+    {% call data_table(["Key", {"label": "Occurrences", "class": "text-right"}, {"label": "% of Events", "class": "text-right"}, "Types", "Example Values", {"label": "", "class": "w-12"}]) %}
                 {% for key, count in most_common_keys %}
                 <tr class="hover:bg-surface-10/50 transition-colors">
                     {% call td() %}
@@ -65,9 +53,7 @@
                     {% endcall %}
                 </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% endcall %}
 {% endcall %}
 </div>
 {% endif %}

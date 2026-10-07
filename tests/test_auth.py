@@ -11,10 +11,11 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
+from app.models.app_model import App
 
 
 @pytest.mark.asyncio
-async def test_hmac_auth_valid(client):
+async def test_hmac_auth_valid(client: AsyncClient) -> None:
     """Valid HMAC signature should be accepted."""
     from app.core.config import settings
 
@@ -55,7 +56,7 @@ async def test_hmac_auth_valid(client):
 
 
 @pytest.mark.asyncio
-async def test_hmac_auth_invalid_signature(client):
+async def test_hmac_auth_invalid_signature(client: AsyncClient) -> None:
     """Invalid HMAC signature should be rejected."""
     body = json.dumps(
         {
@@ -81,7 +82,7 @@ async def test_hmac_auth_invalid_signature(client):
 
 
 @pytest.mark.asyncio
-async def test_hmac_auth_expired_timestamp(client):
+async def test_hmac_auth_expired_timestamp(client: AsyncClient) -> None:
     """Expired timestamp should be rejected."""
     from app.core.config import settings
 
@@ -119,7 +120,7 @@ async def test_hmac_auth_expired_timestamp(client):
 
 
 @pytest.mark.asyncio
-async def test_dsn_auth_valid(client, sample_app):
+async def test_dsn_auth_valid(client: AsyncClient, sample_app: App) -> None:
     """Valid DSN basic auth should be accepted."""
     body = json.dumps(
         {
@@ -144,7 +145,7 @@ async def test_dsn_auth_valid(client, sample_app):
 
 
 @pytest.mark.asyncio
-async def test_dsn_auth_invalid_project(client):
+async def test_dsn_auth_invalid_project(client: AsyncClient) -> None:
     """Invalid project_id should return 404."""
     body = json.dumps(
         {
@@ -163,7 +164,7 @@ async def test_dsn_auth_invalid_project(client):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_requires_auth(client):
+async def test_dashboard_requires_auth(client: AsyncClient) -> None:
     """Dashboard pages should require authentication."""
     response = await client.get("/dashboard/overview", follow_redirects=False)
     # require_auth answers an anonymous GET with 303 See Other to the login page, carrying the
