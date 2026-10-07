@@ -6,21 +6,21 @@
     <title>{% block title %}LuxAnalytics{% endblock %}</title>
 
     {# Tailwind compiled CSS + custom styles #}
-    <link rel="stylesheet" href="/static/css/compiled.css">
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/compiled.css?v={{ static_version }}">
+    <link rel="stylesheet" href="/static/css/styles.css?v={{ static_version }}">
 
     {# HTMX + Idiomorph #}
-    <script src="/static/vendor/htmx/htmx.min.js"></script>
+    <script src="/static/vendor/htmx/htmx.min.js?v={{ static_version }}"></script>
 
     {# Alpine.js #}
-    <script defer src="/static/vendor/alpine/alpine.min.js"></script>
+    <script defer src="/static/vendor/alpine/alpine.min.js?v={{ static_version }}"></script>
 
     {# Chart.js + date adapter #}
-    <script src="/static/vendor/chartjs/chart.umd.min.js"></script>
-    <script src="/static/vendor/chartjs/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="/static/vendor/chartjs/chart.umd.min.js?v={{ static_version }}"></script>
+    <script src="/static/vendor/chartjs/chartjs-adapter-date-fns.bundle.min.js?v={{ static_version }}"></script>
 
     {# ECharts (for Sankey/flow diagrams) #}
-    <script src="/static/vendor/echarts/echarts.min.js"></script>
+    <script src="/static/vendor/echarts/echarts.min.js?v={{ static_version }}"></script>
 
     {% block head %}{% endblock %}
 </head>
@@ -80,9 +80,9 @@
     </div>
 
     {# ===== GLOBAL JS ===== #}
-    <script src="/static/js/app.js"></script>
-    <script src="/static/js/charts.js"></script>
-    <script src="/static/js/htmx-error-swap.js"></script>
+    <script src="/static/js/app.js?v={{ static_version }}"></script>
+    <script src="/static/js/charts.js?v={{ static_version }}"></script>
+    <script src="/static/js/htmx-error-swap.js?v={{ static_version }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>

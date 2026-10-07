@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "LuxAnalytics"
     APP_VERSION: str = Field(default_factory=lambda: _running_version())
     BUILD_TIMESTAMP: str | None = None
+    # The git short SHA the image was built from (Dockerfile ENV; = the OCI revision label).
+    BUILD_COMMIT: str | None = None
     DEBUG: bool = False
     ENVIRONMENT: str = "production"
 

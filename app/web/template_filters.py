@@ -42,11 +42,12 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 if TYPE_CHECKING:
     from fastapi.templating import Jinja2Templates
 
+from app.core.config import settings
 
 # Named format presets
 DATE_FORMATS = {
@@ -101,7 +102,8 @@ def localtime(
     if tz:
         try:
             return dt.astimezone(ZoneInfo(tz))
-        except Exception:
+        except ZoneInfoNotFoundError, ValueError:
+            # An unknown or malformed zone name renders the time unconverted (UTC).
             return dt
     return dt
 
@@ -321,10 +323,10 @@ def month_name(dt: datetime | None, style: str = "short") -> str:
 # ── JSON with datetime support ────────────────────────────────────────────────
 
 
-def tojson_safe(value, indent=None) -> str:
+def tojson_safe(value: object, indent: int | None = None) -> str:
     """JSON encode with datetime support."""
 
-    def default(obj):
+    def default(obj: object) -> str:
         if isinstance(obj, datetime):
             return obj.isoformat()
         if isinstance(obj, date):
@@ -337,8 +339,21 @@ def tojson_safe(value, indent=None) -> str:
 # ── Registration ──────────────────────────────────────────────────────────────
 
 
+# A build that was never stamped with a commit (local runs, tests) must not pin every asset to a
+# constant token: treat each sentinel as unstamped (luxarch --playbook cache-busting).
+_UNSTAMPED_COMMITS = {None, "", "unknown", "dev", "local"}
+
+
+def static_version() -> str:
+    """The ?v= cache-bust for first-party static assets: the git short SHA (= BUILD_COMMIT)."""
+    commit = settings.BUILD_COMMIT
+    return "dev" if commit in _UNSTAMPED_COMMITS or commit is None else commit
+
+
 def register_filters(templates: Jinja2Templates) -> None:
     """Register all custom filters with a Jinja2Templates instance."""
+    # One cache-bust token, from git (FLEET-BUILD-DEPLOY-STANDARD "Static asset cache-busting").
+    templates.env.globals["static_version"] = static_version()
     # Date/time
     templates.env.filters["localtime"] = localtime
     templates.env.filters["format_datetime"] = format_datetime
