@@ -1,0 +1,14 @@
+format: luxpm-sync-receipt/1
+project: LUXANALYTI
+repository_url: none
+issued_at: 2026-10-07T02:25:30+00:00
+last_activity_at: 2026-10-07T02:22:44+00:00
+stale_days: 14
+open: 30
+open_stale: 26
+closed_without_summary: 15
+open_escalations: 3
+open_untriaged: 26
+last_known_commit: none
+key_id: cbb673eafd0c3932
+signature: qm6ahl5mAtVapykk0nyXTnGJdfqs61M1zz8mMobya8ruMI9xDhnPUgbMTF3jDO9oCTpdFrg+/B1yG3Y4uMtHBw==
