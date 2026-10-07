@@ -3,7 +3,7 @@ name: wrap-up
 description: Close out a piece of work the fleet way before calling it done — tests written and run for what changed, every red in touched files fixed, docs updated (stale advice removed), make check green, committed and pushed, and LuxPM fully closed out (issues, checklists, activities, commit links, sync receipt). Every step reports evidence, not a tick.
 ---
 
-<!-- luxarch:wrap-up-skill asset v5 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit wrap-up-skill`. -->
+<!-- luxarch:wrap-up-skill asset v6 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit wrap-up-skill`. -->
 
 # Wrap up
 
@@ -15,11 +15,15 @@ The runnable close-out for any piece of work in this repo. Emitted from luxarch 
 
 `git status` and `git diff --stat` against where the work started. List the files and behaviours you changed. Everything below is checked against this list.
 
-## 2. Tests: written, updated, run
+## 2. Tests: written, seen to fail, attacked, run
 
-- Every changed **behaviour** has a test that would fail without the change: new behaviour gets a new test, changed behaviour an updated one. A test that could not fail proves nothing (`luxarch --doc FLEET-VERIFICATION-STANDARD`).
-- Run the tests that cover what changed first, then the full suite (`make test`).
-- **Evidence:** the test names you added or changed, and the suite's pass line.
+A green suite is evidence only for what it can see. Four bugs in one repo passed a green `make check` and failed in the real stack (an outage among them), because nothing made anyone prove a test could fail or attack the change. So:
+
+- **Every changed behaviour has a test, and you SAW it fail.** For each fix: revert the fix alone (`git stash push -- <the source files you changed>`, keeping the test), run the new or changed test, and paste its failing line; restore (`git stash pop`), run it again, and paste the pass. A test you never saw fail is not evidence (`luxarch --doc FLEET-VERIFICATION-STANDARD`). New behaviour: run the test before the code exists, or against the parent commit.
+- **Attack it (`/adversarial`)** when the change touches authentication or authorization, tenant isolation, data writes or migrations, money, secrets or personal data, deploy or release, or fixes a guard red. An independent agent that did not write the change tries to make it wrong. Every break it reproduces is fixed and committed as a test. A change outside that list may still be attacked; it may not skip this step when inside it.
+- **Say what the suite cannot see.** `make test` runs the app in-process against its test stack. If the change lives where that stack does not reach (a cache or queue the test stack lacks, nginx or the server's config, an entry point other than `app.main`, the production image), probe the deployed dev stack (`make smoke` where the repo has it) and paste the result.
+- Run the tests that cover what changed first, then the whole suite (`make test`).
+- **Evidence:** per test, its failing line before the fix and its pass after. The `/adversarial` report's CONFIRMED and UNREPRODUCED counts (or which category put the change outside it). Any stack probe's output. The suite's pass line.
 
 ## 3. Every red in a file you touched
 

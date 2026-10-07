@@ -34,6 +34,8 @@ class HealthResponse(BaseModel):
     status: Literal["healthy", "degraded"]
     timestamp: float
     version: str
+    # The commit the running image was built from (`make smoke` checks the deploy is this build).
+    build_commit: str | None
     build_timestamp: str | None
     database: DatabaseHealth
     redis: RedisHealth

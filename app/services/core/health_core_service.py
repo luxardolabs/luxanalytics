@@ -57,6 +57,7 @@ class HealthCoreService:
                 status="healthy" if database.status == "healthy" else "degraded",
                 timestamp=time.time(),
                 version=settings.APP_VERSION,
+                build_commit=settings.BUILD_COMMIT,
                 build_timestamp=settings.BUILD_TIMESTAMP,
                 database=database,
                 redis=redis,

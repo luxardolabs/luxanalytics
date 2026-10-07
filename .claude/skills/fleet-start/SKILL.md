@@ -3,7 +3,7 @@ name: fleet-start
 description: Start (or resume after a compact) a working session the fleet way — read this repo's CLAUDE.md and the conduct standard, rehydrate from LuxPM leanly (focus + this repo's open issues, keys and titles only), and restate the six session rules. Run at the start of every session and after every compact.
 ---
 
-<!-- luxarch:fleet-start-skill asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit fleet-start-skill`. -->
+<!-- luxarch:fleet-start-skill asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit fleet-start-skill`. -->
 
 # Fleet start
 
@@ -43,4 +43,4 @@ After a compact, run `/fleet-start` again.
 
 ## 5. The other fleet skills
 
-`/wrap-up` before calling anything done. `/pin-bump` to upgrade the guards. `/escalate` when a guard is wrong. `/luxpm-audit` to triage the whole backlog. `/release` to cut a release.
+`/wrap-up` before calling anything done. `/adversarial` to attack a risky change before that. `/pin-bump` to upgrade the guards. `/escalate` when a guard is wrong. `/luxpm-audit` to triage the whole backlog. `/release` to cut a release.

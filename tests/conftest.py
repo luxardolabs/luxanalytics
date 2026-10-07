@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import (
 import app.db.database as _appdb
 
 # «EDIT» — the FastAPI dependency your routes use to get a session
+from app.core.redis_client import close_redis_client, get_redis_client
 from app.db.database import get_db
 
 # «EDIT» — your app factory / instance
@@ -256,6 +257,19 @@ async def client(db: AsyncSession) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _redis_client_per_test() -> AsyncIterator[None]:
+    """The suite runs against a real Redis (repo.test_stack_parity), isolated per test the way `db`
+    rolls back: what a test counted (rate-limit windows) is flushed after it. The app's client is one
+    per process, bound to the loop that opened it, and pytest-asyncio gives each test its own loop:
+    close it while this test's loop is alive, so the next test opens its own."""
+    yield
+    redis_client = await get_redis_client()
+    if redis_client is not None:
+        await redis_client.flushdb()
+    await close_redis_client()
 
 
 # ── durability fixtures ─────────────────────────────────────────────────────────────────────────

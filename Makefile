@@ -38,7 +38,7 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.266.0
+LUXARCH_VERSION  := 0.268.0
 LUXLINT_VERSION  := 0.61.0
 LUXAUDIT_VERSION := 0.13.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
@@ -122,8 +122,13 @@ TEST_DB      := luxanalytics_testdb
 TEST_NET     := luxanalytics_testnet
 TEST_PG      ?= postgres:16-alpine
 TEST_DB_URL  := postgresql+asyncpg://test:test@$(TEST_DB):5432/test
-# Settings the app requires to import. Values are throwaway; the suite only talks to TEST_DB.
-TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
+# The deployed stack runs Redis (rate limits), so the suite gets a real one too
+# (repo.test_stack_parity): same image as compose.yml, throwaway, on the test network.
+TEST_REDIS   := luxanalytics_testredis
+TEST_REDIS_IMAGE ?= redis:7-alpine
+TEST_REDIS_URL := redis://$(TEST_REDIS):6379/0
+# Settings the app requires to import. Values are throwaway; the suite only talks to TEST_DB and TEST_REDIS.
+TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) -e REDIS_URL=$(TEST_REDIS_URL) \
             -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e SECRET_KEY=test-only \
             -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost -e DASHBOARD_SESSION_SECRET=test-only \
             -e DASHBOARD_PASSWORD=test-only-dashboard-password \
@@ -134,16 +139,18 @@ TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
 	docker build -q --target test -t $(TEST_IMAGE) . >/dev/null
 	@touch $@
 
-test-db-up: ## Start the throwaway test Postgres (tmpfs data, own network)
+test-db-up: ## Start the throwaway test Postgres and Redis (tmpfs data, own network)
 	@docker network inspect $(TEST_NET) >/dev/null 2>&1 || docker network create $(TEST_NET) >/dev/null
-	@docker rm -fv $(TEST_DB) >/dev/null 2>&1 || true
+	@docker rm -fv $(TEST_DB) $(TEST_REDIS) >/dev/null 2>&1 || true
+	@docker run -d --name $(TEST_REDIS) --network $(TEST_NET) --tmpfs /data $(TEST_REDIS_IMAGE) >/dev/null
 	@docker run -d --name $(TEST_DB) --network $(TEST_NET) --tmpfs /var/lib/postgresql/data \
 	  -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test $(TEST_PG) >/dev/null
 	@until docker exec -e PGPASSWORD=test $(TEST_DB) psql -h 127.0.0.1 -U test -d test -tAc 'select 1' >/dev/null 2>&1; do sleep 1; done
-	@echo "test-db-up: $(TEST_DB) ready on $(TEST_NET)"
+	@until docker exec $(TEST_REDIS) redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done
+	@echo "test-db-up: $(TEST_DB) and $(TEST_REDIS) ready on $(TEST_NET)"
 
-test-db-down: ## Stop and wipe the throwaway test Postgres
-	@docker rm -fv $(TEST_DB) >/dev/null 2>&1 || true
+test-db-down: ## Stop and wipe the throwaway test Postgres and Redis
+	@docker rm -fv $(TEST_DB) $(TEST_REDIS) >/dev/null 2>&1 || true
 	@docker network rm $(TEST_NET) >/dev/null 2>&1 || true
 
 test: test-db-up .test-image.stamp guard-registry ## Full pytest suite against the throwaway DB, canonical luxlint pytest config
@@ -424,7 +431,7 @@ buildx-setup:
 # =============================================================================
 # Images, deploy tags and the release (emitted asset — never hand-edit)
 # =============================================================================
-# luxarch:image-block asset v9 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
+# luxarch:image-block asset v10 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
 # ── Images: ONE naming scheme, and the NAME declares what the image IS ──────────────────────────
 # Emitted by `luxarch --emit image-block`. Two axes, both readable from the name alone:
 #
@@ -647,9 +654,13 @@ define pin_env_tag
 	echo "$$f: TAG=$$t"
 endef
 
-dev-deploy: ## Build+push THIS commit (:sha-…, never the version), pin .env.dev to it, restart the dev stack
+# v10: a deploy ends by probing what it deployed (`luxarch --emit smoke`, pasted below this block). A
+# deploy that restarted the stack is not one that works: the suite runs in-process and cannot see the
+# proxy, the server, the production image or a standalone entry point.
+dev-deploy: ## Build+push THIS commit (:sha-…, never the version), pin .env.dev to it, restart the dev stack, smoke it
 	@$(MAKE) --no-print-directory publish-sha
 	@$(MAKE) --no-print-directory dev-pin TAG=sha-$(COMMIT)
+	@$(MAKE) --no-print-directory smoke
 
 # The rollback path, and the only one that does not build: name a tag you already published.
 # The registry is checked FIRST because the alternative is the outage above — a stack pinned to a
@@ -678,6 +689,77 @@ version: ## Show the version and the image refs this commit builds
 	@echo "Commit:   $(COMMIT)"
 	@echo "Release:  $(VERSION_IMAGE)"
 	@echo "This sha: $(SHA_IMAGE)"
+
+# The dev stack runs on this host and publishes the app on :4000. Smoke the app itself, not the
+# dev nginx: the proxy returns 404 for /health and /metrics (internal to the network, by design).
+SMOKE_URL ?= http://localhost:4000
+# luxarch:smoke asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit smoke`.
+# ── Smoke: probe the DEPLOYED stack from outside, after every dev deploy ──────────────────────────
+# Emitted by `luxarch --emit smoke`; paste below the image block. `make test` runs the app in-process
+# against its test stack, so it cannot see the proxy, the server, the production image or an entry
+# point other than the app's. One repo shipped four bugs under a green `make check` that only a probe
+# of the deployed stack found: a rate limiter that took the host down, a proxy serving an unstyled UI,
+# a standalone script that crashed on a circular import in the production image, and a Host-header
+# defence no test exercised. Each probe below is aimed at one of them. `make dev-deploy` runs it
+# (`repo.stack_smoke_wired`); a FAIL fails the deploy, and a probe that cannot run says NOT RUN and
+# why, never a silent pass.
+#
+# Settings are `?=` defaults: override them above this block (or in Makefile.local for a host name).
+
+# Setting: where the dev stack is reachable from the build host (e.g. https://dev.example.com) ---
+SMOKE_URL ?=
+# Setting: the health path; its response must name the build's commit (any field name) -------
+SMOKE_HEALTH_PATH ?= /health
+# Setting: a static asset the image serves (empty only if the app serves no static files) -----
+SMOKE_STATIC_PATH ?= /static/css/app.css
+# Setting: a path that needs authentication; the token comes from the SMOKE_AUTH_TOKEN env var -
+SMOKE_AUTH_PATH ?=
+# Setting: the package directory of standalone entry points, and the image's import root -------
+SMOKE_SCRIPTS_DIR ?= app/scripts
+SMOKE_IMPORT_ROOT ?= .
+# Setting: extra curl options (e.g. --cacert <file> for a private CA) -------------------------
+SMOKE_CURL_OPTS ?=
+
+smoke: ## Probe the deployed dev stack: build commit, static asset, forged Host refused, auth, standalone entry points
+	@set -u; fail=0; \
+	[ -n "$(SMOKE_URL)" ] || { echo "REFUSING: set SMOKE_URL to the dev stack's address (Makefile.local)"; exit 2; }; \
+	probe() { curl -sS --max-time 15 $(SMOKE_CURL_OPTS) -o "$$B" -w '%{http_code} %{content_type}' "$$@" 2>/dev/null || echo "000 -"; }; \
+	B=$$(mktemp); trap 'rm -f "$$B"' EXIT INT TERM; \
+	sha=$$(git rev-parse --short=7 HEAD 2>/dev/null || true); \
+	r=$$(probe "$(SMOKE_URL)$(SMOKE_HEALTH_PATH)"); \
+	if [ -z "$$sha" ]; then echo "FAIL  cannot read this checkout's commit (git rev-parse failed), so the deployed build cannot be checked"; fail=1; \
+	elif [ "$${r%% *}" = 200 ] && grep -q "$$sha" "$$B"; then echo "PASS  health names this commit ($$sha)"; \
+	else echo "FAIL  $(SMOKE_HEALTH_PATH): $$r, and the response does not name $$sha: the stack is not running this build"; fail=1; fi; \
+	if [ -n "$(SMOKE_STATIC_PATH)" ]; then \
+	  r=$$(probe "$(SMOKE_URL)$(SMOKE_STATIC_PATH)"); ctype=$${r#* }; \
+	  case "$(SMOKE_STATIC_PATH)" in *.css) want=text/css;; *.js|*.mjs) want=javascript;; *) want=;; esac; \
+	  if [ "$${r%% *}" = 200 ] && [ -s "$$B" ] && ! grep -qi '<html' "$$B" && { [ -z "$$want" ] || case "$$ctype" in *"$$want"*) true;; *) false;; esac; }; then echo "PASS  static asset served ($(SMOKE_STATIC_PATH), $$ctype)"; \
+	  else echo "FAIL  $(SMOKE_STATIC_PATH): $$r: the proxy or image does not serve the built asset as $${want:-a file} (a browser refuses a stylesheet or script with the wrong type)"; fail=1; fi; \
+	else echo "NOT RUN  static asset: SMOKE_STATIC_PATH is empty (only right for an app that serves no static files)"; fi; \
+	r=$$(probe -H "Host: smoke-forged.invalid" "$(SMOKE_URL)$(SMOKE_HEALTH_PATH)"); \
+	case "$${r%% *}" in 2??|3??) echo "FAIL  a forged Host header was answered ($$r): the trusted-host defence is not on in the real stack"; fail=1;; \
+	  000) echo "PASS  forged Host refused (connection rejected)";; \
+	  *) echo "PASS  forged Host refused ($${r%% *})";; esac; \
+	if [ -n "$(SMOKE_AUTH_PATH)" ]; then \
+	  r=$$(probe "$(SMOKE_URL)$(SMOKE_AUTH_PATH)"); \
+	  case "$${r%% *}" in 401|403) echo "PASS  $(SMOKE_AUTH_PATH) refuses a request with no credentials ($${r%% *})";; \
+	    *) echo "FAIL  $(SMOKE_AUTH_PATH) answered a request with NO credentials ($$r): it is not protected"; fail=1;; esac; \
+	  if [ -z "$${SMOKE_AUTH_TOKEN:-}" ]; then echo "FAIL  SMOKE_AUTH_PATH is set but SMOKE_AUTH_TOKEN is not in the environment"; fail=1; \
+	  else r=$$(probe -H "Authorization: Bearer $${SMOKE_AUTH_TOKEN}" "$(SMOKE_URL)$(SMOKE_AUTH_PATH)"); \
+	    if [ "$${r%% *}" = 200 ]; then echo "PASS  authenticated request ($(SMOKE_AUTH_PATH))"; \
+	    else echo "FAIL  authenticated $(SMOKE_AUTH_PATH): $$r"; fail=1; fi; fi; \
+	else echo "NOT RUN  authenticated request: SMOKE_AUTH_PATH is empty"; fi; \
+	n=0; \
+	if [ -d "$(SMOKE_SCRIPTS_DIR)" ]; then \
+	  for f in $$(find "$(SMOKE_SCRIPTS_DIR)" -name '*.py' ! -name '__init__.py' | sort); do \
+	    n=$$((n + 1)); \
+	    rel=$$(realpath --relative-to="$(SMOKE_IMPORT_ROOT)" "$$f"); mod=$$(printf '%s' "$${rel%.py}" | tr / .); \
+	    if docker run --rm --entrypoint python "$(SHA_IMAGE)" -c "import $$mod" >/dev/null 2>&1; then echo "PASS  $$mod imports on its own in the production image"; \
+	    else echo "FAIL  $$mod does not import on its own in $(SHA_IMAGE) (a circular or missing import the app's own import order hides)"; fail=1; fi; \
+	  done; \
+	fi; \
+	[ "$$n" -gt 0 ] || echo "NOT RUN  entry points: no module under $(SMOKE_SCRIPTS_DIR)"; \
+	exit $$fail
 
 # =============================================================================
 # Development — the ONE compose.yml with .env.dev (compose never builds: make dev-deploy)

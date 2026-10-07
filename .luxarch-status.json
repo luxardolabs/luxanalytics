@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.266.0",
+  "guard_version": "0.268.0",
   "repo": "/repo",
   "targets": [
     {
@@ -1211,7 +1211,7 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "the harness isolates by holding ONE connection and rolling it back (tests/conftest.py:231), so a pooled test engine cannot work here \u2014 each pytest-asyncio test gets its own loop and a pooled connection belongs to the loop that opened it. **This INERT is the correct END STATE for such a harness, not a todo.** Do NOT migrate to DELETE/TRUNCATE-per-test to satisfy this rule: luxlint's test.no_handrolled_cleanup exists to red exactly that, and rollback isolation is the better pattern (faster, no table-ordering bugs, nothing to forget). An earlier version of this message named that migration as the prerequisite and was wrong \u2014 it pointed at something another fleet guard forbids. Measured, pursuing pooling here costs you: 0 failures on NullPool, 139 pooled, 366 pooled+dispose. And you lose nothing in DETECTION \u2014 the cross-session visibility class this rule guards is caught by durability locks that read on a SEPARATE connection, which works whatever the pool class. Pool the APP engine (fw.dev_prod_pool_parity); leave the test engine alone."
+          "inert_reason": "the harness isolates by holding ONE connection and rolling it back (tests/conftest.py:232), so a pooled test engine cannot work here \u2014 each pytest-asyncio test gets its own loop and a pooled connection belongs to the loop that opened it. **This INERT is the correct END STATE for such a harness, not a todo.** Do NOT migrate to DELETE/TRUNCATE-per-test to satisfy this rule: luxlint's test.no_handrolled_cleanup exists to red exactly that, and rollback isolation is the better pattern (faster, no table-ordering bugs, nothing to forget). An earlier version of this message named that migration as the prerequisite and was wrong \u2014 it pointed at something another fleet guard forbids. Measured, pursuing pooling here costs you: 0 failures on NullPool, 139 pooled, 366 pooled+dispose. And you lose nothing in DETECTION \u2014 the cross-session visibility class this rule guards is caught by durability locks that read on a SEPARATE connection, which works whatever the pool class. Pool the APP engine (fw.dev_prod_pool_parity); leave the test engine alone."
         },
         {
           "rule": "fw.template_context_complete",
@@ -1937,6 +1937,33 @@
         "inert_reason": ""
       },
       {
+        "rule": "repo.test_stack_parity",
+        "status": "PASS",
+        "since": "0.268.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.stack_smoke_wired",
+        "status": "PASS",
+        "since": "0.268.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
+        "rule": "repo.poetry_version_consistent",
+        "status": "PASS",
+        "since": "0.268.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
         "rule": "repo.alembic_path_separator",
         "status": "PASS",
         "since": "0.71.0",
@@ -2037,7 +2064,7 @@
       }
     ],
     "summary": {
-      "PASS": 54,
+      "PASS": 57,
       "FAIL": 1,
       "XFAIL": 0,
       "XPASS": 0,
@@ -2045,12 +2072,12 @@
     }
   },
   "summary": {
-    "PASS": 195,
+    "PASS": 198,
     "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "638dbd4ff66b421bd256845ac75c17afa7303eed",
-  "generated_at": "2026-10-07T20:33:18Z"
+  "commit": "6b24c86abe4eb5a6f36cb6d9a6bb9ca1d14b76dc",
+  "generated_at": "2026-10-07T20:40:15Z"
 }
