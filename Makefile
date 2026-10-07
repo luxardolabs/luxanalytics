@@ -30,11 +30,10 @@ IMAGE_NAME := luxanalytics
 LOCAL_IMAGE := $(REGISTRY)/luxardolabs/$(IMAGE_NAME)
 EXTERNAL_IMAGE := $(EXTERNAL_REGISTRY)/luxardolabs/$(IMAGE_NAME)
 
-# Version from directory path: /luxanalytics/1.0/3 -> 1.0.3
+# The VERSION file is the one version source (CalVer YYYY.0M.MICRO for an app).
 PWD := $(shell pwd)
-VERSION_MAJOR_MINOR := $(shell basename $(shell dirname $(PWD)))
-VERSION_PATCH := $(shell basename $(PWD))
-BUILD_VERSION := $(VERSION_MAJOR_MINOR).$(VERSION_PATCH)
+VERSION := $(shell cat VERSION)
+BUILD_VERSION := $(VERSION)
 BUILD_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIMESTAMP := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -139,7 +138,7 @@ TEST_PG      ?= postgres:16-alpine
 TEST_DB_URL  := postgresql+asyncpg://test:test@$(TEST_DB):5432/test
 # Settings the app requires to import. Values are throwaway; the suite only talks to TEST_DB.
 TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
-            -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e SECRET_KEY=test-only -e APP_VERSION=test \
+            -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e SECRET_KEY=test-only \
             -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost -e DASHBOARD_SESSION_SECRET=test-only \
             -e 'HMAC_KEYS={"test_app": "test-only-hmac-secret"}'
 
@@ -217,7 +216,7 @@ status: guard-registry ## Regenerate committed guard-status files (.lux*-status.
 
 # db-verify settings (the emitted block below reads these; set ABOVE it, as it says).
 DBV_PG_IMAGE  := postgres:16-alpine
-DBV_EXTRA_ENV := -e DATABASE_URL_SYNC=unused -e SECRET_KEY=db-verify-only -e APP_VERSION=db-verify
+DBV_EXTRA_ENV := -e DATABASE_URL_SYNC=unused -e SECRET_KEY=db-verify-only
 
 # luxarch:db-verify asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
 # ── The migration-chain gate ────────────────────────────────────────────────────────────────────

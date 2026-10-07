@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Poetry
-ENV POETRY_VERSION=1.7.1
+# Matches the Poetry that writes poetry.lock (2.x reads the [project] table).
+ENV POETRY_VERSION=2.4.1
 ENV POETRY_HOME=/opt/poetry
 ENV POETRY_VIRTUALENVS_CREATE=false
 ENV POETRY_NO_INTERACTION=1
@@ -19,7 +20,7 @@ ENV POETRY_NO_INTERACTION=1
 RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
 
 # Install dependencies (cached layer)
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock* VERSION ./
 RUN poetry install --no-root --only main
 
 # Copy application
@@ -50,7 +51,6 @@ EXPOSE 4000
 # Provenance: the canonical build-arg names feed the portable OCI labels
 # (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD, "Image labels"). .created is RFC-3339 UTC.
 ARG BUILD_VERSION= BUILD_COMMIT= BUILD_TIMESTAMP=
-ENV APP_VERSION=${BUILD_VERSION}
 ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
 ENV BUILD_COMMIT=${BUILD_COMMIT}
 

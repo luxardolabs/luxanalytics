@@ -1,13 +1,30 @@
 import json
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
+from pathlib import Path
 from urllib.parse import urlparse
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _running_version() -> str:
+    """The running version, derived — never a literal (repo.version_single_source).
+
+    The installed distribution's metadata first; the repo-root VERSION file otherwise (the image
+    installs dependencies only, with --no-root, and copies VERSION next to the app).
+    """
+    try:
+        return package_version("luxanalytics")
+    except PackageNotFoundError:
+        version_file = Path(__file__).resolve().parents[2] / "VERSION"
+        return version_file.read_text(encoding="utf-8").strip()
 
 
 class Settings(BaseSettings):
     # App
     APP_NAME: str = "LuxAnalytics"
-    APP_VERSION: str = "1.0.3"
+    APP_VERSION: str = Field(default_factory=lambda: _running_version())
     BUILD_TIMESTAMP: str | None = None
     DEBUG: bool = False
     ENVIRONMENT: str = "production"
