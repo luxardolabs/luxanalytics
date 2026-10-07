@@ -132,7 +132,7 @@ class DashboardViewService:
         if not app_id:
             return self._filtered(app_id, hours, {"requires_app": True})
         data = await self._core.get_user_journey_analytics(app_id=app_id, hours=hours)
-        return self._filtered(app_id, hours, data)
+        return self._filtered(app_id, hours, {**data, "requires_app": False})
 
     # ── Explorer ─────────────────────────────────────────────────────────
 
@@ -156,4 +156,7 @@ class DashboardViewService:
         return {**await self._core.get_user_profile(user_id)}
 
     async def session_detail_context(self, session_id: str) -> Context:
-        return {**await self._core.get_session_detail(session_id)}
+        """A session with no events renders the panel's empty state, not a stats grid of
+        values the core never computed (it returns only the id for an empty session)."""
+        detail = await self._core.get_session_detail(session_id)
+        return {**detail, "has_data": bool(detail["events"])}

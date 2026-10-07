@@ -26,8 +26,8 @@
 
             {# Stats #}
             {% call stat_grid(columns=2, gap=3) %}
-                {{ stat_card_compact("Total Events", stats.total_events | default(0) | number_format, color="brand") }}
-                {{ stat_card_compact("Unique Users", stats.unique_users | default(0) | number_format, color="blue") }}
+                {{ stat_card_compact("Total Events", stats.total_events | number_format, color="brand") }}
+                {{ stat_card_compact("Unique Users", stats.unique_users | number_format, color="blue") }}
             {% endcall %}
 
             {# DSN #}

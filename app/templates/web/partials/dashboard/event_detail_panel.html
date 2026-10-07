@@ -13,7 +13,7 @@
             {# ── Identity ── #}
             {% call stat_grid(columns=2, gap=3) %}
                 {{ stat_card_compact("App", event.app_id, color="brand") }}
-                {{ stat_card_compact("Platform", event.platform | default('ios'), color="blue") }}
+                {{ stat_card_compact("Platform", event.platform, color="blue") }}
             {% endcall %}
 
             {# ── Feedback-specific view ── #}

@@ -9,7 +9,7 @@
 {% if performance_summary and performance_summary.global_stats %}
 {% set gs = performance_summary.global_stats %}
 {% call stat_grid(columns=4, class="mb-6") %}
-    {{ stat_card("Measurements", total_measurements | default(0) | number_format, icon_name="chart-bar", color="brand") }}
+    {{ stat_card("Measurements", total_measurements | number_format, icon_name="chart-bar", color="brand") }}
     {{ stat_card("Median", (gs.median | string) ~ "ms", icon_name="clock", color="green") }}
     {{ stat_card("P95", (gs.p95 | string) ~ "ms", icon_name="exclamation-triangle", color="orange") }}
     {{ stat_card("Operations", operations | length, icon_name="cog-6-tooth", color="purple") }}

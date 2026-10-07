@@ -4,8 +4,6 @@ Breaks circular imports: routers import templates from here
 instead of from web/__init__.py which imports routers.
 """
 
-from datetime import UTC, datetime
-
 from fastapi.templating import Jinja2Templates
 from jinja2 import StrictUndefined
 
@@ -24,8 +22,6 @@ templates.env.undefined = StrictUndefined
 # Register all filters (date, time, timeago, num, etc.)
 register_filters(templates)
 
-# Register template globals
-templates.env.globals["now"] = lambda: datetime.now(UTC)
 
 # Plain instance (no injected globals) for the emitted exception handler
 # (app/utils/exception_handlers.py reads app.state.templates).

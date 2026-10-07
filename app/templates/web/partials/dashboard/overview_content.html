@@ -4,10 +4,10 @@
 
 {# ── Stat Cards ── #}
 {% call stat_grid(columns=4, class="mb-6") %}
-    {{ stat_card("Total Events", total_events | default(0) | number_format, icon_name="signal", color="brand") }}
-    {{ stat_card("Unique Users", unique_users | default(0) | number_format, icon_name="users", color="blue") }}
-    {{ stat_card("Events/Hour", ((total_events | default(0)) / (hours | default(24))) | round(1), icon_name="clock", color="green") }}
-    {{ stat_card("Event Types", top_events | default([]) | length, icon_name="squares-2x2", color="purple") }}
+    {{ stat_card("Total Events", total_events | number_format, icon_name="signal", color="brand") }}
+    {{ stat_card("Unique Users", unique_users | number_format, icon_name="users", color="blue") }}
+    {{ stat_card("Events/Hour", ((total_events) / (hours)) | round(1), icon_name="clock", color="green") }}
+    {{ stat_card("Event Types", top_events | length, icon_name="squares-2x2", color="purple") }}
 {% endcall %}
 
 {# ── Events Timeline (lazy loaded) ── #}

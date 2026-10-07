@@ -6,10 +6,10 @@
 
 {# ── Summary ── #}
 {% call stat_grid(columns=4, class="mb-6") %}
-    {{ stat_card("Total Errors", total_errors | default(0), icon_name="exclamation-triangle", color="red") }}
-    {{ stat_card("Error Types", error_types | default([]) | length, icon_name="tag", color="orange") }}
-    {{ stat_card("Auth Failures", auth_failures | default([]) | length, icon_name="lock-closed", color="blue") }}
-    {{ stat_card("Timeline Points", error_timeline | default([]) | length, icon_name="clock", color="brand") }}
+    {{ stat_card("Total Errors", total_errors, icon_name="exclamation-triangle", color="red") }}
+    {{ stat_card("Error Types", error_types | length, icon_name="tag", color="orange") }}
+    {{ stat_card("Auth Failures", auth_failures | length, icon_name="lock-closed", color="blue") }}
+    {{ stat_card("Timeline Points", error_timeline | length, icon_name="clock", color="brand") }}
 {% endcall %}
 
 {% call grid(columns=2, class="mb-6") %}

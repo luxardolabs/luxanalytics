@@ -98,7 +98,7 @@
             {% endfor %}
         </tbody>
     </table>
-    {% if pagination | default(none) %}
+    {% if pagination %}
     {{ pagination_bar(pagination, '/dashboard/events/content', '#page-content', '&hours=' ~ hours ~ '&app_id=' ~ (app_id or '') ~ '&event_name=' ~ (event_name or '')) }}
     {% endif %}
 </div>

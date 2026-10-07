@@ -6,10 +6,10 @@
 
 {# ── Summary ── #}
 {% call stat_grid(columns=4, class="mb-6") %}
-    {{ stat_card("Total Events", total_events | default(0) | number_format, icon_name="bolt", color="brand") }}
-    {{ stat_card("Features", features | default([]) | length, icon_name="squares-2x2", color="blue") }}
-    {{ stat_card("Screens", screens | default([]) | length, icon_name="device-phone-mobile", color="green") }}
-    {{ stat_card("Button Taps", buttons | default([]) | length, icon_name="cursor-arrow-rays", color="purple") }}
+    {{ stat_card("Total Events", total_events | number_format, icon_name="bolt", color="brand") }}
+    {{ stat_card("Features", features | length, icon_name="squares-2x2", color="blue") }}
+    {{ stat_card("Screens", screens | length, icon_name="device-phone-mobile", color="green") }}
+    {{ stat_card("Button Taps", buttons | length, icon_name="cursor-arrow-rays", color="purple") }}
 {% endcall %}
 
 {# ── Features + Screens ── #}

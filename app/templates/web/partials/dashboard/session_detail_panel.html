@@ -4,12 +4,16 @@
 {% from "macros/analytics.html" import detail_section, kv_pair, kv_grid %}
 {% from "macros/buttons.html" import button %}
 {% from "macros/tables.html" import th, td %}
+{% from "macros/layout.html" import empty_state %}
 
 {% call panel_wrapper(max_width="max-w-2xl") %}
 
     {{ panel_header("Session", subtitle=session_id | truncate(16)) }}
 
     {% call panel_content() %}
+        {% if not has_data %}
+        {{ empty_state("No events for this session", description="Nothing has been recorded under this session id.") }}
+        {% else %}
         <div class="space-y-4">
 
             {# ── Summary ── #}
@@ -24,9 +28,9 @@
             {% call detail_section("Session Info") %}
                 {% call kv_grid() %}
                     {{ kv_pair("User", user_id | truncate(20) if user_id else '—', mono=true) }}
-                    {{ kv_pair("Device", device_model | default('—')) }}
-                    {{ kv_pair("OS", os_version | default('—')) }}
-                    {{ kv_pair("App Version", app_version | default('—')) }}
+                    {{ kv_pair("Device", device_model) }}
+                    {{ kv_pair("OS", os_version) }}
+                    {{ kv_pair("App Version", app_version) }}
                     {{ kv_pair("Started", first_event | datetime('medium') if first_event else '—') }}
                     {{ kv_pair("Ended", last_event | datetime('medium') if last_event else '—') }}
                 {% endcall %}
@@ -115,6 +119,7 @@
             {% endif %}
 
         </div>
+        {% endif %}
     {% endcall %}
 
     {{ panel_footer_close() }}

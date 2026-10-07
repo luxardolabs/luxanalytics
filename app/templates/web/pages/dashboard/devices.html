@@ -7,7 +7,7 @@
 {% block title %}Devices — LuxAnalytics{% endblock %}
 
 {% block content %}
-{% call page_header(title="Devices", description=app_id | default("All Apps", true)) %}
+{% call page_header(title="Devices", description=app_id) %}
     {{ time_pills(hours, '#page-content', '/dashboard/devices/content', '&app_id=' ~ (app_id or '')) }}
 {% endcall %}
 

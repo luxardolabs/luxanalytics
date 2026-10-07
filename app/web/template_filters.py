@@ -354,6 +354,7 @@ def register_filters(templates: Jinja2Templates) -> None:
     """Register all custom filters with a Jinja2Templates instance."""
     # One cache-bust token, from git (FLEET-BUILD-DEPLOY-STANDARD "Static asset cache-busting").
     templates.env.globals["static_version"] = static_version()
+    templates.env.globals["now"] = lambda: datetime.now(UTC)
     # Date/time
     templates.env.filters["localtime"] = localtime
     templates.env.filters["format_datetime"] = format_datetime

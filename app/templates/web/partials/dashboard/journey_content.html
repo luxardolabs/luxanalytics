@@ -4,7 +4,7 @@
 {% from "macros/tables.html" import th, td %}
 {% from "macros/badges.html" import badge, info_box %}
 
-{% if requires_app | default(false) %}
+{% if requires_app %}
 {% call info_box("App Selection Required", icon_name="arrow-path", variant="info") %}
     Select an app to view user journeys. Journey data tracks screen flows and session paths which are only meaningful within a single app.
 {% endcall %}
@@ -23,9 +23,9 @@
 {% endcall %}
 {% else %}
 {% call stat_grid(columns=3, class="mb-6") %}
-    {{ stat_card("Interactions", total_interactions | default(0) | number_format, icon_name="cursor-arrow-rays", color="brand") }}
-    {{ stat_card("Active Screens", popular_screens | default([]) | length, icon_name="device-phone-mobile", color="blue") }}
-    {{ stat_card("Interactions/Hour", ((total_interactions | default(0)) / (hours | default(24))) | round(1), icon_name="clock", color="green") }}
+    {{ stat_card("Interactions", total_interactions | number_format, icon_name="cursor-arrow-rays", color="brand") }}
+    {{ stat_card("Active Screens", popular_screens | length, icon_name="device-phone-mobile", color="blue") }}
+    {{ stat_card("Interactions/Hour", ((total_interactions) / (hours)) | round(1), icon_name="clock", color="green") }}
 {% endcall %}
 {% endif %}
 
@@ -43,7 +43,7 @@
         {% if button_flows %}
         <div class="bg-surface-10/50 rounded-lg p-4">
             <h5 class="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1">Top Action</h5>
-            <p class="text-sm text-slate-300"><strong class="text-white">{{ button_flows[0][0].split(' → ')[1] | default('—') | friendly_name }}</strong> button</p>
+            <p class="text-sm text-slate-300"><strong class="text-white">{{ button_flows[0][0].split(' → ')[1] | friendly_name }}</strong> button</p>
         </div>
         {% endif %}
         {% if exit_screens %}
@@ -91,7 +91,7 @@
 {% endif %}
 
 {# ── Transition Heatmap ── #}
-{% if transition_heatmap | default(none) and transition_heatmap.data %}
+{% if transition_heatmap and transition_heatmap.data %}
 {% set hm = transition_heatmap %}
 {% set max_val = namespace(v=1) %}{% for d in hm.data %}{% if d[2] > max_val.v %}{% set max_val.v = d[2] %}{% endif %}{% endfor %}
 <div class="mb-6">
@@ -243,7 +243,7 @@
 {% call analytics_card("Screen Popularity") %}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for screen, visits in popular_screens %}
-        {% set screen_detail = screen_details.get(screen, {}) %}
+        {% set screen_detail = screen_details[screen] %}
         <div class="bg-surface-10/50 border border-surface-20 rounded-lg p-4">
             <div class="flex justify-between items-center mb-3">
                 <h4 class="text-sm font-medium text-white">{{ screen | friendly_name }}</h4>

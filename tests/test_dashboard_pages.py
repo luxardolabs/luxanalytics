@@ -81,3 +81,31 @@ async def test_a_missing_event_is_a_404(client: AsyncClient) -> None:
         "/dashboard/events/detail/00000000-0000-0000-0000-000000000000"
     )
     assert response.status_code == 404
+
+
+@pytest.mark.db
+async def test_every_dashboard_page_renders_with_no_data(client: AsyncClient) -> None:
+    # No app, no events: every value the templates read must still be PROVIDED by the view
+    # (StrictUndefined: a missing one raises), so an empty install shows its empty states.
+    client.base_url = "https://test"
+    login = await client.post(
+        "/login",
+        data={
+            "username": settings.DASHBOARD_USERNAME,
+            "password": settings.DASHBOARD_PASSWORD,
+        },
+        headers={"X-Forwarded-For": "198.51.100.92"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 303
+
+    failures = {}
+    for path in [
+        *PAGES,
+        "/dashboard/user/nobody",
+        "/dashboard/session/no-such-session",
+    ]:
+        response = await client.get(path)
+        if response.status_code != 200:
+            failures[path] = response.status_code
+    assert not failures, failures

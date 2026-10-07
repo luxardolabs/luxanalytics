@@ -11,8 +11,8 @@
 
 {# ── Summary Stats ── #}
 {% call stat_grid(columns=4, class="mb-6") %}
-    {{ stat_card("Unique Devices", unique_devices | default(0), icon_name="device-phone-mobile", color="brand") }}
-    {{ stat_card("Total Events", total_events | default(0) | number_format, icon_name="signal", color="blue") }}
+    {{ stat_card("Unique Devices", unique_devices, icon_name="device-phone-mobile", color="brand") }}
+    {{ stat_card("Total Events", total_events | number_format, icon_name="signal", color="blue") }}
     {{ stat_card("Events/Device", events_per_device, icon_name="chart-bar", color="green") }}
     {{ stat_card("TestFlight", (tf_pct | string) ~ "%", icon_name="paper-airplane", color="orange") }}
 {% endcall %}
@@ -85,23 +85,23 @@
 {# ── Breakdowns ── #}
 {% call grid(columns=3, class="mb-6") %}
     {% call analytics_card("Device Models") %}
-        {{ value_breakdown(device_models | default([])) }}
+        {{ value_breakdown(device_models) }}
     {% endcall %}
 
     {% call analytics_card("iOS Versions") %}
-        {{ value_breakdown(system_versions | default([])) }}
+        {{ value_breakdown(system_versions) }}
     {% endcall %}
 
     {% call analytics_card("App Versions") %}
-        {{ value_breakdown(app_versions | default([])) }}
+        {{ value_breakdown(app_versions) }}
     {% endcall %}
 
     {% call analytics_card("Build Numbers") %}
-        {{ value_breakdown(build_numbers | default([])) }}
+        {{ value_breakdown(build_numbers) }}
     {% endcall %}
 
     {% call analytics_card("Screen Resolutions") %}
-        {{ value_breakdown(screen_resolutions | default([])) }}
+        {{ value_breakdown(screen_resolutions) }}
     {% endcall %}
 
     {# Auth + Onboarding + Launch combined ── #}
@@ -128,8 +128,8 @@
 {# ── Geographic ── #}
 {% if locales or timezones %}
 {% call grid(columns=2) %}
-    {% if locales %}{% call analytics_card("Locales") %}{{ value_breakdown(locales | default([])) }}{% endcall %}{% endif %}
-    {% if timezones %}{% call analytics_card("Timezones") %}{{ value_breakdown(timezones | default([])) }}{% endcall %}{% endif %}
+    {% if locales %}{% call analytics_card("Locales") %}{{ value_breakdown(locales) }}{% endcall %}{% endif %}
+    {% if timezones %}{% call analytics_card("Timezones") %}{{ value_breakdown(timezones) }}{% endcall %}{% endif %}
 {% endcall %}
 {% endif %}
 
