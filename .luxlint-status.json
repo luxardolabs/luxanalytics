@@ -69,102 +69,12 @@
       "rule": "lint.ruff",
       "status": "FAIL",
       "since": "0.1.0",
-      "violations": 47,
+      "violations": 10,
       "sites": [
         {
           "path": "alembic/env.py",
           "line": 38,
           "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/api/v1/routers/events_router.py",
-          "line": 97,
-          "detail": "C401 Unnecessary generator (rewrite as a set comprehension)"
-        },
-        {
-          "path": "app/api/v1/routers/events_router.py",
-          "line": 109,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/api/v1/routers/events_router.py",
-          "line": 110,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/api/v1/routers/events_router.py",
-          "line": 112,
-          "detail": "G201 Logging `.exception(...)` should be used instead of `.error(..., exc_info=True)`"
-        },
-        {
-          "path": "app/api/v1/routers/events_router.py",
-          "line": 117,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/api/v1/routers/events_router.py",
-          "line": 193,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/core/config.py",
-          "line": 71,
-          "detail": "S105 Possible hardcoded password assigned to: \"DASHBOARD_PASSWORD\""
-        },
-        {
-          "path": "app/core/dsn_auth.py",
-          "line": 16,
-          "detail": "B008 Do not perform function call `Depends` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable"
-        },
-        {
-          "path": "app/core/dsn_auth.py",
-          "line": 41,
-          "detail": "SIM108 Use ternary operator `public_id = decoded.split(\":\")[0] if \":\" in decoded else decoded` instead of `if`-`else`-block"
-        },
-        {
-          "path": "app/core/dsn_auth.py",
-          "line": 66,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/core/dsn_auth.py",
-          "line": 67,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/core/middleware/request_middleware.py",
-          "line": 101,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/core/middleware/request_middleware.py",
-          "line": 105,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/core/middleware/request_middleware.py",
-          "line": 155,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/core/middleware/request_middleware.py",
-          "line": 279,
-          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
-        },
-        {
-          "path": "app/core/middleware/request_middleware.py",
-          "line": 299,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/core/rate_limiter.py",
-          "line": 105,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/core/rate_limiter.py",
-          "line": 111,
-          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
         },
         {
           "path": "app/core/redis_client.py",
@@ -175,21 +85,6 @@
           "path": "app/core/security.py",
           "line": 28,
           "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/core/telemetry.py",
-          "line": 65,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/core/telemetry.py",
-          "line": 83,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/db/database.py",
-          "line": 73,
-          "detail": "SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements"
         },
         {
           "path": "app/db/pool_monitor.py",
@@ -207,104 +102,24 @@
           "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
         },
         {
-          "path": "app/main.py",
-          "line": 48,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 50,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 51,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 67,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        },
-        {
-          "path": "app/main.py",
-          "line": 73,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 75,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 192,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 193,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 210,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 245,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 252,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 273,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/main.py",
-          "line": 274,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/models/app_model.py",
-          "line": 35,
-          "detail": "PLC0415 `import` should be at the top-level of a file"
-        },
-        {
-          "path": "app/schemas/event_schema.py",
-          "line": 60,
-          "detail": "B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling"
-        },
-        {
-          "path": "app/services/analytics_service.py",
+          "path": "app/services/core/analytics_core_service.py",
           "line": 248,
           "detail": "C416 Unnecessary dict comprehension (rewrite using `dict()`)"
         },
         {
-          "path": "app/services/analytics_service.py",
+          "path": "app/services/core/analytics_core_service.py",
           "line": 588,
           "detail": "C416 Unnecessary dict comprehension (rewrite using `dict()`)"
         },
         {
-          "path": "app/services/analytics_service.py",
+          "path": "app/services/core/analytics_core_service.py",
           "line": 905,
           "detail": "SIM118 Use `key in dict` instead of `key in dict.keys()`"
         },
         {
-          "path": "app/services/analytics_service.py",
+          "path": "app/services/core/analytics_core_service.py",
           "line": 929,
           "detail": "C414 Unnecessary `list()` call within `sorted()`"
-        },
-        {
-          "path": "app/web/routers/apps_router.py",
-          "line": 267,
-          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
         }
       ],
       "deferred": false
@@ -433,6 +248,6 @@
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "c6c6545cea420076ccad4f2ae3dddf87a4decc38",
-  "generated_at": "2026-10-07T03:56:07Z"
+  "commit": "f281df4275c2441f621132c0f16b679f5e67a06b",
+  "generated_at": "2026-10-07T04:54:02Z"
 }

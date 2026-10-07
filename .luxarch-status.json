@@ -9,9 +9,9 @@
       "rules": [
         {
           "rule": "fw.required_dirs",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 2,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -27,9 +27,9 @@
         },
         {
           "rule": "fw.model_naming",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -90,9 +90,9 @@
         },
         {
           "rule": "fw.no_stray_services",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 4,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -225,9 +225,9 @@
         },
         {
           "rule": "fw.no_dto_in_routers",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 4,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -243,9 +243,9 @@
         },
         {
           "rule": "fw.web_router_composition",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -261,9 +261,9 @@
         },
         {
           "rule": "fw.no_inline_html",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -306,9 +306,9 @@
         },
         {
           "rule": "fw.jsonb_shaping",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.1.0",
-          "violations": 3,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -414,9 +414,9 @@
         },
         {
           "rule": "fw.routers_dont_import_crud",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.2.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -549,9 +549,9 @@
         },
         {
           "rule": "fw.enum_dto_fields_enum_typed",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.2.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -711,9 +711,9 @@
         },
         {
           "rule": "fw.no_hand_rolled_pagination",
-          "status": "PASS",
+          "status": "FAIL",
           "since": "0.29.0",
-          "violations": 0,
+          "violations": 1,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -776,7 +776,7 @@
           "rule": "fw.web_templates_at_fleet_path",
           "status": "FAIL",
           "since": "0.46.0",
-          "violations": 48,
+          "violations": 49,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -936,12 +936,12 @@
         },
         {
           "rule": "fw.mutating_route_authenticated",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.84.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "list this repo's authenticating dependencies in [auth].deps (the fns/factories that ESTABLISH identity \u2014 get_current_user, require_editor, check_subscription_active_hybrid, \u2026) to enforce that every POST/PUT/PATCH/DELETE route is authenticated; OR, if auth is entirely a global middleware (a web_only app with no per-route deps), name it in [auth].global_middleware and install it to earn the asserted-inert. Enforcing security schemes (HTTPBearer/OAuth2/APIKey without auto_error=False), dependencies that refuse the anonymous caller with 401/403, Annotated aliases, router-level deps and in-body 401/403 resolve automatically; carve out public/webhook/login routes in [allowlist].auth_public with evidence."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.annotated_dep_is_depends",
@@ -1035,9 +1035,9 @@
         },
         {
           "rule": "fw.json_routes_typed",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.100.0",
-          "violations": 3,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1143,9 +1143,9 @@
         },
         {
           "rule": "fw.url_assembly_in_data_layer",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.134.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1170,12 +1170,12 @@
         },
         {
           "rule": "fw.no_layer_reach_through",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.147.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "the type resolver could not follow the DI/attribute shape (untyped service attrs / an unresolved alias), so a reach-through verdict would be a blind PASS. Type the injected services (--playbook view-seam) so the graph resolves; the .crud token rule fw.no_crud_reach_through still gates the crud boundary meanwhile."
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.datetime_display_via_filter",
@@ -1233,9 +1233,9 @@
         },
         {
           "rule": "fw.broad_except_is_logged",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.177.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1269,9 +1269,9 @@
         },
         {
           "rule": "fw.credential_routes_limited",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.215.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1305,9 +1305,9 @@
         },
         {
           "rule": "fw.auth_surface_declared",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.230.0",
-          "violations": 1,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1359,21 +1359,21 @@
         },
         {
           "rule": "fw.non_request_callers_use_core",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.257.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no view services in this target, so nothing can reach the web seam from outside a request"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.service_owns_its_tasks",
-          "status": "INERT",
+          "status": "PASS",
           "since": "0.257.0",
           "violations": 0,
           "deferred": false,
-          "inert": true,
-          "inert_reason": "no view or core service files in this target"
+          "inert": false,
+          "inert_reason": ""
         },
         {
           "rule": "fw.generated_assets_built_in_image",
@@ -1386,11 +1386,11 @@
         }
       ],
       "summary": {
-        "PASS": 94,
-        "FAIL": 21,
+        "PASS": 111,
+        "FAIL": 8,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 38
+        "INERT": 34
       }
     }
   ],
@@ -1749,9 +1749,9 @@
       },
       {
         "rule": "repo.metadata_naming_convention",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.131.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": ""
@@ -1920,20 +1920,20 @@
       }
     ],
     "summary": {
-      "PASS": 51,
-      "FAIL": 4,
+      "PASS": 52,
+      "FAIL": 3,
       "XFAIL": 0,
       "XPASS": 0,
       "INERT": 3
     }
   },
   "summary": {
-    "PASS": 145,
-    "FAIL": 25,
+    "PASS": 163,
+    "FAIL": 11,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 41
+    "INERT": 37
   },
-  "commit": "c6c6545cea420076ccad4f2ae3dddf87a4decc38",
-  "generated_at": "2026-10-07T03:56:07Z"
+  "commit": "f281df4275c2441f621132c0f16b679f5e67a06b",
+  "generated_at": "2026-10-07T04:54:02Z"
 }
