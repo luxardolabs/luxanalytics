@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.device_model import Device
 from app.schemas.event_schema import EventCreate
@@ -10,7 +11,7 @@ from app.services.core.event_core_service import EventCoreService
 
 
 @pytest.mark.asyncio
-async def test_create_single_event_promotes_columns(db):
+async def test_create_single_event_promotes_columns(db: AsyncSession) -> None:
     """Event creation should populate promoted columns from metadata."""
     svc = EventCoreService(db)
 
@@ -46,6 +47,8 @@ async def test_create_single_event_promotes_columns(db):
     assert event.platform == "ios"
 
     # Properties should NOT contain device context keys
+    assert event.properties is not None
+    assert event.event_metadata is not None
     assert "device_id" not in event.properties
     assert "device_model" not in event.properties
     assert "system_version" not in event.properties
@@ -60,7 +63,7 @@ async def test_create_single_event_promotes_columns(db):
 
 
 @pytest.mark.asyncio
-async def test_create_batch_events(db):
+async def test_create_batch_events(db: AsyncSession) -> None:
     """Batch event creation should handle multiple events."""
     svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
@@ -81,7 +84,7 @@ async def test_create_batch_events(db):
 
 
 @pytest.mark.asyncio
-async def test_device_upsert_on_ingest(db):
+async def test_device_upsert_on_ingest(db: AsyncSession) -> None:
     """Ingesting events with device_id should create/update device records."""
     from sqlalchemy import select
 
@@ -136,7 +139,7 @@ async def test_device_upsert_on_ingest(db):
 
 
 @pytest.mark.asyncio
-async def test_platform_defaults_to_ios(db):
+async def test_platform_defaults_to_ios(db: AsyncSession) -> None:
     svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
     event = EventCreate(name="screen_view", timestamp=now, metadata={"screen": "home"})
@@ -145,7 +148,7 @@ async def test_platform_defaults_to_ios(db):
 
 
 @pytest.mark.asyncio
-async def test_platform_from_metadata(db):
+async def test_platform_from_metadata(db: AsyncSession) -> None:
     svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
     event = EventCreate(
@@ -156,7 +159,7 @@ async def test_platform_from_metadata(db):
 
 
 @pytest.mark.asyncio
-async def test_event_without_device_id(db):
+async def test_event_without_device_id(db: AsyncSession) -> None:
     """Events without device_id should work — no device upsert."""
     from sqlalchemy import func, select
 

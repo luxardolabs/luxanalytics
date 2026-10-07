@@ -54,7 +54,7 @@ async def get_current_user(request: Request) -> str | None:
     return session.get("username")
 
 
-async def require_auth(request: Request):
+async def require_auth(request: Request) -> str:
     """Dependency to require authentication for protected routes."""
     user = await get_current_user(request)
 
@@ -95,7 +95,7 @@ def safe_redirect_target(target: str) -> str:
     return target
 
 
-def create_session(request: Request, username: str):
+def create_session(request: Request, username: str) -> None:
     """Create a new authenticated session."""
     request.session.clear()
     request.session["authenticated"] = True
@@ -105,7 +105,7 @@ def create_session(request: Request, username: str):
     logger.info("User logged in", extra={"username": username})
 
 
-def destroy_session(request: Request):
+def destroy_session(request: Request) -> None:
     """Destroy the current session."""
     username = request.session.get("username", "unknown")
     request.session.clear()
