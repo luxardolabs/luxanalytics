@@ -57,10 +57,10 @@
             {# Actions #}
             <div class="flex items-center gap-2 pt-2">
                 {{ button("Edit", variant='primary', size='sm', icon_left='pencil-square',
-                          hx_get='/apps/' ~ app.app_id ~ '/edit',
+                          hx_get=app.urls.edit,
                           hx_target='#panel-container', hx_swap='innerHTML') }}
                 {{ button("View Dashboard", variant='secondary', size='sm', icon_left='chart-bar',
-                          href='/dashboard/overview?app_id=' ~ app.app_id) }}
+                          href=app.urls.dashboard) }}
             </div>
 
             {% if app.description %}

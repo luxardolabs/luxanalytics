@@ -38,10 +38,20 @@ class AppRow(AppBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AppUrls(BaseModel):
+    """Finished hrefs for one app's actions, resolved by route name in the view."""
+
+    detail: str
+    edit: str
+    update: str
+    dashboard: str
+
+
 class AppResponse(AppRow):
     """An app as the dashboard shows it: its columns plus the DSN the SDK is configured with."""
 
     dsn: str
+    urls: AppUrls
 
 
 class AppListItem(BaseModel):
@@ -54,6 +64,7 @@ class AppListItem(BaseModel):
     public_id: str
     dsn: str
     event_count: int
+    urls: AppUrls
 
 
 class AppStats(BaseModel):

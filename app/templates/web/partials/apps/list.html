@@ -29,11 +29,11 @@
                     {{ badge("Inactive", variant="default") }}
                     {% endif %}
                 {% endcall %}
-                {% call td(class="text-right tabular-nums") %}{{ app.event_count | default(0) | number_format }}{% endcall %}
+                {% call td(class="text-right tabular-nums") %}{{ app.event_count | number_format }}{% endcall %}
                 {% call td() %}
                     <div class="flex items-center gap-1 justify-end">
-                        {{ icon_view(hx_get='/apps/' ~ app.app_id ~ '/detail', hx_target='#panel-container', hx_swap='innerHTML') }}
-                        {{ icon_edit(hx_get='/apps/' ~ app.app_id ~ '/edit', hx_target='#panel-container', hx_swap='innerHTML') }}
+                        {{ icon_view(hx_get=app.urls.detail, hx_target='#panel-container', hx_swap='innerHTML') }}
+                        {{ icon_edit(hx_get=app.urls.edit, hx_target='#panel-container', hx_swap='innerHTML') }}
                     </div>
                 {% endcall %}
             </tr>

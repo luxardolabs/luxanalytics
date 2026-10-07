@@ -9,7 +9,7 @@
     {% call panel_content() %}
         <form id="app-form"
               {% if app %}
-              hx-put="/apps/{{ app.app_id }}"
+              hx-put="{{ app.urls.update }}"
               {% else %}
               hx-post="/apps/"
               {% endif %}

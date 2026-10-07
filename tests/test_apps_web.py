@@ -31,6 +31,9 @@ async def test_the_list_shows_each_app(client: AsyncClient, sample_app: App) -> 
     assert response.status_code == 200
     assert sample_app.app_id in response.text
     assert sample_app.name in response.text
+    # The row actions are paths the view resolved by route name.
+    assert f'hx-get="/apps/{sample_app.app_id}/detail"' in response.text
+    assert f'hx-get="/apps/{sample_app.app_id}/edit"' in response.text
 
 
 @pytest.mark.db

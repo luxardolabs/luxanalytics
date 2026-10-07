@@ -9,7 +9,7 @@ it is a URL, so it is assembled in the view from the ingest route's NAME
 import json
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import HTTPException, Request
 from fastapi.responses import Response
@@ -23,6 +23,7 @@ from app.schemas.app_schema import (
     AppRow,
     AppStats,
     AppUpdate,
+    AppUrls,
 )
 from app.services.core.app_core_service import AppCoreService
 from app.web.templates import templates
@@ -46,8 +47,23 @@ class AppsViewService:
         base = urlsplit(settings.EXTERNAL_URL or str(self._request.base_url))
         return f"{base.scheme}://{app.public_id}@{base.netloc}{path}"
 
+    def _urls(self, app_id: str) -> AppUrls:
+        """Paths resolved by route NAME (luxarch --playbook url-in-view). Paths, not absolute URLs:
+        behind the proxy the request's scheme can read http, and an http:// link in an https page
+        is blocked as mixed content."""
+        path_for = self._request.app.url_path_for
+        dashboard = path_for("overview_page")
+        return AppUrls(
+            detail=path_for("app_detail_panel", app_id=app_id),
+            edit=path_for("edit_app_panel", app_id=app_id),
+            update=path_for("update_app", app_id=app_id),
+            dashboard=f"{dashboard}?{urlencode({'app_id': app_id})}",
+        )
+
     def _response(self, app: AppRow) -> AppResponse:
-        return AppResponse(**app.model_dump(), dsn=self._dsn(app))
+        return AppResponse(
+            **app.model_dump(), dsn=self._dsn(app), urls=self._urls(app.app_id)
+        )
 
     async def _get(self, app_id: str) -> AppRow:
         app = await self._core.get_app_by_app_id(app_id)
@@ -75,6 +91,7 @@ class AppsViewService:
                     public_id=app.public_id,
                     dsn=self._dsn(app),
                     event_count=stats.total_events,
+                    urls=self._urls(app.app_id),
                 )
             )
         return {"apps": items}
