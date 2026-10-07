@@ -350,7 +350,7 @@ effective_cache_size = 12GB   # 75% of RAM
 ./build.sh --no-cache        # Build without cache
 
 # The build script:
-# - Extracts version from path: <builds>/YYYY/MM/DD → YYYY.MM.DD
+# - Extracts version from the build directory path: <builds>/YYYY/MM/DD → YYYY.MM.DD
 # - Captures build timestamp in ISO 8601 format
 # - Passes both as Docker build arguments
 # - Version and timestamp are displayed in the app (login page, dashboard, /health endpoint)

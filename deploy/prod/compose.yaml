@@ -1,6 +1,7 @@
 services:
   luxanalytics_app:
-    image: registry.example/luxardolabs/luxanalytics:1.0.3
+    # The registry host is private; the ref (an immutable version tag) lives in .env.prod.
+    image: ${LUXANALYTICS_IMAGE:?set LUXANALYTICS_IMAGE in .env.prod}
     container_name: luxanalytics_app
     restart: always
     env_file:

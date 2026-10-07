@@ -116,9 +116,22 @@ make status           # Health check + container status
 make backup           # Backup local database
 ```
 
+### Fleet guards (luxarch · luxlint · luxaudit)
+```bash
+make check            # THE gate: pins → honest → lint → mypy → test → arch → audit → gitleaks
+make onboard-check    # wiring + honesty (NOT green)
+make plan             # every arch red, phase-ordered
+make format           # the canonical fixer (luxlint --format) — never a bare formatter
+make guard-upgrade    # bump every guard pin to latest
+```
+- Copy `Makefile.local.example` → `Makefile.local` (gitignored): registry hosts, prod node, registry credential.
+- Check the guard pins against latest at session start (`make guard-version-check`) and bump if behind.
+- Reds stay red: align the code or escalate a wrong guard (`fleet-escalation` issue in LuxPM). Never defer to green.
+- Read guard docs from the image: `luxarch --docs`, `--doc <NAME>`, `--playbook <slug>`.
+
 ### Build & Registry
 ```bash
-make external-build         # Build + push to registry.example
+make external-build         # Build + push to the external registry (Makefile.local)
 make external-build-latest  # Same + :latest tag
 make local-build            # Build + push to local registry
 make release                # Push to both registries
@@ -188,9 +201,9 @@ make prod-release
 
 ## Production Infrastructure
 
-- **Host**: OVH prod-node (`prod-node.example` via jump host `jump.example`)
+- **Host**: the prod node behind an ssh jump host — `PROD_HOST` / `PROD_JUMP` in `Makefile.local`
 - **Path**: `/opt/luxardolabs/luxanalytics`
-- **Registry**: `registry.example/luxardolabs/luxanalytics`
+- **Registry**: `$(EXTERNAL_REGISTRY)/luxardolabs/luxanalytics` (host in `Makefile.local`; prod image ref in `deploy/prod/.env.prod` as `LUXANALYTICS_IMAGE`)
 - **Nginx**: Reverse proxy config at `deploy/prod/analytics.luxardolabs.com.conf`
 - **Compose**: `deploy/prod/compose.yaml` with `.env.prod`
 - **Port mapping**: 4000:4000 (no mental remapping)
