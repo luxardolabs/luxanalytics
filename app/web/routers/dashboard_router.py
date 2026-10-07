@@ -1,77 +1,52 @@
-# app/routers/dashboard.py
+"""Dashboard pages + HTMX partials. HTTP only: each route renders the context its view method builds."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
 from app.db.database import get_db
-from app.services.views.dashboard_view_service import DashboardViewService
+from app.services.views.dashboard_view_service import (
+    DashboardViewService,
+    selected_app_id,
+)
 from app.web.templates import templates
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
-def get_app_id(request: Request, app_id: str | None = Query(None)) -> str | None:
-    """Read app_id from query param first, then cookie."""
-    if app_id:
-        return app_id
-    return request.cookies.get("analytics_app_id") or None
-
-
-# ── Nav Dropdown ───────────────────────────────────────────────────────────
-
-
 @router.get("/apps-dropdown", response_class=HTMLResponse)
 async def apps_dropdown(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> Response:
     """Apps dropdown for nav — loaded via HTMX on every page."""
-    svc = DashboardViewService(db)
-    apps = await svc.get_apps_for_dropdown()
-    current_app_id = request.cookies.get("analytics_app_id", "")
+    context = await DashboardViewService(db).apps_dropdown_context(request)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/apps_dropdown.html",
-        {"apps": apps, "current_app_id": current_app_id},
+        request, "partials/dashboard/apps_dropdown.html", context
     )
-
-
-# ── Overview ──────────────────────────────────────────────────────────────────
 
 
 @router.get("/overview", response_class=HTMLResponse)
 async def overview_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Full overview page."""
-    svc = DashboardViewService(db)
-    stats = await svc.get_stats_overview(app_id=app_id, hours=hours)
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/overview.html",
-        {"app_id": app_id, "hours": hours, **stats},
-    )
+) -> Response:
+    context = await DashboardViewService(db).overview_context(app_id, hours)
+    return templates.TemplateResponse(request, "pages/dashboard/overview.html", context)
 
 
 @router.get("/overview/content", response_class=HTMLResponse)
 async def overview_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Overview content partial — swapped by time filter."""
-    svc = DashboardViewService(db)
-    stats = await svc.get_stats_overview(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).overview_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/overview_content.html",
-        {"app_id": app_id, "hours": hours, **stats},
+        request, "partials/dashboard/overview_content.html", context
     )
 
 
@@ -79,16 +54,12 @@ async def overview_content(
 async def overview_timeline(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Timeline chart partial — lazy loaded."""
-    svc = DashboardViewService(db)
-    timeline_data = await svc.get_timeline_data(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).timeline_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/timeline_chart.html",
-        {"timeline_data": timeline_data},
+        request, "partials/dashboard/timeline_chart.html", context
     )
 
 
@@ -96,16 +67,12 @@ async def overview_timeline(
 async def overview_event_types(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Event type breakdown chart — lazy loaded."""
-    svc = DashboardViewService(db)
-    stats = await svc.get_stats_overview(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).event_types_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/event_types_chart.html",
-        {"top_events": stats.get("top_events", [])},
+        request, "partials/dashboard/event_types_chart.html", context
     )
 
 
@@ -113,201 +80,106 @@ async def overview_event_types(
 async def overview_top_screens(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Top screens chart — lazy loaded."""
-    svc = DashboardViewService(db)
-    features = await svc.get_feature_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).top_screens_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/top_screens_chart.html",
-        {"screens": features.get("screens", [])},
+        request, "partials/dashboard/top_screens_chart.html", context
     )
-
-
-# ── Events ────────────────────────────────────────────────────────────────────
 
 
 @router.get("/events", response_class=HTMLResponse)
 async def events_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     event_name: str | None = Query(None),
     hours: int = Query(24),
     page: int = Query(1),
-):
-    """Full events page."""
-    svc = DashboardViewService(db)
-    result = await svc.get_filtered_events(
-        app_id=app_id,
-        event_name=event_name,
-        hours=hours,
-        page=page,
+) -> Response:
+    context = await DashboardViewService(db).events_context(
+        app_id, event_name, hours, page
     )
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/events.html",
-        {
-            **result,
-            "app_id": app_id,
-            "event_name": event_name,
-            "hours": hours,
-        },
-    )
+    return templates.TemplateResponse(request, "pages/dashboard/events.html", context)
 
 
 @router.get("/events/content", response_class=HTMLResponse)
 async def events_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     event_name: str | None = Query(None),
     search_q: str | None = Query(None),
     hours: int = Query(24),
     page: int = Query(1),
-):
-    """Events list partial — swapped by filters."""
-    svc = DashboardViewService(db)
-    if search_q:
-        events = await svc.search_events(
-            query=search_q, search_type="event_name", limit=50
-        )
-        result = {
-            "events": events,
-            "pagination": {
-                "page": 1,
-                "total_pages": 1,
-                "total": len(events),
-                "start": 1,
-                "end": len(events),
-                "per_page": 50,
-            },
-        }
-    else:
-        result = await svc.get_filtered_events(
-            app_id=app_id,
-            event_name=event_name,
-            hours=hours,
-            page=page,
-        )
-    return templates.TemplateResponse(
-        request,
-        "partials/dashboard/events_content.html",
-        {**result, "app_id": app_id, "hours": hours, "event_name": event_name},
+) -> Response:
+    context = await DashboardViewService(db).events_context(
+        app_id, event_name, hours, page, search_q
     )
-
-
-@router.get("/events/detail/{event_id}", response_class=HTMLResponse)
-async def event_detail_panel(
-    request: Request,
-    event_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """Event detail slider panel."""
-    svc = DashboardViewService(db)
-    event = await svc.get_event_by_id(event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/event_detail_panel.html",
-        {"event": event},
+        request, "partials/dashboard/events_content.html", context
     )
-
-
-# ── Devices ───────────────────────────────────────────────────────────────────
 
 
 @router.get("/devices", response_class=HTMLResponse)
 async def devices_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Full devices page."""
-    svc = DashboardViewService(db)
-    analytics = await svc.get_device_analytics(app_id=app_id, hours=hours)
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/devices.html",
-        {"app_id": app_id, "hours": hours, **analytics},
-    )
+) -> Response:
+    context = await DashboardViewService(db).devices_context(app_id, hours)
+    return templates.TemplateResponse(request, "pages/dashboard/devices.html", context)
 
 
 @router.get("/devices/content", response_class=HTMLResponse)
 async def devices_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Devices content partial."""
-    svc = DashboardViewService(db)
-    analytics = await svc.get_device_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).devices_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/devices_content.html",
-        {"app_id": app_id, "hours": hours, **analytics},
+        request, "partials/dashboard/devices_content.html", context
     )
-
-
-# ── Errors ────────────────────────────────────────────────────────────────────
 
 
 @router.get("/errors", response_class=HTMLResponse)
 async def errors_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Full errors page."""
-    svc = DashboardViewService(db)
-    analytics = await svc.get_error_analytics(app_id=app_id, hours=hours)
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/errors.html",
-        {"app_id": app_id, "hours": hours, **analytics},
-    )
+) -> Response:
+    context = await DashboardViewService(db).errors_context(app_id, hours)
+    return templates.TemplateResponse(request, "pages/dashboard/errors.html", context)
 
 
 @router.get("/errors/content", response_class=HTMLResponse)
 async def errors_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Errors content partial."""
-    svc = DashboardViewService(db)
-    analytics = await svc.get_error_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).errors_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/errors_content.html",
-        {"app_id": app_id, "hours": hours, **analytics},
+        request, "partials/dashboard/errors_content.html", context
     )
-
-
-# ── Performance ───────────────────────────────────────────────────────────────
 
 
 @router.get("/performance", response_class=HTMLResponse)
 async def performance_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Full performance page."""
-    svc = DashboardViewService(db)
-    analytics = await svc.get_performance_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).performance_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "pages/dashboard/performance.html",
-        {"app_id": app_id, "hours": hours, **analytics},
+        request, "pages/dashboard/performance.html", context
     )
 
 
@@ -315,176 +187,121 @@ async def performance_page(
 async def performance_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    """Performance content partial."""
-    svc = DashboardViewService(db)
-    analytics = await svc.get_performance_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).performance_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/performance_content.html",
-        {"app_id": app_id, "hours": hours, **analytics},
+        request, "partials/dashboard/performance_content.html", context
     )
-
-
-# ── Features ──────────────────────────────────────────────────────────────────
 
 
 @router.get("/features", response_class=HTMLResponse)
 async def features_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    svc = DashboardViewService(db)
-    analytics = await svc.get_feature_analytics(app_id=app_id, hours=hours)
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/features.html",
-        {"app_id": app_id, "hours": hours, **analytics},
-    )
+) -> Response:
+    context = await DashboardViewService(db).features_context(app_id, hours)
+    return templates.TemplateResponse(request, "pages/dashboard/features.html", context)
 
 
 @router.get("/features/content", response_class=HTMLResponse)
 async def features_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    svc = DashboardViewService(db)
-    analytics = await svc.get_feature_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).features_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/features_content.html",
-        {"app_id": app_id, "hours": hours, **analytics},
+        request, "partials/dashboard/features_content.html", context
     )
-
-
-# ── Journey ───────────────────────────────────────────────────────────────────
 
 
 @router.get("/journey", response_class=HTMLResponse)
 async def journey_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    if not app_id:
-        return templates.TemplateResponse(
-            request,
-            "pages/dashboard/journey.html",
-            {"app_id": app_id, "hours": hours, "requires_app": True},
-        )
-    svc = DashboardViewService(db)
-    analytics = await svc.get_user_journey_analytics(app_id=app_id, hours=hours)
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/journey.html",
-        {"app_id": app_id, "hours": hours, **analytics},
-    )
+) -> Response:
+    context = await DashboardViewService(db).journey_context(app_id, hours)
+    return templates.TemplateResponse(request, "pages/dashboard/journey.html", context)
 
 
 @router.get("/journey/content", response_class=HTMLResponse)
 async def journey_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    if not app_id:
-        return templates.TemplateResponse(
-            request,
-            "partials/dashboard/journey_content.html",
-            {"app_id": app_id, "hours": hours, "requires_app": True},
-        )
-    svc = DashboardViewService(db)
-    analytics = await svc.get_user_journey_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).journey_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/journey_content.html",
-        {"app_id": app_id, "hours": hours, **analytics},
+        request, "partials/dashboard/journey_content.html", context
     )
-
-
-# ── Feedback ──────────────────────────────────────────────────────────────────
 
 
 @router.get("/feedback", response_class=HTMLResponse)
 async def feedback_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    svc = DashboardViewService(db)
-    analytics = await svc.get_feedback_analytics(app_id=app_id, hours=hours)
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/feedback.html",
-        {"app_id": app_id, "hours": hours, **analytics},
-    )
+) -> Response:
+    context = await DashboardViewService(db).feedback_context(app_id, hours)
+    return templates.TemplateResponse(request, "pages/dashboard/feedback.html", context)
 
 
 @router.get("/feedback/content", response_class=HTMLResponse)
 async def feedback_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    svc = DashboardViewService(db)
-    analytics = await svc.get_feedback_analytics(app_id=app_id, hours=hours)
+) -> Response:
+    context = await DashboardViewService(db).feedback_context(app_id, hours)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/feedback_content.html",
-        {"app_id": app_id, "hours": hours, **analytics},
+        request, "partials/dashboard/feedback_content.html", context
     )
-
-
-# ── User Profile ──────────────────────────────────────────────────────────
-
-# ── Explorer ──────────────────────────────────────────────────────────────
 
 
 @router.get("/explorer", response_class=HTMLResponse)
 async def explorer_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
     event_name: str | None = Query(None),
-):
-    svc = DashboardViewService(db)
-    analysis = await svc.get_metadata_analysis(
-        app_id=app_id, hours=hours, event_name=event_name
-    )
-    return templates.TemplateResponse(
-        request,
-        "pages/dashboard/explorer.html",
-        {"app_id": app_id, "hours": hours, "event_name": event_name, **analysis},
-    )
+) -> Response:
+    context = await DashboardViewService(db).explorer_context(app_id, hours, event_name)
+    return templates.TemplateResponse(request, "pages/dashboard/explorer.html", context)
 
 
 @router.get("/explorer/content", response_class=HTMLResponse)
 async def explorer_content(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
     event_name: str | None = Query(None),
-):
-    svc = DashboardViewService(db)
-    analysis = await svc.get_metadata_analysis(
-        app_id=app_id, hours=hours, event_name=event_name
-    )
+) -> Response:
+    context = await DashboardViewService(db).explorer_context(app_id, hours, event_name)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/explorer_content.html",
-        {"app_id": app_id, "hours": hours, "event_name": event_name, **analysis},
+        request, "partials/dashboard/explorer_content.html", context
+    )
+
+
+@router.get("/events/detail/{event_id}", response_class=HTMLResponse)
+async def event_detail_panel(
+    request: Request, event_id: str, db: AsyncSession = Depends(get_db)
+) -> Response:
+    """Event detail slider panel."""
+    context = await DashboardViewService(db).event_detail_context(event_id)
+    return templates.TemplateResponse(
+        request, "partials/dashboard/event_detail_panel.html", context
     )
 
 
@@ -493,51 +310,34 @@ async def key_deep_dive_panel(
     request: Request,
     key_name: str,
     db: AsyncSession = Depends(get_db),
-    app_id: str | None = Depends(get_app_id),
+    app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
-):
-    svc = DashboardViewService(db)
-    analysis = await svc.get_key_deep_dive(key_name, app_id=app_id, hours=hours)
-    return templates.TemplateResponse(
-        request,
-        "partials/dashboard/key_deep_dive_panel.html",
-        {"app_id": app_id, "hours": hours, **analysis},
+) -> Response:
+    context = await DashboardViewService(db).key_deep_dive_context(
+        key_name, app_id, hours
     )
-
-
-# ── User Profile ──────────────────────────────────────────────────────────
+    return templates.TemplateResponse(
+        request, "partials/dashboard/key_deep_dive_panel.html", context
+    )
 
 
 @router.get("/user/{user_id}", response_class=HTMLResponse)
 async def user_profile_panel(
-    request: Request,
-    user_id: str,
-    db: AsyncSession = Depends(get_db),
-):
+    request: Request, user_id: str, db: AsyncSession = Depends(get_db)
+) -> Response:
     """User profile slider panel."""
-    svc = DashboardViewService(db)
-    profile = await svc.get_user_profile(user_id)
+    context = await DashboardViewService(db).user_profile_context(user_id)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/user_profile_panel.html",
-        {**profile},
+        request, "partials/dashboard/user_profile_panel.html", context
     )
-
-
-# ── Session Detail ────────────────────────────────────────────────────────
 
 
 @router.get("/session/{session_id}", response_class=HTMLResponse)
 async def session_detail_panel(
-    request: Request,
-    session_id: str,
-    db: AsyncSession = Depends(get_db),
-):
+    request: Request, session_id: str, db: AsyncSession = Depends(get_db)
+) -> Response:
     """Session detail slider panel."""
-    svc = DashboardViewService(db)
-    detail = await svc.get_session_detail(session_id)
+    context = await DashboardViewService(db).session_detail_context(session_id)
     return templates.TemplateResponse(
-        request,
-        "partials/dashboard/session_detail_panel.html",
-        {**detail},
+        request, "partials/dashboard/session_detail_panel.html", context
     )

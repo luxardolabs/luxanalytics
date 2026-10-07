@@ -1,13 +1,16 @@
 """Tests for dashboard query modules against seeded data."""
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.views.dashboard_view_service import DashboardViewService
+from app.services.core.analytics_core_service import AnalyticsCoreService
 
 
 @pytest.mark.asyncio
-async def test_stats_overview(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_stats_overview(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     stats = await svc.get_stats_overview(app_id="test_app", hours=24)
 
     assert stats["total_events"] == 4
@@ -22,16 +25,20 @@ async def test_stats_overview(db, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_stats_overview_all_apps(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_stats_overview_all_apps(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     stats = await svc.get_stats_overview(hours=24)
 
     assert stats["total_events"] >= 4
 
 
 @pytest.mark.asyncio
-async def test_device_analytics(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_device_analytics(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     analytics = await svc.get_device_analytics(app_id="test_app", hours=24)
 
     assert analytics["unique_devices"] == 2
@@ -49,8 +56,10 @@ async def test_device_analytics(db, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_error_analytics(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_error_analytics(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     analytics = await svc.get_error_analytics(app_id="test_app", hours=24)
 
     assert analytics["total_errors"] >= 1
@@ -61,8 +70,10 @@ async def test_error_analytics(db, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_performance_analytics(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_performance_analytics(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     analytics = await svc.get_performance_analytics(app_id="test_app", hours=24)
 
     assert analytics["total_measurements"] >= 1
@@ -77,8 +88,10 @@ async def test_performance_analytics(db, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_filtered_events(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_filtered_events(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
 
     # Filter by event name
     result = await svc.get_filtered_events(
@@ -92,8 +105,10 @@ async def test_filtered_events(db, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_timeline_data(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_timeline_data(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     timeline = await svc.get_timeline_data(app_id="test_app", hours=24)
 
     assert len(timeline) > 0
@@ -102,8 +117,10 @@ async def test_timeline_data(db, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_search_events(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_search_events(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     results = await svc.search_events(query="screen", search_type="event_name")
 
     assert len(results) >= 1
@@ -111,8 +128,10 @@ async def test_search_events(db, sample_events):
 
 
 @pytest.mark.asyncio
-async def test_feature_analytics(db, sample_events):
-    svc = DashboardViewService(db)
+async def test_feature_analytics(
+    db: AsyncSession, sample_events: list[dict[str, object]]
+) -> None:
+    svc = AnalyticsCoreService(db)
     analytics = await svc.get_feature_analytics(app_id="test_app", hours=24)
 
     assert analytics["total_events"] >= 1
