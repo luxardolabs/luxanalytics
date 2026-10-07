@@ -309,13 +309,6 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
 {% endmacro %}
 
 
-{% macro icon_edit() %}
-<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-</svg>
-{% endmacro %}
-
-
 {% macro btn_cancel(text='Cancel', size='md', full_width=false, onclick=None, alpine_click=None, id=None, hx_post=None, hx_swap=None, extra_classes=None, extra_attrs=None) %}
     {{ button(text=text, variant='secondary', size=size, full_width=full_width, onclick=onclick, alpine_click=alpine_click, id=id, hx_post=hx_post, hx_swap=hx_swap, extra_classes=extra_classes, extra_attrs=extra_attrs) }}
 {% endmacro %}
@@ -349,36 +342,6 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
     #}
     {% set effective_onclick = onclick if onclick else ("closeModal('panel-container')" if not alpine_click else None) %}
     {{ button('', variant='icon-muted', icon_left='x-mark', onclick=effective_onclick, alpine_click=alpine_click, title=title, icon_size='w-6 h-6', extra_classes=extra_classes) }}
-{% endmacro %}
-
-
-{# Purge Icon Button - Double-click to purge (fire icon variant)
-   Uses the fire icon for cache purge actions.
-   First click activates confirmation state (glowing red), second click executes.
-#}
-{% macro purge_icon_button(hx_post=None, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Purge') %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { let t = '{{ hx_target }}'; htmx.ajax('POST', '{{ hx_post }}', {target: t.startsWith('closest ') ? $el.closest(t.substring(8)) : t, swap: '{{ hx_swap }}'{% if hx_vals %}, values: {{ hx_vals }}{% endif %}}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-glow-error-lg'"
-        :title="confirm ? 'Click again to confirm' : '{{ title }}'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/fire.svg' %}</span>
-</button>
-{% endmacro %}
-
-
-{# Purge Icon Button - Double-click to purge cache/sessions (red with fire icon)
-#}
-{% macro purge_icon_button(hx_post, hx_target='body', hx_swap='outerHTML', hx_vals=None, timeout=3000, title='Purge') %}
-<button type="button"
-        x-data="{ confirm: false }"
-        @click="if(confirm) { let t = '{{ hx_target }}'; htmx.ajax('POST', '{{ hx_post }}', {target: t.startsWith('closest ') ? $el.closest(t.substring(8)) : t, swap: '{{ hx_swap }}'{% if hx_vals %}, values: {{ hx_vals }}{% endif %}}); } else { confirm = true; setTimeout(() => confirm = false, {{ timeout }}); }"
-        :class="confirm ? 'bg-red-500 text-white border-red-500 shadow-glow-error-lg' : 'bg-transparent text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-glow-error-lg'"
-        :title="confirm ? 'Click again to confirm' : '{{ title }}'"
-        class="justify-center w-8 h-8 p-0 rounded-lg border-2 inline-flex items-center justify-center transition-all duration-200">
-    <span class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full">{% include 'icons/hero/outline/fire.svg' %}</span>
-</button>
 {% endmacro %}
 
 

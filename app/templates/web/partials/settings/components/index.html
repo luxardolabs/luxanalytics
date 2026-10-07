@@ -1,0 +1,17 @@
+{#
+    COMPONENT INDEX: the catalogue of every public macro in macros/ (fw.component_registry,
+    luxarch --playbook component-macros). Before writing ANY markup, find the component here and
+    call it; if it does not exist, add the branded macro to its library AND register it below.
+    Never hand-roll a button/field/table in a page, and never author a "generic" parallel one.
+    Keep this list in sync with the library (luxarch reds an uncatalogued public macro).
+#}
+{% from "macros/analytics.html" import time_pills, value_breakdown, detail_section, kv_pair, kv_grid, analytics_card, chart_area %}
+{% from "macros/badges.html" import badge, info_box %}
+{% from "macros/buttons.html" import button, btn_cancel, btn_close, icon_view, icon_edit, icon_close_modal, copy_button %}
+{% from "macros/cards.html" import stat_card, stat_card_compact, stat_grid %}
+{% from "macros/forms.html" import filter_label, input, select, form_group, textarea, checkbox, toggle %}
+{% from "macros/icons.html" import icon %}
+{% from "macros/layout.html" import page_header, filter_bar, empty_state, empty_state_compact, loading, alert_banner, grid, page_width_class %}
+{% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer_close, panel_footer %}
+{% from "macros/panels.html" import no_data_message %}
+{% from "macros/tables.html" import th, td, th_sortable, th_static, pagination_controls %}

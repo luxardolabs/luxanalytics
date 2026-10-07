@@ -2,52 +2,8 @@
     Icon Macros - Heroicons and Weather Icons for LuxAnalytics templates.
 
     Usage:
-        {% from "macros/icons.html" import icon, icon_box %}
+        {% from "macros/icons.html" import icon %}
 #}
-
-
-{# ============================================================================
-   ICON BOX WITH HOVER GLOW
-   Styled icon container with background and hover glow effect.
-
-   Parameters:
-     - icon_name: Name of the Heroicon to display
-     - color: Color theme (green, blue, amber, purple, red, brand)
-     - size: Size variant ('sm', 'md', 'lg') - default 'md'
-     - icon_size: Custom icon size class - overrides size default
-
-   Usage:
-     {{ icon_box('sun', 'green') }}
-     {{ icon_box('bell', 'red', 'lg') }}
-     {{ icon_box('sparkles', 'brand', 'sm') }}
-   ============================================================================ #}
-
-{% macro icon_box(icon_name, color='brand', size='md', icon_size=none) %}
-{# Color definitions: rgb values, text class #}
-{% set colors = {
-    'green': {'rgb': '34, 197, 94', 'text': 'text-green-400'},
-    'blue': {'rgb': '59, 130, 246', 'text': 'text-blue-400'},
-    'amber': {'rgb': '245, 158, 11', 'text': 'text-amber-400'},
-    'purple': {'rgb': '168, 85, 247', 'text': 'text-purple-400'},
-    'red': {'rgb': '239, 68, 68', 'text': 'text-red-400'},
-    'brand': {'rgb': '255, 165, 0', 'text': 'text-brand-500'}
-} %}
-{# Size definitions: container size, default icon size #}
-{% set sizes = {
-    'sm': {'container': 'w-10 h-10 rounded-lg', 'icon': 'w-5 h-5'},
-    'md': {'container': 'w-14 h-14 rounded-xl', 'icon': 'w-7 h-7'},
-    'lg': {'container': 'w-20 h-20 rounded-2xl', 'icon': 'w-10 h-10'}
-} %}
-{% set c = colors.get(color, colors.brand) %}
-{% set s = sizes.get(size, sizes.md) %}
-{% set final_icon_size = icon_size if icon_size else s.icon %}
-<div class="{{ s.container }} flex items-center justify-center transition-all duration-300"
-     style="background: rgba({{ c.rgb }}, 0.15);"
-     onmouseenter="this.style.boxShadow='0 0 30px rgba({{ c.rgb }}, 0.4)'"
-     onmouseleave="this.style.boxShadow='none'">
-    {{ icon(icon_name, final_icon_size ~ ' ' ~ c.text) }}
-</div>
-{% endmacro %}
 
 
 {# ============================================================================

@@ -13,54 +13,6 @@ Usage:
 
 
 {# ============================================================================
-   STAT CARD
-   Single value display with min/max and trend
-   ============================================================================ #}
-{% macro stat_card(label, value, unit, min_val=none, max_val=none, trend=none, color='blue', decimals=1) %}
-<div class="stat-card bg-surface-10/50 rounded-lg p-4 flex flex-col justify-between h-full">
-    {# Label #}
-    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ label }}</div>
-
-    {# Main Value #}
-    <div class="flex items-baseline gap-1 my-2">
-        <span class="text-3xl font-bold text-{{ color }}-400">
-            {{ value | num(decimals) }}
-        </span>
-        <span class="text-slate-500 text-sm">{{ unit }}</span>
-
-        {# Trend Arrow #}
-        {% if trend %}
-        <span class="ml-2 text-sm
-            {% if trend == 'rising' %}text-green-400{% elif trend == 'falling' %}text-red-400{% else %}text-slate-500{% endif %}">
-            {% if trend == 'rising' %}
-            <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
-            </svg>
-            {% elif trend == 'falling' %}
-            <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-            </svg>
-            {% else %}
-            <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clip-rule="evenodd"/>
-            </svg>
-            {% endif %}
-        </span>
-        {% endif %}
-    </div>
-
-    {# Min/Max #}
-    {% if min_val is not none or max_val is not none %}
-    <div class="flex justify-between text-xs text-slate-500">
-        <span>Min: {{ min_val | num(decimals) }}{{ unit }}</span>
-        <span>Max: {{ max_val | num(decimals) }}{{ unit }}</span>
-    </div>
-    {% endif %}
-</div>
-{% endmacro %}
-
-
-{# ============================================================================
    NO DATA MESSAGE
    Shown when panel has no observations
    ============================================================================ #}
