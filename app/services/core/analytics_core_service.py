@@ -15,6 +15,12 @@ from app.models.device_model import Device
 from app.models.event_model import Event
 from app.schemas.event_schema import EventInDB
 
+# The user profile panel lists the newest of each; its headings show the full totals.
+PROFILE_SESSIONS_SHOWN = 50
+PROFILE_ERRORS_SHOWN = 20
+PROFILE_SCREENS_SHOWN = 30
+ERROR_EVENT_NAMES = ["error_occurred", "authentication_attempt"]
+
 
 class AnalyticsCoreService:
     """Core business logic for analytics queries."""
@@ -308,6 +314,8 @@ class AnalyticsCoreService:
                 {
                     "type": "info",
                     "title": f"Testing on {unique_devices} unique devices",
+                    # post-db-filter: the sentence names the three most common models; the
+                    # devices page renders the full device_models list from the same query.
                     "description": f"Device models: {', '.join(m[0] for m in device_models[:3])}",
                 }
             )
@@ -824,9 +832,23 @@ class AnalyticsCoreService:
             "AnalyticsCoreService", "get_user_profile", user_id=user_id
         ):
             summary = await event_crud.get_user_summary(self.db, user_id)
-            sessions = await event_crud.get_user_sessions(self.db, user_id)
+            sessions = await event_crud.get_user_sessions(
+                self.db, user_id, limit=PROFILE_SESSIONS_SHOWN
+            )
             devices = await event_crud.get_user_devices(self.db, user_id)
-            recent = await event_crud.get_events_by_user(self.db, user_id, limit=50)
+            by_user = [Event.user_id == user_id]
+            errors = await event_crud.get_by_names(
+                self.db, ERROR_EVENT_NAMES, by_user, limit=PROFILE_ERRORS_SHOWN
+            )
+            total_errors = await event_crud.count(
+                self.db, by_user + [Event.name.in_(ERROR_EVENT_NAMES)]
+            )
+            screens = await event_crud.count_by_property(
+                self.db,
+                "screen",
+                by_user + [Event.name == "screen_viewed"],
+                limit=PROFILE_SCREENS_SHOWN,
+            )
 
             # Format sessions
             session_list = []
@@ -864,29 +886,14 @@ class AnalyticsCoreService:
                     }
                 )
 
-            # Extract errors and screens from recent events
-            errors = [
-                e
-                for e in recent
-                if e.name in ("error_occurred", "authentication_attempt")
-            ]
-            screens = []
-            seen_screens = set()
-            for e in recent:
-                if e.name == "screen_viewed" and e.properties:
-                    screen = e.properties.get("screen")
-                    if screen and screen not in seen_screens:
-                        seen_screens.add(screen)
-                        screens.append(screen)
-
             return {
                 "user_id": user_id,
                 **summary,
                 "sessions": session_list,
                 "devices": device_list,
-                "recent_events": recent,
-                "errors": errors,
-                "screens_visited": screens,
+                "errors": [EventInDB.model_validate(e) for e in errors],
+                "total_errors": total_errors,
+                "screens_visited": [screen for screen, _ in screens],
             }
 
     # ── Session Detail ────────────────────────────────────────────────────

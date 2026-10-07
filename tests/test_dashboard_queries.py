@@ -136,3 +136,43 @@ async def test_feature_analytics(
     # Our sample data has screen: "home" and screen: "settings"
     screen_names = [s["name"] for s in analytics["screens"]]
     assert len(screen_names) >= 1
+
+
+@pytest.mark.asyncio
+async def test_user_profile_errors_and_screens_span_the_whole_history(
+    db: AsyncSession,
+) -> None:
+    """An old error and an old screen still show behind many newer events (they were read
+    from the newest 50 events only, so a busy user's profile showed "Errors (0)")."""
+    from datetime import UTC, datetime, timedelta
+    from uuid import uuid4
+
+    from sqlalchemy import insert
+
+    from app.models.event_model import Event
+
+    now = datetime.now(UTC)
+
+    def row(name: str, age: timedelta, properties: dict[str, str]) -> dict[str, object]:
+        return {
+            "id": uuid4(),
+            "app_id": "test_app",
+            "name": name,
+            "timestamp": now - age,
+            "received_at": now - age,
+            "user_id": "busy_user",
+            "session_id": "s1",
+            "properties": properties,
+        }
+
+    old = timedelta(days=3)
+    rows = [row("error_occurred", old, {"error_type": "network"})]
+    rows.append(row("screen_viewed", old, {"screen": "settings"}))
+    rows += [row("button_tapped", timedelta(minutes=i), {}) for i in range(60)]
+    await db.execute(insert(Event), rows)
+
+    profile = await AnalyticsCoreService(db).get_user_profile("busy_user")
+
+    assert [e.name for e in profile["errors"]] == ["error_occurred"]
+    assert profile["total_errors"] == 1
+    assert profile["screens_visited"] == ["settings"]

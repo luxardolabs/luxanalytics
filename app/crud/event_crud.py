@@ -173,11 +173,11 @@ class EventCRUD:
         conditions: Conditions,
         limit: int = 2000,
     ) -> list[Event]:
-        """Get events filtered by event names."""
+        """The newest events with one of `names`, newest first."""
         query = (
             select(Event)
             .where(and_(*conditions), Event.name.in_(names))
-            .order_by(Event.received_at)
+            .order_by(desc(Event.received_at))
             .limit(limit)
         )
         result = await db.execute(query)
@@ -378,9 +378,9 @@ class EventCRUD:
         return list(result.scalars().all())
 
     async def get_user_sessions(
-        self, db: AsyncSession, user_id: str
+        self, db: AsyncSession, user_id: str, limit: int
     ) -> list[Row[str | None, int, datetime, datetime, Sequence[Any]]]:
-        """Get distinct sessions for a user with first/last event and event count."""
+        """The user's `limit` most recent sessions, with first/last event and event count."""
         query = (
             select(
                 Event.session_id,
@@ -392,7 +392,7 @@ class EventCRUD:
             .where(Event.user_id == user_id, Event.session_id.isnot(None))
             .group_by(Event.session_id)
             .order_by(desc(func.max(Event.received_at)))
-            .limit(50)
+            .limit(limit)
         )
         result = await db.execute(query)
         return list(result.all())
