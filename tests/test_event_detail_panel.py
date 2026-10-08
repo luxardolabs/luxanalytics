@@ -40,7 +40,6 @@ async def test_feedback_detail_reads_properties_and_the_device(
                 "feedback_category": "bug_report",
                 "feedback_content": "Crash on save",
             },
-            event_metadata=None,  # rows the panel must render without the legacy column
         )
     )
     await _login(client, "198.51.100.230")

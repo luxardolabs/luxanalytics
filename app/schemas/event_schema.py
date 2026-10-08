@@ -142,7 +142,6 @@ class EventInDB(BaseModel):
     is_testflight: bool | None
     # JSONB the SDK fills per event name: keys and value types are the caller's.
     properties: dict[str, Any] | None
-    event_metadata: dict[str, Any] | None
 
     model_config = ConfigDict(from_attributes=True)
 

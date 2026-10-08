@@ -39,7 +39,8 @@ class Event(Base, UUIDMixin):
     app_version: Mapped[str | None] = mapped_column(String)
     platform: Mapped[str | None] = mapped_column(String, default="ios")
     # The rest of the device context, as it was when THIS event was sent (the devices table keeps
-    # only each device's latest values). Promoted in 008 from event_metadata (LUXANALYTI-16).
+    # only each device's latest values). Promoted in 008 from the old event_metadata column, which
+    # 009 dropped once nothing in it was held only there (LUXANALYTI-16).
     # UIDevice.current.model: "iPhone", "iPad", etc.; an open vendor set, stored as sent.
     device_type: Mapped[str | None] = mapped_column(String)
     build_number: Mapped[str | None] = mapped_column(String)
@@ -51,11 +52,6 @@ class Event(Base, UUIDMixin):
     # Flexible event-specific data (JSONB with GIN index for key queries). Keys are whatever the SDK
     # caller sends per event name, so explicitly dict[str, Any].
     properties: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-
-    # Legacy column — kept during dual-write transition, will be dropped in Phase 6
-    event_metadata: Mapped[dict[str, Any] | None] = mapped_column(
-        "event_metadata", JSONB
-    )
 
     __table_args__ = (
         # Primary query patterns

@@ -57,3 +57,13 @@ fg = "white"
 # Jinja + HTMX, so the rule applies.
 [templates]
 lint_logic = true
+
+[[allowlist.enum_freetext_columns]]
+path = "app/models/event_model.py"
+column = "device_type"
+evidence = "UIDevice.current.model per event, as sent by the iOS SDK (docs/ios-sdk-platform-field.md:22); an open Apple set"
+
+[[allowlist.enum_dto_freetext]]
+path = "app/schemas/event_schema.py"
+field = "device_type"
+evidence = "EventInDB.device_type mirrors events.device_type: UIDevice.current.model, an open Apple set"

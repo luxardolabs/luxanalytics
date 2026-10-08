@@ -42,7 +42,6 @@ def _ev(name: str, **kw: Any) -> dict[str, Any]:
         "user_id": "adv_user",
         "session_id": "adv_session",
         "properties": None,
-        "event_metadata": None,
     }
     row.update(kw)
     return row

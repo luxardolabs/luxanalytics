@@ -140,7 +140,6 @@ class EventCoreService:
                         if "is_testflight" in metadata
                         else None,
                         "properties": properties or None,
-                        "event_metadata": metadata,
                         "received_at": received_at,
                     }
                 )

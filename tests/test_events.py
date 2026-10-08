@@ -55,7 +55,6 @@ async def test_create_single_event_promotes_columns(db: AsyncSession) -> None:
 
     # Properties should NOT contain device context keys
     assert event.properties is not None
-    assert event.event_metadata is not None
     assert "device_id" not in event.properties
     assert "device_model" not in event.properties
     assert "system_version" not in event.properties
@@ -63,10 +62,6 @@ async def test_create_single_event_promotes_columns(db: AsyncSession) -> None:
     # Properties should contain event-specific keys
     assert event.properties["screen"] == "home"
     assert event.properties["feature"] == "main"
-
-    # Legacy column should have the full metadata
-    assert event.event_metadata["device_id"] == "dev_abc123"
-    assert event.event_metadata["screen"] == "home"
 
 
 @pytest.mark.asyncio

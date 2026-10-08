@@ -371,14 +371,6 @@ async def sample_events(db: AsyncSession) -> list[dict[str, object]]:
             "app_version": "1.0.23",
             "platform": "ios",
             "properties": {"screen": "home", "feature": "main"},
-            "event_metadata": {
-                "device_id": "device_aaa",
-                "device_model": "iPhone17,1",
-                "system_version": "18.3",
-                "app_version": "1.0.23",
-                "screen": "home",
-                "feature": "main",
-            },
         },
         {
             "id": str(uuid4()),
@@ -394,12 +386,6 @@ async def sample_events(db: AsyncSession) -> list[dict[str, object]]:
             "app_version": "1.0.23",
             "platform": "ios",
             "properties": {"button_name": "save", "screen": "settings"},
-            "event_metadata": {
-                "device_id": "device_aaa",
-                "device_model": "iPhone17,1",
-                "button_name": "save",
-                "screen": "settings",
-            },
         },
         {
             "id": str(uuid4()),
@@ -419,12 +405,6 @@ async def sample_events(db: AsyncSession) -> list[dict[str, object]]:
                 "error_message": "timeout",
                 "screen": "profile",
             },
-            "event_metadata": {
-                "device_id": "device_bbb",
-                "error_type": "network",
-                "error_message": "timeout",
-                "screen": "profile",
-            },
         },
         {
             "id": str(uuid4()),
@@ -440,12 +420,6 @@ async def sample_events(db: AsyncSession) -> list[dict[str, object]]:
             "app_version": "1.0.23",
             "platform": "ios",
             "properties": {
-                "operation": "api_call",
-                "duration_ms": "150",
-                "success": "true",
-            },
-            "event_metadata": {
-                "device_id": "device_aaa",
                 "operation": "api_call",
                 "duration_ms": "150",
                 "success": "true",
