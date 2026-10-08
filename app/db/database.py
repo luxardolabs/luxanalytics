@@ -36,6 +36,9 @@ async_engine = create_async_engine(
     pool_timeout=settings.DB_POOL_TIMEOUT,
     pool_reset_on_return=settings.DB_POOL_RESET_ON_RETURN,
     connect_args={},
+    # A failed statement's error must not carry its parameters (event properties, user ids) into
+    # the logs.
+    hide_parameters=True,
 )
 
 # Async session factory

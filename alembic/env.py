@@ -26,9 +26,12 @@ from app.models.base_model import Base
 # Alembic Config object
 config = context.config
 
-# The fleet's one logging setup. fileConfig would disable every logger already created when the app
-# runs these migrations in-process at startup (repo.logging_canonical).
-configure_logging(service="luxanalytics-migrations", version=settings.APP_VERSION)
+# The fleet's one logging setup, for the alembic CLI only. In-process (the app's startup passes its
+# connection) the app's own handler is already installed: reconfiguring here relabelled every later
+# app log line `service=luxanalytics-migrations` with no environment. fileConfig is never used: it
+# would disable every logger already created (repo.logging_canonical).
+if config.attributes.get("connection") is None:
+    configure_logging(service="luxanalytics-migrations", version=settings.APP_VERSION)
 
 # The models whose tables autogenerate and db-verify compare: importing them registers each
 # table on Base.metadata.

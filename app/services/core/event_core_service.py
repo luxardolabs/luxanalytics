@@ -3,9 +3,9 @@
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import TypeAdapter
+from pydantic import Field, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEVICE_CONTEXT_KEYS
@@ -13,7 +13,12 @@ from app.core.tracing import create_service_span
 from app.crud.device_crud import device_crud
 from app.crud.event_crud import EventWriteCRUD, event_crud
 from app.models.event_model import Event
-from app.schemas.event_schema import BatchEventRequest, EventCreate, IngestResult
+from app.schemas.event_schema import (
+    MAX_BATCH_EVENTS,
+    BatchEventRequest,
+    EventCreate,
+    IngestResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +27,10 @@ event_write_crud = EventWriteCRUD()
 # GET /stats counts the last year of events.
 STATS_WINDOW_HOURS = 8760
 
-_EVENT_LIST = TypeAdapter(list[EventCreate])
+# The bare-list form carries the same cap as {"events": [...]} (BatchEventRequest).
+_EVENT_LIST: TypeAdapter[list[EventCreate]] = TypeAdapter(
+    Annotated[list[EventCreate], Field(min_length=1, max_length=MAX_BATCH_EVENTS)]
+)
 
 
 class InvalidEventPayload(ValueError):
@@ -147,9 +155,12 @@ class EventCoreService:
                         "last_seen": received_at,
                     }
 
+            # One key order for every request: two concurrent requests carrying the same client
+            # ids (or devices) in different orders would otherwise deadlock on the unique index.
+            insert_data.sort(key=lambda row: str(row["client_event_id"] or ""))
             inserted = await event_write_crud.bulk_insert(self.db, insert_data)
 
-            for device_data in devices_to_upsert.values():
-                await device_crud.upsert(self.db, device_data)
+            for device_id in sorted(devices_to_upsert):
+                await device_crud.upsert(self.db, devices_to_upsert[device_id])
 
             return [Event(**data) for data in insert_data if data["id"] in inserted]

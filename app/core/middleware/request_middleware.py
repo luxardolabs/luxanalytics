@@ -21,16 +21,27 @@ from app.core.security import get_app_id_from_headers
 logger = logging.getLogger(__name__)
 
 
-def _inflate(body: bytes) -> tuple[bytes, bool] | None:
-    """(decoded body, whether it was the legacy raw format), or None when it is neither."""
-    try:
-        return zlib.decompress(body), False
-    except zlib.error:
-        pass
-    try:
-        return zlib.decompress(body, -15), True
-    except zlib.error:
-        return None
+class InflatedTooLarge(Exception):
+    """The body decompresses past the request size limit (a decompression bomb)."""
+
+
+def inflate_body(body: bytes, limit: int) -> tuple[bytes, bool] | None:
+    """(decoded body, whether it was the legacy raw format), or None when it is neither.
+
+    Decodes at most `limit` bytes and raises InflatedTooLarge past it: this runs before any
+    authentication, so an unbounded inflate let one small anonymous request exhaust memory."""
+    for wbits, legacy in ((zlib.MAX_WBITS, False), (-zlib.MAX_WBITS, True)):
+        inflater = zlib.decompressobj(wbits)
+        try:
+            out = inflater.decompress(body, limit + 1)
+        except zlib.error:
+            continue
+        if len(out) > limit or inflater.unconsumed_tail:
+            raise InflatedTooLarge
+        if not inflater.eof:
+            continue  # truncated stream: try the other format, else undecodable
+        return out, legacy
+    return None
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
@@ -72,7 +83,17 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # <= 1.0.2 sent NSData.compressed(using: .zlib), which is raw despite its name, and
             # installed apps keep sending it until their users update (LUXANALYTI-69).
             if content_encoding == "deflate":
-                decoded = _inflate(body)
+                try:
+                    decoded = inflate_body(body, settings.MAX_REQUEST_SIZE)
+                except InflatedTooLarge:
+                    logger.warning(
+                        "Compressed body inflates past the size limit",
+                        extra={"body_size": len(body)},
+                    )
+                    return JSONResponse(
+                        status_code=413,
+                        content={"error": "Decompressed body too large"},
+                    )
                 if decoded is None:
                     # A client error, answered as one: an HTTPException raised from a
                     # middleware reaches no exception handler and becomes a 500.

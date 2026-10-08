@@ -32,7 +32,12 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
         raise HTTPException(status_code=400, detail=str(e)) from e
     except ValidationError as e:
         raise HTTPException(
-            status_code=422, detail=e.errors(include_url=False, include_input=False)
+            # No `ctx`: it holds the validator's exception object, which is not JSON, so a custom
+            # validator's 422 used to fail serialisation and answer 500.
+            status_code=422,
+            detail=e.errors(
+                include_url=False, include_input=False, include_context=False
+            ),
         ) from e
 
     return EventResponse(

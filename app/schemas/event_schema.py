@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config import settings
 
+CLIENT_EVENT_ID_MAX = 64  # the events.client_event_id column width
+MAX_BATCH_EVENTS = 1000
+
 
 class EventBase(BaseModel):
     # The SDK sets one id per event at track time and resends it unchanged on every retry: the
@@ -15,8 +18,6 @@ class EventBase(BaseModel):
     client_event_id: str | None = Field(
         None,
         alias="id",
-        min_length=1,
-        max_length=64,
         description="Client-generated event id; resending it is acknowledged, not stored twice",
         examples=["5f0c3c1e-2c1b-4d8a-9a57-1d3c7f3e9b10"],
     )
@@ -40,6 +41,31 @@ class EventBase(BaseModel):
     metadata: dict[str, str] = Field(
         default_factory=dict, description="Event metadata as string-to-string map"
     )
+
+    @field_validator("client_event_id", mode="before")
+    @classmethod
+    def usable_client_id(cls, v: object) -> str | None:
+        """A key we can dedupe on, or None (stored, not deduped). Never a reason to reject the
+        batch: before LUXANALYTI-68 an `id` was ignored, so a client sending some other shape
+        must keep its events."""
+        if isinstance(v, str) and 0 < len(v) <= CLIENT_EVENT_ID_MAX and "\x00" not in v:
+            return v
+        return None
+
+    @field_validator("name", "user_id", "session_id")
+    @classmethod
+    def no_nul(cls, v: str | None) -> str | None:
+        """Postgres text cannot hold NUL: a client error (422), not a database error (500)."""
+        if v is not None and "\x00" in v:
+            raise ValueError("must not contain NUL characters")
+        return v
+
+    @field_validator("metadata")
+    @classmethod
+    def no_nul_in_metadata(cls, v: dict[str, str]) -> dict[str, str]:
+        if any("\x00" in k or "\x00" in val for k, val in v.items()):
+            raise ValueError("metadata must not contain NUL characters")
+        return v
 
     @field_validator("name")
     @classmethod
@@ -139,7 +165,7 @@ class AppStatsResponse(BaseModel):
 
 
 class BatchEventRequest(BaseModel):
-    events: list[EventCreate] = Field(..., min_length=1, max_length=1000)
+    events: list[EventCreate] = Field(..., min_length=1, max_length=MAX_BATCH_EVENTS)
 
     model_config = ConfigDict(
         json_schema_extra={

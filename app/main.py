@@ -28,7 +28,7 @@ from app.core.middleware import (
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
 )
-from app.core.redis_client import get_redis_client
+from app.core.redis_client import close_redis_client
 from app.core.telemetry import setup_telemetry
 from app.db.database import async_engine
 
@@ -120,10 +120,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await async_engine.dispose()
     logger.info("Database connections closed")
     try:
-        redis = await get_redis_client()
-        if redis:
-            await redis.close()
-            logger.info("Redis connection closed")
+        await close_redis_client()
+        logger.info("Redis connection closed")
     except (RedisError, OSError) as e:
         # Shutdown proceeds either way; record that the close failed instead of hiding it.
         logger.warning("Redis close failed during shutdown", extra={"error": str(e)})
