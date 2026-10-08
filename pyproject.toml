@@ -60,8 +60,6 @@ opentelemetry-instrumentation-fastapi = "^0.66b1"
 opentelemetry-instrumentation-sqlalchemy = "^0.66b1"
 opentelemetry-exporter-otlp = "^1.45"
 
-# Performance
-orjson = "^3.13"
 
 [tool.poetry.group.dev.dependencies]
 # Test tooling only: ruff/mypy are the guards' (luxlint runs them mount-only), never a repo dep.
