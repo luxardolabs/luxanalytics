@@ -7,7 +7,7 @@ The client is the Swift SDK, [luxardolabs/luxanalytics-swift](https://github.com
 ## Features
 
 - **Ingest:** single or batched events (bulk insert, up to 1000 per request), zlib/deflate request compression, two authentication modes: HMAC-SHA256 signatures with replay protection, and Sentry-style DSNs.
-- **Event model:** device context is promoted to columns (`device_model`, `os_version`, `app_version`, `platform`, `device_id`); everything else is `properties` JSONB. A `devices` table is upserted on ingest.
+- **Event model:** each event keeps its device context in columns (`device_id`, `device_model`, `os_version`, `app_version`, `platform`, `device_type`, `build_number`, `screen_resolution`, `locale`, `timezone`, `is_testflight`); everything else is `properties` JSONB. A `devices` table is upserted on ingest with each device's latest values. Events are never deleted.
 - **Dashboard:** overview, events, devices, errors, performance, features, journeys (Sankey and transition heatmap), feedback, a properties explorer with per-key deep dives, user profiles, sessions, and app management with DSNs. Session login; slider panels for detail views.
 - **Operations:** per-app and per-IP rate limits (Redis, with an in-memory fallback), JSON logs on stdout, OpenTelemetry traces (a span per service method), a Prometheus scrape, and a health check that names the running build.
 
@@ -177,6 +177,8 @@ make release && make prod-deploy   # or: make prod-release
 make prod-migrate                  # migrations on the prod database
 make prod-status / prod-logs / prod-version
 ```
+
+The `backup` compose profile (on in prod) takes a daily gzip `pg_dump` into `backups/` on the node and keeps 14 days; `make prod-backup` pulls a copy off-node.
 
 ## Troubleshooting
 

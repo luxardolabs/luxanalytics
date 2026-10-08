@@ -238,7 +238,7 @@ make prod-release
 
 ## Key Technical Notes
 
-- **Event ingest** splits incoming metadata into promoted columns (`device_model`, `os_version`, `app_version`, `platform`, `device_id`) + `properties` JSONB, and upserts the device table
+- **Event ingest** splits incoming metadata into per-event device columns (`device_id`, `device_model`, `os_version`, `app_version`, `platform`, `device_type`, `build_number`, `screen_resolution`, `locale`, `timezone`, `is_testflight`) + `properties` JSONB, and upserts the device table (its latest values). There is no raw-metadata copy: `event_metadata` was dropped in migration 009
 - **Raw SQL queries** in `event_crud.py` use `CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id` pattern to handle NULL app_id filtering in PostgreSQL
 - **Journey page** requires app selection — cross-app Sankey flows are meaningless
 - **Device queries** filter on `Device.last_seen` for time range
@@ -254,6 +254,7 @@ make prod-release
 - **Nginx**: Reverse proxy config at `deploy/prod/analytics.luxardolabs.com.conf`
 - **Compose**: the ONE `compose.yml` (repo root) with `.env.prod` — `make prod-sync` ships `compose.yml`, `scripts/init.sql` and `deploy/prod/.env.prod` to the node; environments differ only by `.env.<env>` (template `.env.example`), the dev-only nginx is the `dev` profile, compose never builds
 - **Port mapping**: 4000:4000 (no mental remapping)
+- **Backups**: the `backup` compose profile (on in `.env.prod`) runs `luxanalytics_backup`: a daily gzip `pg_dump` into `backups/` on the node, 14 days kept; `make prod-backup` pulls one off-node. Events are never deleted (owner ruling)
 
 ## Environment Variables
 
