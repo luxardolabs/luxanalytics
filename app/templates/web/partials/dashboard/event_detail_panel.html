@@ -17,8 +17,8 @@
             {% endcall %}
 
             {# ── Feedback-specific view ── #}
-            {% if event.name == 'feedback_submitted' and event.event_metadata %}
-            {% set meta = event.event_metadata %}
+            {% if event.name == 'feedback_submitted' and event.properties %}
+            {% set meta = event.properties %}
 
             {% call stat_grid(columns=3, gap=3) %}
                 {{ stat_card_compact("Category", meta.get('feedback_category', 'General') | friendly_name, color="brand") }}
@@ -44,15 +44,15 @@
                 {% endcall %}
             {% endcall %}
 
-            {# Device info #}
-            {% call detail_section("Device") %}
+            {# Device info: the event's own columns, and the device's latest context #}
+            {% call detail_section("Device (latest)") %}
                 {% call kv_grid() %}
-                    {{ kv_pair("Model", (meta.get('device_model', 'Unknown')) ~ " (" ~ (meta.get('device_type', '')) ~ ")") }}
-                    {{ kv_pair("OS", "iOS " ~ meta.get('system_version', meta.get('os_version', 'Unknown'))) }}
-                    {{ kv_pair("App Version", (meta.get('app_version', 'Unknown')) ~ " (" ~ (meta.get('build_number', '')) ~ ")") }}
-                    {{ kv_pair("Distribution", "TestFlight" if meta.get('is_testflight') == 'true' else "App Store") }}
-                    {{ kv_pair("Locale", meta.get('locale', 'Unknown')) }}
-                    {{ kv_pair("Timezone", meta.get('timezone', 'Unknown')) }}
+                    {{ kv_pair("Model", event.device_model or 'Unknown') }}
+                    {{ kv_pair("OS", "iOS " ~ (event.os_version or 'Unknown')) }}
+                    {{ kv_pair("App Version", (event.app_version or 'Unknown') ~ ((" (" ~ device.build_number ~ ")") if device and device.build_number else "")) }}
+                    {{ kv_pair("Distribution", "TestFlight" if device and device.is_testflight else "App Store") }}
+                    {{ kv_pair("Locale", device.locale if device and device.locale else 'Unknown') }}
+                    {{ kv_pair("Timezone", device.timezone if device and device.timezone else 'Unknown') }}
                 {% endcall %}
             {% endcall %}
 
@@ -102,13 +102,13 @@
             {% endif %}
 
             {# ── Raw JSON (collapsed) ── #}
-            {% if event.event_metadata %}
+            {% if event.properties %}
             <details class="bg-surface-10/50 rounded-lg overflow-hidden">
                 <summary class="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-surface-10 transition-colors">
-                    Raw Metadata JSON
+                    Properties JSON
                 </summary>
                 <div class="px-4 pb-4">
-                    <pre class="text-xs text-slate-300 font-mono bg-surface-0 rounded p-3 overflow-x-auto max-h-[300px] overflow-y-auto">{{ event.event_metadata | tojson_safe(indent=2) }}</pre>
+                    <pre class="text-xs text-slate-300 font-mono bg-surface-0 rounded p-3 overflow-x-auto max-h-[300px] overflow-y-auto">{{ event.properties | tojson_safe(indent=2) }}</pre>
                 </div>
             </details>
             {% endif %}

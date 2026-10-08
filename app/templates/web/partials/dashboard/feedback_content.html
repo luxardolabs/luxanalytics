@@ -85,13 +85,13 @@
                         <span class="font-mono text-xs">{{ fb.user_id | default('—', true) | truncate(16) }}</span>
                     {% endcall %}
                     {% call td() %}
-                        {% if fb.event_metadata %}
-                        {{ badge(fb.event_metadata.get('feedback_category', 'general') | friendly_name, variant="default") }}
+                        {% if fb.properties %}
+                        {{ badge(fb.properties.get('feedback_category', 'general') | friendly_name, variant="default") }}
                         {% endif %}
                     {% endcall %}
                     {% call td() %}
-                        {% if fb.event_metadata and fb.event_metadata.get('feedback_content') %}
-                        <span class="text-slate-300">{{ fb.event_metadata.feedback_content | truncate(60) }}</span>
+                        {% if fb.properties and fb.properties.get('feedback_content') %}
+                        <span class="text-slate-300">{{ fb.properties.feedback_content | truncate(60) }}</span>
                         {% else %}
                         <span class="text-slate-500">No content</span>
                         {% endif %}
