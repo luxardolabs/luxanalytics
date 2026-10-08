@@ -153,14 +153,23 @@ test-db-down: ## Stop and wipe the throwaway test Postgres and Redis
 	@docker rm -fv $(TEST_DB) $(TEST_REDIS) >/dev/null 2>&1 || true
 	@docker network rm $(TEST_NET) >/dev/null 2>&1 || true
 
-test: test-db-up .test-image.stamp guard-registry ## Full pytest suite against the throwaway DB, canonical luxlint pytest config
-	@set +e; C=$$(mktemp); trap 'rm -f "$$C"; $(MAKE) -s test-db-down' EXIT INT TERM; \
+# Coverage is measured on every run and gated by luxlint's ratchet ([test].coverage_min in
+# .luxlint.toml; luxlint --playbook test-suite): red if it drops below the floor. COVERAGE_CORE=sysmon
+# is the playbook's measurement core (the C tracer under-records async lines on 3.13); the data file
+# lives in the container's /tmp so the repo mount stays clean.
+test: test-db-up .test-image.stamp guard-registry ## Full pytest suite against the throwaway DB, canonical luxlint pytest config, coverage ratchet
+	@set +e; C=$$(mktemp); R=$$(mktemp); RC=$$(mktemp); \
+	trap 'rm -f "$$C" "$$R" "$$RC"; $(MAKE) -s test-db-down' EXIT INT TERM; \
 	docker image inspect $(TEST_IMAGE) >/dev/null 2>&1 || { rm -f .test-image.stamp; $(MAKE) -s .test-image.stamp || exit 1; }; \
 	$(GUARD_RUN) $(LUXLINT) --emit-config pytest > "$$C"; \
-	docker run --rm --network $(TEST_NET) $(TEST_ENV) -e PYTHONPATH=/app \
-	  -v $(PWD):/app -v "$$C":/pytest.ini:ro -w /app $(TEST_IMAGE) \
-	  pytest -c /pytest.ini --rootdir /app -p no:cacheprovider; rc=$$?; \
-	exit $$rc
+	{ docker run --rm --network $(TEST_NET) $(TEST_ENV) -e PYTHONPATH=/app \
+	    -e COVERAGE_CORE=sysmon -e COVERAGE_FILE=/tmp/.coverage \
+	    -v $(PWD):/app -v "$$C":/pytest.ini:ro -w /app $(TEST_IMAGE) \
+	    pytest -c /pytest.ini --rootdir /app -p no:cacheprovider --cov=app --cov-report=term-missing; \
+	  echo $$? > "$$RC"; } | tee "$$R"; \
+	rc=$$(cat "$$RC"); [ "$$rc" -eq 0 ] || exit $$rc; \
+	docker run --rm -i -v $(PWD):/repo $(LUXLINT) --coverage-ratchet < "$$R" > "$$C"; rc=$$?; \
+	tail -n 4 "$$C"; exit $$rc
 
 arch: guard-registry ## Architecture conformance via luxarch (reads .luxarch.toml)
 	@$(GUARD_RUN) $(LUXARCH)

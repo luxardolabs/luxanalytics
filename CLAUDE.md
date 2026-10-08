@@ -145,7 +145,7 @@ make logs             # Tail all logs
 make logs-app         # Tail app logs only
 make shell            # Bash into app container
 make shell-db         # psql into database
-make test             # Full suite against a throwaway Postgres (test-db-up/down), canonical pytest config
+make test             # Full suite against a throwaway Postgres + Redis, canonical pytest config, coverage ratchet ([test].coverage_min)
 make db-verify        # Migrate an EMPTY DB to head and diff it against the models
 make migrate          # Run Alembic migrations
 make migrate-create   # Create new migration (interactive)
