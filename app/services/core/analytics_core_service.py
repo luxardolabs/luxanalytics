@@ -14,7 +14,6 @@ from app.crud.device_crud import device_crud
 from app.crud.event_crud import Conditions, event_crud
 from app.models.device_model import Device
 from app.models.event_model import Event
-from app.schemas.device_schema import DeviceRow
 from app.schemas.event_schema import EventInDB
 
 # The user profile panel lists the newest of each; its headings show the full totals.
@@ -51,12 +50,6 @@ class AnalyticsCoreService:
         ):
             event = await event_crud.get_by_id(self.db, event_id)
             return EventInDB.model_validate(event) if event is not None else None
-
-    async def get_device(self, device_id: str) -> DeviceRow | None:
-        """A device's latest stored context (the devices table keeps one row per device)."""
-        with create_service_span("AnalyticsCoreService", "get_device"):
-            device = await device_crud.get_by_id(self.db, device_id)
-            return DeviceRow.model_validate(device) if device is not None else None
 
     async def get_filtered_events(
         self,

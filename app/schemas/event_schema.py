@@ -133,6 +133,13 @@ class EventInDB(BaseModel):
     os_version: str | None
     app_version: str | None
     platform: str | None
+    # UIDevice.current.model: "iPhone", "iPad", etc. (an open vendor set, as the column declares).
+    device_type: str | None
+    build_number: str | None
+    screen_resolution: str | None
+    locale: str | None
+    timezone: str | None
+    is_testflight: bool | None
     # JSONB the SDK fills per event name: keys and value types are the caller's.
     properties: dict[str, Any] | None
     event_metadata: dict[str, Any] | None

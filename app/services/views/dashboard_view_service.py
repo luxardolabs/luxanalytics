@@ -282,12 +282,7 @@ class DashboardViewService:
             event = await self._core.get_event_by_id(event_id)
             if not event:
                 raise HTTPException(status_code=404, detail="Event not found")
-            device = (
-                await self._core.get_device(event.device_id)
-                if event.device_id
-                else None
-            )
-            return {"event": event, "device": device}
+            return {"event": event}
 
     # ── Analytics pages (page and its swappable content share one context) ───
 

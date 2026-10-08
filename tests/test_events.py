@@ -45,6 +45,13 @@ async def test_create_single_event_promotes_columns(db: AsyncSession) -> None:
     assert event.os_version == "18.3"
     assert event.app_version == "1.0.23"
     assert event.platform == "ios"
+    # The rest of the device context, as it was for THIS event (LUXANALYTI-16).
+    assert event.device_type == "iPhone"
+    assert event.build_number == "3"
+    assert event.screen_resolution == "402x874"
+    assert event.locale == "en_US"
+    assert event.timezone == "America/Chicago"
+    assert event.is_testflight is True
 
     # Properties should NOT contain device context keys
     assert event.properties is not None

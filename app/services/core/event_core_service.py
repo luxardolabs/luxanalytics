@@ -131,6 +131,14 @@ class EventCoreService:
                         "os_version": os_version,
                         "app_version": app_version,
                         "platform": platform,
+                        "device_type": metadata.get("device_type"),
+                        "build_number": metadata.get("build_number"),
+                        "screen_resolution": metadata.get("screen_resolution"),
+                        "locale": metadata.get("locale"),
+                        "timezone": metadata.get("timezone"),
+                        "is_testflight": metadata["is_testflight"] == "true"
+                        if "is_testflight" in metadata
+                        else None,
                         "properties": properties or None,
                         "event_metadata": metadata,
                         "received_at": received_at,

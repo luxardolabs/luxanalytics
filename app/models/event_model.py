@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Index, String, text
+from sqlalchemy import Boolean, DateTime, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +38,15 @@ class Event(Base, UUIDMixin):
     os_version: Mapped[str | None] = mapped_column(String)
     app_version: Mapped[str | None] = mapped_column(String)
     platform: Mapped[str | None] = mapped_column(String, default="ios")
+    # The rest of the device context, as it was when THIS event was sent (the devices table keeps
+    # only each device's latest values). Promoted in 008 from event_metadata (LUXANALYTI-16).
+    # UIDevice.current.model: "iPhone", "iPad", etc.; an open vendor set, stored as sent.
+    device_type: Mapped[str | None] = mapped_column(String)
+    build_number: Mapped[str | None] = mapped_column(String)
+    screen_resolution: Mapped[str | None] = mapped_column(String)
+    locale: Mapped[str | None] = mapped_column(String)
+    timezone: Mapped[str | None] = mapped_column(String)
+    is_testflight: Mapped[bool | None] = mapped_column(Boolean)
 
     # Flexible event-specific data (JSONB with GIN index for key queries). Keys are whatever the SDK
     # caller sends per event name, so explicitly dict[str, Any].

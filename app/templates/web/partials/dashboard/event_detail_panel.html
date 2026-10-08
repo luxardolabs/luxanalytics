@@ -44,15 +44,15 @@
                 {% endcall %}
             {% endcall %}
 
-            {# Device info: the event's own columns, and the device's latest context #}
-            {% call detail_section("Device (latest)") %}
+            {# Device info: as it was when this event was sent (the event's own columns) #}
+            {% call detail_section("Device") %}
                 {% call kv_grid() %}
-                    {{ kv_pair("Model", event.device_model or 'Unknown') }}
+                    {{ kv_pair("Model", (event.device_model or 'Unknown') ~ ((" (" ~ event.device_type ~ ")") if event.device_type else "")) }}
                     {{ kv_pair("OS", "iOS " ~ (event.os_version or 'Unknown')) }}
-                    {{ kv_pair("App Version", (event.app_version or 'Unknown') ~ ((" (" ~ device.build_number ~ ")") if device and device.build_number else "")) }}
-                    {{ kv_pair("Distribution", "TestFlight" if device and device.is_testflight else "App Store") }}
-                    {{ kv_pair("Locale", device.locale if device and device.locale else 'Unknown') }}
-                    {{ kv_pair("Timezone", device.timezone if device and device.timezone else 'Unknown') }}
+                    {{ kv_pair("App Version", (event.app_version or 'Unknown') ~ ((" (" ~ event.build_number ~ ")") if event.build_number else "")) }}
+                    {{ kv_pair("Distribution", "TestFlight" if event.is_testflight else "App Store") }}
+                    {{ kv_pair("Locale", event.locale or 'Unknown') }}
+                    {{ kv_pair("Timezone", event.timezone or 'Unknown') }}
                 {% endcall %}
             {% endcall %}
 

@@ -109,9 +109,6 @@ class DeviceCRUD:
         result = await db.execute(query)
         return list(result.all())
 
-    async def get_by_id(self, db: AsyncSession, device_id: str) -> Device | None:
-        return await db.get(Device, device_id)
-
     async def upsert(self, db: AsyncSession, device_data: dict[str, Any]) -> None:
         stmt = pg_insert(Device).values(**device_data)
         stmt = stmt.on_conflict_do_update(

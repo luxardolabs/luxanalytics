@@ -297,9 +297,9 @@
         },
         {
           "rule": "fw.enumish_columns",
-          "status": "PASS",
+          "status": "FAIL",
           "since": "0.1.0",
-          "violations": 0,
+          "violations": 1,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -549,9 +549,9 @@
         },
         {
           "rule": "fw.enum_dto_fields_enum_typed",
-          "status": "PASS",
+          "status": "FAIL",
           "since": "0.2.0",
-          "violations": 0,
+          "violations": 1,
           "deferred": false,
           "inert": false,
           "inert_reason": ""
@@ -1503,8 +1503,8 @@
         }
       ],
       "summary": {
-        "PASS": 141,
-        "FAIL": 0,
+        "PASS": 139,
+        "FAIL": 2,
         "XFAIL": 0,
         "XPASS": 0,
         "INERT": 25
@@ -2090,12 +2090,12 @@
     }
   },
   "summary": {
-    "PASS": 200,
-    "FAIL": 1,
+    "PASS": 198,
+    "FAIL": 3,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "09bf1a98165c2b33f5888580a33c95265b8fd134",
-  "generated_at": "2026-10-08T18:06:31Z"
+  "commit": "a0b400f10a38dd64ab1bd522eb824f469a9930d0",
+  "generated_at": "2026-10-08T18:19:50Z"
 }
