@@ -1,6 +1,6 @@
 {
   "guard": "luxlint",
-  "guard_version": "0.61.0",
+  "guard_version": "0.62.0",
   "repo": "/repo",
   "source": [
     "app",
@@ -138,6 +138,14 @@
       "deferred": false
     },
     {
+      "rule": "test.coverage_floor_set",
+      "status": "PASS",
+      "since": "0.62.0",
+      "violations": 0,
+      "sites": [],
+      "deferred": false
+    },
+    {
       "rule": "test.no_handrolled_cleanup",
       "status": "PASS",
       "since": "0.36.0",
@@ -179,13 +187,13 @@
     }
   ],
   "summary": {
-    "PASS": 21,
+    "PASS": 22,
     "FAIL": 0,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "7993944b45d654f8e82ba0979d63c324d1db99fc",
-  "generated_at": "2026-10-08T06:05:35Z"
+  "commit": "806b52475f3e601915f723cf9e4fc3b94e2c621a",
+  "generated_at": "2026-10-08T06:25:02Z"
 }

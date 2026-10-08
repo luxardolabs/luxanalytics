@@ -82,6 +82,36 @@ services:
     networks:
       - luxardolabs
 
+  # `make test` only (luxarch --emit test-block): throwaway services in an isolated per-run compose
+  # project. No container_name, no host port, no named volume, no shared network: they can never
+  # touch the dev stack, and every run's teardown removes exactly its own.
+  db-test:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      # Over TCP with the real role: over the socket it answers while initdb's temporary server runs.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "test", "-d", "test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis-test:
+    image: redis:7-alpine
+    profiles: ["test"]
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
 volumes:
   # External, named per environment: a typo can never mint an empty database.
   luxanalytics_postgres_data:

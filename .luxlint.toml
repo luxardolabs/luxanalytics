@@ -22,8 +22,8 @@ globals = ["htmx", "Alpine", "Chart", "echarts"]
 warning = "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:slowapi.extension"
 reason = "slowapi 0.1.10 Limiter.limit calls the deprecated asyncio.iscoroutinefunction (upstream laurentS/slowapi#263, fix PRs unmerged). Scoped to the exact message AND module. REMOVE when slowapi ships the fix — on Python 3.16 the call becomes an AttributeError at startup, so this carve-out is a deadline, not a resolution. See luxarch --doc FLEET-RATE-LIMIT-STANDARD §4. Tracked in LUXANALYTI-60."
 
-# The coverage ratchet (luxlint --coverage-ratchet, wired into `make test`): the measured line
-# coverage of app/ may never drop below this floor. Raise it when coverage improves; never lower it.
-# 83% measured 2026-10-08 (131 tests, COVERAGE_CORE=sysmon).
+# The coverage ratchet (luxlint --coverage-ratchet, run by the emitted `make test` block): the
+# measured BRANCH coverage of app/ may never drop below this floor. Raise it when coverage improves;
+# never lower it. 84% measured 2026-10-08 (175 tests, coverage.py --branch, COVERAGE_CORE=sysmon).
 [test]
-coverage_min = 83
+coverage_min = 84

@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.269.1",
+  "guard_version": "0.271.1",
   "repo": "/repo",
   "targets": [
     {
@@ -1964,6 +1964,15 @@
         "inert_reason": ""
       },
       {
+        "rule": "repo.test_block_wired",
+        "status": "PASS",
+        "since": "0.271.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
         "rule": "repo.poetry_version_consistent",
         "status": "PASS",
         "since": "0.268.0",
@@ -2073,7 +2082,7 @@
       }
     ],
     "summary": {
-      "PASS": 58,
+      "PASS": 59,
       "FAIL": 1,
       "XFAIL": 0,
       "XPASS": 0,
@@ -2081,12 +2090,12 @@
     }
   },
   "summary": {
-    "PASS": 199,
+    "PASS": 200,
     "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "7993944b45d654f8e82ba0979d63c324d1db99fc",
-  "generated_at": "2026-10-08T06:05:35Z"
+  "commit": "806b52475f3e601915f723cf9e4fc3b94e2c621a",
+  "generated_at": "2026-10-08T06:25:02Z"
 }

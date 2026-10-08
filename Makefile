@@ -38,8 +38,8 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.269.1
-LUXLINT_VERSION  := 0.61.0
+LUXARCH_VERSION  := 0.271.1
+LUXLINT_VERSION  := 0.62.0
 LUXAUDIT_VERSION := 0.13.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
 LUXLINT  := $(REGISTRY)/luxardolabs/luxlint:$(LUXLINT_VERSION)
@@ -53,7 +53,7 @@ export TLS_CERTS_DIR
 .DEFAULT_GOAL := help
 
 .PHONY: help check guard-version-check guard-upgrade guard-registry honest lint mypy format test arch plan \
-        arch-rule arch-file lint-file mypy-file status test-db-up test-db-down db-verify \
+        arch-rule arch-file lint-file mypy-file status db-verify \
         audit gitleaks gitleaks-staged onboard-check \
         network up down restart logs logs-app logs-db shell shell-db migrate migrate-down \
         migrate-create clean stack-status health ps backup restore work quick seed-sdk-app css-watch check-env \
@@ -112,64 +112,6 @@ mypy: guard-registry ## mypy (fleet typed deps baked, mount-only)
 # with no local config it applies its default width and rewrites the tree wrong.
 format: guard-registry ## Auto-fix + format Python and Markdown via luxlint (writes back)
 	@docker run --rm --user $$(id -u):$$(id -g) -e HOME=/tmp -v $(PWD):/repo $(LUXLINT) --format
-
-# ── The test harness: a THROWAWAY Postgres, never the dev database (FLEET-MAKEFILE-STANDARD) ──
-# `make test` starts it, migrates it from the chain (the conftest does `alembic upgrade head`),
-# runs the FULL suite under the canonical pytest config, and wipes it on every exit path. A skipped
-# DB suite therefore cannot read as a pass: the database is always there.
-TEST_IMAGE   := luxanalytics:test
-TEST_DB      := luxanalytics_testdb
-TEST_NET     := luxanalytics_testnet
-TEST_PG      ?= postgres:16-alpine
-TEST_DB_URL  := postgresql+asyncpg://test:test@$(TEST_DB):5432/test
-# The deployed stack runs Redis (rate limits), so the suite gets a real one too
-# (repo.test_stack_parity): same image as compose.yml, throwaway, on the test network.
-TEST_REDIS   := luxanalytics_testredis
-TEST_REDIS_IMAGE ?= redis:7-alpine
-TEST_REDIS_URL := redis://$(TEST_REDIS):6379/0
-# Settings the app requires to import. Values are throwaway; the suite only talks to TEST_DB and TEST_REDIS.
-TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) -e REDIS_URL=$(TEST_REDIS_URL) \
-            -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e SECRET_KEY=test-only \
-            -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost -e DASHBOARD_SESSION_SECRET=test-only \
-            -e DASHBOARD_PASSWORD=test-only-dashboard-password \
-            -e 'HMAC_KEYS={"test_app": "test-only-hmac-secret"}'
-
-# The lean test image, rebuilt only when the lock / Dockerfile change; source is over-mounted.
-.test-image.stamp: Dockerfile pyproject.toml poetry.lock
-	docker build -q --target test -t $(TEST_IMAGE) . >/dev/null
-	@touch $@
-
-test-db-up: ## Start the throwaway test Postgres and Redis (tmpfs data, own network)
-	@docker network inspect $(TEST_NET) >/dev/null 2>&1 || docker network create $(TEST_NET) >/dev/null
-	@docker rm -fv $(TEST_DB) $(TEST_REDIS) >/dev/null 2>&1 || true
-	@docker run -d --name $(TEST_REDIS) --network $(TEST_NET) --tmpfs /data $(TEST_REDIS_IMAGE) >/dev/null
-	@docker run -d --name $(TEST_DB) --network $(TEST_NET) --tmpfs /var/lib/postgresql/data \
-	  -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test $(TEST_PG) >/dev/null
-	@until docker exec -e PGPASSWORD=test $(TEST_DB) psql -h 127.0.0.1 -U test -d test -tAc 'select 1' >/dev/null 2>&1; do sleep 1; done
-	@until docker exec $(TEST_REDIS) redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done
-	@echo "test-db-up: $(TEST_DB) and $(TEST_REDIS) ready on $(TEST_NET)"
-
-test-db-down: ## Stop and wipe the throwaway test Postgres and Redis
-	@docker rm -fv $(TEST_DB) $(TEST_REDIS) >/dev/null 2>&1 || true
-	@docker network rm $(TEST_NET) >/dev/null 2>&1 || true
-
-# Coverage is measured on every run and gated by luxlint's ratchet ([test].coverage_min in
-# .luxlint.toml; luxlint --playbook test-suite): red if it drops below the floor. COVERAGE_CORE=sysmon
-# is the playbook's measurement core (the C tracer under-records async lines on 3.13); the data file
-# lives in the container's /tmp so the repo mount stays clean.
-test: test-db-up .test-image.stamp guard-registry ## Full pytest suite against the throwaway DB, canonical luxlint pytest config, coverage ratchet
-	@set +e; C=$$(mktemp); R=$$(mktemp); RC=$$(mktemp); \
-	trap 'rm -f "$$C" "$$R" "$$RC"; $(MAKE) -s test-db-down' EXIT INT TERM; \
-	docker image inspect $(TEST_IMAGE) >/dev/null 2>&1 || { rm -f .test-image.stamp; $(MAKE) -s .test-image.stamp || exit 1; }; \
-	$(GUARD_RUN) $(LUXLINT) --emit-config pytest > "$$C"; \
-	{ docker run --rm --network $(TEST_NET) $(TEST_ENV) -e PYTHONPATH=/app \
-	    -e COVERAGE_CORE=sysmon -e COVERAGE_FILE=/tmp/.coverage \
-	    -v $(PWD):/app -v "$$C":/pytest.ini:ro -w /app $(TEST_IMAGE) \
-	    pytest -c /pytest.ini --rootdir /app -p no:cacheprovider --cov=app --cov-report=term-missing; \
-	  echo $$? > "$$RC"; } | tee "$$R"; \
-	rc=$$(cat "$$RC"); [ "$$rc" -eq 0 ] || exit $$rc; \
-	docker run --rm -i -v $(PWD):/repo $(LUXLINT) --coverage-ratchet < "$$R" > "$$C"; rc=$$?; \
-	tail -n 4 "$$C"; exit $$rc
 
 arch: guard-registry ## Architecture conformance via luxarch (reads .luxarch.toml)
 	@$(GUARD_RUN) $(LUXARCH)
@@ -705,7 +647,7 @@ version: ## Show the version and the image refs this commit builds
 SMOKE_URL ?= https://localhost:4000
 SMOKE_CURL_OPTS ?= -k
 SMOKE_HEALTH_PATH ?= /login
-# luxarch:smoke asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit smoke`.
+# luxarch:smoke asset v3 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit smoke`.
 # ── Smoke: probe the DEPLOYED stack from outside, after every dev deploy ──────────────────────────
 # Emitted by `luxarch --emit smoke`; paste below the image block. `make test` runs the app in-process
 # against its test stack, so it cannot see the proxy, the server, the production image or an entry
@@ -729,6 +671,15 @@ SMOKE_AUTH_PATH ?=
 # Setting: the package directory of standalone entry points, and the image's import root -------
 SMOKE_SCRIPTS_DIR ?= app/scripts
 SMOKE_IMPORT_ROOT ?= .
+# Setting: entry-point MODULES outside that directory. The default is every `*_main` module at the
+# app package's root, where the layout standard (fw.module_homes) puts a service's entry points
+# (`app.portal_main`); list them yourself for any other place (v3) ---------------------------
+SMOKE_ENTRY_MODULES ?= $(basename $(subst /,.,$(patsubst $(SMOKE_IMPORT_ROOT)/%,%,$(wildcard $(SMOKE_IMPORT_ROOT)/app/*_main.py))))
+# Setting: the env file the dev stack runs with; each entry point is imported with it, because a
+# module that builds the app's settings needs the config the deployed container has (v2) ---------
+SMOKE_ENV_FILE ?= .env.dev
+# Setting: extra `docker run` options for the entry-point imports (e.g. -e NAME=value) ----------
+SMOKE_RUN_OPTS ?=
 # Setting: extra curl options (e.g. --cacert <file> for a private CA) -------------------------
 SMOKE_CURL_OPTS ?=
 
@@ -761,17 +712,123 @@ smoke: ## Probe the deployed dev stack: build commit, static asset, forged Host 
 	    if [ "$${r%% *}" = 200 ]; then echo "PASS  authenticated request ($(SMOKE_AUTH_PATH))"; \
 	    else echo "FAIL  authenticated $(SMOKE_AUTH_PATH): $$r"; fail=1; fi; fi; \
 	else echo "NOT RUN  authenticated request: SMOKE_AUTH_PATH is empty"; fi; \
-	n=0; \
-	if [ -d "$(SMOKE_SCRIPTS_DIR)" ]; then \
-	  for f in $$(find "$(SMOKE_SCRIPTS_DIR)" -name '*.py' ! -name '__init__.py' | sort); do \
+	n=0; mods=; \
+	if [ -d "$(SMOKE_SCRIPTS_DIR)" ]; then for f in $$(find "$(SMOKE_SCRIPTS_DIR)" -name '*.py' ! -name '__init__.py' | sort); do \
+	  rel=$$(realpath --relative-to="$(SMOKE_IMPORT_ROOT)" "$$f"); mods="$$mods $$(printf '%s' "$${rel%.py}" | tr / .)"; done; fi; \
+	mods=$$(printf '%s\n' $$mods $(SMOKE_ENTRY_MODULES) | sort -u); \
+	if [ -n "$$mods" ]; then \
+	  envf=; [ -n "$(SMOKE_ENV_FILE)" ] && [ -f "$(SMOKE_ENV_FILE)" ] && envf="--env-file=$(SMOKE_ENV_FILE)"; \
+	  if ! docker image inspect "$(SHA_IMAGE)" >/dev/null 2>&1 && ! docker pull -q "$(SHA_IMAGE)" >/dev/null 2>&1; then \
+	    echo "FAIL  entry points: $(SHA_IMAGE) is neither built here nor pullable, so no module could be imported (deploy this commit first)"; fail=1; n=-1; \
+	  else for mod in $$mods; do \
 	    n=$$((n + 1)); \
-	    rel=$$(realpath --relative-to="$(SMOKE_IMPORT_ROOT)" "$$f"); mod=$$(printf '%s' "$${rel%.py}" | tr / .); \
-	    if docker run --rm --entrypoint python "$(SHA_IMAGE)" -c "import $$mod" >/dev/null 2>&1; then echo "PASS  $$mod imports on its own in the production image"; \
-	    else echo "FAIL  $$mod does not import on its own in $(SHA_IMAGE) (a circular or missing import the app's own import order hides)"; fail=1; fi; \
-	  done; \
+	    if err=$$(docker run --rm $$envf $(SMOKE_RUN_OPTS) --entrypoint python "$(SHA_IMAGE)" -c "import $$mod" 2>&1 >/dev/null); then echo "PASS  $$mod imports on its own in the production image"; \
+	    else fail=1; why=$$(printf '%s\n' "$$err" | grep -E '^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception|Exit)\b' | tail -n 1); why=$${why:-$$(printf '%s\n' "$$err" | grep -v '^[[:space:]]*$$' | tail -n 1)}; \
+	      case "$$err" in *ImportError*|*ModuleNotFoundError*|*"circular import"*) echo "FAIL  $$mod does not import on its own in $(SHA_IMAGE) (a circular or missing import the app's own import order hides): $$why";; \
+	        *) echo "FAIL  $$mod raised at import in $(SHA_IMAGE): $$why"; [ -n "$$envf" ] || echo "      no env file was passed ($(SMOKE_ENV_FILE) not found): set SMOKE_ENV_FILE to the file the stack runs with";; esac; fi; \
+	  done; fi; \
 	fi; \
-	[ "$$n" -gt 0 ] || echo "NOT RUN  entry points: no module under $(SMOKE_SCRIPTS_DIR)"; \
+	[ "$$n" -ne 0 ] || echo "NOT RUN  entry points: no module under $(SMOKE_SCRIPTS_DIR) and no SMOKE_ENTRY_MODULES"; \
 	exit $$fail
+
+# ── make test settings (luxarch --emit test-block, below). The suite runs against the compose
+# `test` profile: a throwaway Postgres and Redis (the services prod runs; repo.test_stack_parity),
+# isolated per run. Values are throwaway; the conftest refuses any database or Redis that does not
+# look test-scoped.
+TEST_SERVICES := db-test redis-test
+TEST_DB_URL   := postgresql+asyncpg://test:test@db-test:5432/test
+TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
+            -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e REDIS_URL=redis://redis-test:6379/0 \
+            -e SECRET_KEY=test-only -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost \
+            -e DASHBOARD_SESSION_SECRET=test-only -e DASHBOARD_PASSWORD=test-only-dashboard-password \
+            -e 'HMAC_KEYS={"test_app": "test-only-hmac-secret"}'
+
+# luxarch:test-block asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit test-block`.
+# ── Test: THE suite, in the test image, against an isolated stack of real services ───────────────
+# Emitted by `luxarch --emit test-block`; paste below the image block (it uses TEST_IMAGE and
+# test-build from there). Enforced by `repo.test_block_wired`. Settings are `?=` defaults: set them
+# above this block. What the suite can see, and what only `make smoke` sees: --doc
+# FLEET-MAKEFILE-STANDARD §1.
+#
+# Before this block every repo wrote its own `make test`: four repos, four ways (a lint image with
+# the source mounted, the dev image with pytest pip-installed at run time, a repo script, a test
+# image), each with its own readiness loop and coverage wiring, and a coverage pipe under make's
+# /bin/sh that hid pytest's failure. This is the documented practice of the tools instead:
+#   - ISOLATED STACK (Docker Compose): the backing services run in a compose project of their own,
+#     one per run (`-p`), so parallel runs never collide, the suite cannot reach the dev database or
+#     cache at all (it is on another network), and teardown (`down --volumes --remove-orphans`)
+#     removes exactly this run's containers and data, pass or fail, never the dev stack.
+#   - READINESS from each service's own compose healthcheck (`up --wait`), not a sleep or a loop:
+#     the service declares when it is ready. For Postgres, probe over TCP with the real role
+#     (`pg_isready -h 127.0.0.1 -U <user> -d <db>`); over the socket it answers while initdb's
+#     temporary server is still up. `repo.test_stack_parity` checks these are the services prod runs.
+#   - Ctrl-C stops the suite (`--init` forwards the signal; a shell as PID 1 ignores it).
+#   - THE TEST IMAGE built from this source (`test-build`, the image's `--with dev` stage), with the
+#     fleet's pytest config (`luxlint --emit-config pytest`: -ra, strict markers and config,
+#     warnings are errors), readable by the image's non-root user. The source is mounted read-only
+#     and pytest writes no cache into it.
+#   - COVERAGE with coverage.py itself, not pytest-cov: `coverage run --branch` under the sysmon
+#     core (fast branch coverage on Python 3.14), data in /tmp, then `coverage report` judged by
+#     `luxlint --coverage-ratchet` against `[test].coverage_min` (off until you set a floor; it
+#     only ratchets up). `coverage` belongs in the dev dependency group.
+#   - BOTH EXIT CODES reach make: pytest's and the ratchet's. No pipe carries either. The ratchet
+#     reads coverage's own report file, never the suite's output (a printed `TOTAL … 100%` or
+#     pytest's `[100%]` would otherwise pass for a measurement), and a report that measured nothing
+#     fails.
+#   - Each run's project is named from its own `mktemp -d` token, and refuses to run without one (a
+#     PID repeats across containers and CI runners), and everything mounts the makefile's directory ($(CURDIR)), so `make -C` runs the
+#     right suite.
+
+# Setting: the compose command, and the profile holding the test services --------------------
+TEST_COMPOSE ?= docker compose
+TEST_PROFILE ?= test
+# Setting: the env file compose interpolates the file with (it reads EVERY service, so an app
+# service's `${TAG:?}` needs a value even when only the test services start) -----------------
+TEST_ENV_FILE ?= $(firstword $(wildcard .env.test .env.dev .env.example))
+# Setting: the backing services the suite needs (each with a healthcheck); empty: none -----------
+TEST_SERVICES ?= db-test
+# Setting: the suite's environment: the test services' URLs, by service name on the test network -
+TEST_ENV ?= -e TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@db-test:5432/postgres
+# Setting: where the suite runs from (a monorepo's apps/backend), and every package coverage
+# measures, comma-separated (`app,collector`): it replaces any [tool.coverage.run] source ---------
+TEST_WORKDIR ?= .
+TEST_COV ?= app
+# Setting: NONE. For a one-off run only, on the command line: `make test PYTEST_ARGS='-k orders'`.
+# A committed value narrows THE suite for everyone (`repo.test_block_wired` reds one) ---------
+PYTEST_ARGS ?=
+
+# One-off pytest arguments reach the container through the environment, never spliced into a quoted
+# command line (`-k 'a or b'` would otherwise split it).
+export PYTEST_ARGS
+
+test: test-build ## THE suite: test image, an isolated stack of real services, coverage ratchet
+	@set -u; \
+	D=$$(mktemp -d); tok=$$(basename "$$D" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9'); \
+	[ $${#tok} -ge 8 ] || { echo "REFUSING: could not make a unique name for this run"; rm -rf "$$D"; exit 2; }; \
+	run="t$$(printf '%s' '$(notdir $(CURDIR))' | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')-test-$$tok"; \
+	dc="$(TEST_COMPOSE) -p $$run $(if $(TEST_ENV_FILE),--env-file $(TEST_ENV_FILE)) --profile $(TEST_PROFILE)"; \
+	chmod 777 "$$D"; \
+	trap '$$dc down --volumes --remove-orphans >/dev/null 2>&1; rm -rf "$$D"' EXIT INT TERM; \
+	net=; if [ -n "$(TEST_SERVICES)" ]; then \
+	  $$dc up -d --wait --wait-timeout 120 $(TEST_SERVICES) \
+	    || { echo "FAIL  the test services did not become healthy: $(TEST_SERVICES)"; exit 1; }; \
+	  cid=$$($$dc ps -q $(firstword $(TEST_SERVICES))); net=; \
+	  for n in $$(docker inspect -f '{{range $$k, $$v := .NetworkSettings.Networks}}{{$$k}} {{end}}' $$cid); do \
+	    [ "$$(docker network inspect -f '{{index .Labels "com.docker.compose.project"}}' $$n)" = "$$run" ] && { net=$$n; break; }; done; \
+	  [ -n "$$net" ] || { echo "FAIL  $(firstword $(TEST_SERVICES)) joined no network of this run's own project ($$run)"; exit 1; }; \
+	  net="--network $$net"; fi; \
+	docker run --rm -v $(CURDIR):/repo $(LUXLINT) --emit-config pytest > "$$D/pytest.ini" || exit 2; \
+	chmod 644 "$$D/pytest.ini"; \
+	docker run --rm --init $$net $(TEST_ENV) -e PYTEST_ADDOPTS="$${PYTEST_ARGS:-}" \
+	  -e COVERAGE_CORE=sysmon -e COVERAGE_FILE=/out/.coverage -e PYTHONDONTWRITEBYTECODE=1 \
+	  -v $(CURDIR):/repo:ro -v "$$D":/out -w /repo/$(TEST_WORKDIR) $(TEST_IMAGE) \
+	  sh -c 'python -m coverage run --branch --source=$(TEST_COV) -m pytest -c /out/pytest.ini --rootdir=. -p no:cacheprovider; s=$$?; python -m coverage report --show-missing > /out/coverage.txt; echo $$? > /out/coverage.rc; cat /out/coverage.txt; exit $$s'; \
+	rc=$$?; \
+	[ "$$rc" = 0 ] || { echo "FAIL  the suite failed (exit $$rc)"; exit 1; }; \
+	[ "$$(cat "$$D/coverage.rc" 2>/dev/null)" = 0 ] || { echo "FAIL  coverage measured nothing (coverage report: $$(tail -n 1 "$$D/coverage.txt" 2>/dev/null)): check TEST_COV names the package the suite imports"; exit 1; }; \
+	docker run --rm -i -v $(CURDIR):/repo $(LUXLINT) --coverage-ratchet < "$$D/coverage.txt" > "$$D/ratchet.txt"; crc=$$?; \
+	sed -n '/coverage ratchet/,$$p' "$$D/ratchet.txt"; \
+	[ "$$crc" = 0 ] || { echo "FAIL  the coverage ratchet failed (its verdict is above): add tests, never lower the floor"; exit 1; }
 
 # =============================================================================
 # Development — the ONE compose.yml with .env.dev (compose never builds: make dev-deploy)
@@ -817,7 +874,7 @@ migrate-down:
 
 # Autogenerate runs in the test image with the checkout mounted, so the revision lands in
 # alembic/versions/ (the app container has no source mount). Against the dev DB.
-migrate-create: .test-image.stamp ## New alembic revision from the models (autogenerate — READ it)
+migrate-create: test-build ## New alembic revision from the models (autogenerate — READ it)
 	@read -p "Enter migration message: " msg; \
 	docker run --rm --network luxardolabs --env-file .env.dev -v $(PWD):/app -w /app \
 	  $(TEST_IMAGE) alembic revision --autogenerate -m "$$msg"

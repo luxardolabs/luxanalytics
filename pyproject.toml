@@ -68,8 +68,8 @@ orjson = "^3.13"
 pytest = ">=9.0.3"
 pytest-asyncio = ">=0.24"
 httpx = "^0.28"
-# Coverage for the luxlint --coverage-ratchet leg of `make test` (luxlint --playbook test-suite).
-pytest-cov = ">=7.0"
+# coverage.py: `make test` (luxarch --emit test-block) runs it directly with branch coverage.
+coverage = ">=7.16"
 
 
 [build-system]

@@ -39,8 +39,7 @@
 </div>
 {% endmacro %}
 
-
-{# luxarch:pagination-macros macros v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit pagination-macros`. Its slug must equal the --emit name: v1 read `luxarch:pagination macros v1`, which resolved to the WRONG asset, and the claim that fw.template_pagination found it was never true of any code.
+{# luxarch:pagination-macros macros v3 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit pagination-macros`. Its slug must equal the --emit name: v1 read `luxarch:pagination macros v1`, which resolved to the WRONG asset, and the claim that fw.template_pagination found it was never true of any code.
 
    The canonical sortable-header + pagination-control macros. `luxarch --emit pagination-macros`.
    Drop in at app/templates/web/macros/tables.html (merge with your existing table macros).
@@ -53,29 +52,54 @@
    fw.template_pagination. The control below takes ONE argument for state — the PaginationState from
    build_pagination() — and does no arithmetic at all.
 
-   STYLING: classes here are utility-class placeholders. Reskin them for your brand; do not change
-   the STRUCTURE (one link per page via paginated_url, page reset on sort, no math in the template).
+   STYLING (v3): the skin is the two EDIT THIS regions below, and nothing else. `pg` maps each part
+   of the control to its classes: put your palette or your design tokens there. `sort_icon` draws the
+   sort indicator: call your own icon macro there. The default is inline SVG, so it renders with no
+   icon font loaded (v2 used FontAwesome, which most fleet apps do not load, so the indicator was an
+   empty element). `luxarch --emit pagination-macros --update` carries both regions across. Everything
+   else is STRUCTURE (one link per page via paginated_url, page reset on sort, no math in the
+   template) and is compared line for line.
 #}
+
+{# --- EDIT THIS: the skin. The classes for each part of the header and the control. #}
+{%- set pg = {
+    "th": "px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider",
+    "th_link": "group inline-flex items-center gap-1 hover:text-fg",
+    "nav": "flex items-center justify-between border-t border-surface-20 px-4 py-3 sm:px-6",
+    "summary": "text-sm text-slate-400",
+    "summary_num": "font-medium text-fg",
+    "list": "inline-flex items-center gap-1",
+    "link": "px-3 py-2 text-sm rounded text-slate-300 hover:bg-surface-10",
+    "disabled": "px-3 py-2 text-sm text-slate-600",
+    "gap": "px-2 py-2 text-sm text-slate-600",
+    "current": "px-3 py-2 text-sm rounded bg-brand-500 text-surface-0",
+} -%}
+
+{# --- EDIT THIS: the sort indicator. `state` is 'asc', 'desc' or none (not the active column). #}
+{% macro sort_icon(state) -%}
+{%- if state == 'asc' %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+{%- elif state == 'desc' %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+{%- else %}<svg class="h-4 w-4 opacity-40" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 3a.75.75 0 01.55.24l3.25 3.5a.75.75 0 11-1.1 1.02L10 4.852 7.3 7.76a.75.75 0 01-1.1-1.02l3.25-3.5A.75.75 0 0110 3zm-3.76 9.2a.75.75 0 011.06.04l2.7 2.908 2.7-2.908a.75.75 0 111.1 1.02l-3.25 3.5a.75.75 0 01-1.1 0l-3.25-3.5a.75.75 0 01.04-1.06z" clip-rule="evenodd"/></svg>
+{%- endif -%}
+{%- endmacro %}
 
 {% macro th_sortable(label, key, sort_by, sort_order, base_url, query_params=None, default_desc=false) -%}
 {%- set is_active = sort_by == key -%}
 {%- if is_active -%}{%- set next_order = 'desc' if sort_order == 'asc' else 'asc' -%}
 {%- else -%}{%- set next_order = 'desc' if default_desc else 'asc' -%}{%- endif -%}
-<th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-left">
+<th scope="col" class="{{ pg.th }}">
     <a href="{{ paginated_url(base_url, query_params, sort_by=key, sort_order=next_order, page='1') }}"
-       class="group inline-flex items-center gap-1"
+       class="{{ pg.th_link }}"
        aria-sort="{{ 'ascending' if is_active and sort_order == 'asc' else 'descending' if is_active else 'none' }}">
         <span>{{ label }}</span>
-        {%- if is_active and sort_order == 'asc' %}<i class="fas fa-sort-up" aria-hidden="true"></i>
-        {%- elif is_active and sort_order == 'desc' %}<i class="fas fa-sort-down" aria-hidden="true"></i>
-        {%- else %}<i class="fas fa-sort text-gray-400" aria-hidden="true"></i>{%- endif -%}
+        {{ sort_icon(sort_order if is_active else none) }}
     </a>
 </th>
 {%- endmacro %}
 
 
 {% macro th_static(label) -%}
-<th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-left">{{ label }}</th>
+<th scope="col" class="{{ pg.th }}">{{ label }}</th>
 {%- endmacro %}
 
 
@@ -84,33 +108,33 @@
    If you find yourself adding a `{% set %}` with maths in here, the field belongs on the DTO. #}
 {% macro pagination_controls(pagination, base_url, query_params=None) -%}
 {%- if pagination.total_pages > 1 -%}
-<nav class="flex items-center justify-between border-t px-4 py-3 sm:px-6" aria-label="Pagination">
-    <p class="text-sm text-gray-600">
-        Showing <span class="font-medium">{{ pagination.range_start }}</span>
-        to <span class="font-medium">{{ pagination.range_end }}</span>
-        of <span class="font-medium">{{ pagination.total }}</span>
+<nav class="{{ pg.nav }}" aria-label="Pagination">
+    <p class="{{ pg.summary }}">
+        Showing <span class="{{ pg.summary_num }}">{{ pagination.range_start }}</span>
+        to <span class="{{ pg.summary_num }}">{{ pagination.range_end }}</span>
+        of <span class="{{ pg.summary_num }}">{{ pagination.total }}</span>
     </p>
-    <ul class="inline-flex items-center gap-1">
+    <ul class="{{ pg.list }}">
         <li>
             {%- if pagination.has_prev %}
             <a href="{{ paginated_url(base_url, query_params, page=pagination.prev_page) }}"
-               class="px-3 py-2 text-sm rounded hover:bg-gray-100" rel="prev">Previous</a>
+               class="{{ pg.link }}" rel="prev">Previous</a>
             {%- else %}
-            <span class="px-3 py-2 text-sm text-gray-400" aria-disabled="true">Previous</span>
+            <span class="{{ pg.disabled }}" aria-disabled="true">Previous</span>
             {%- endif -%}
         </li>
         {%- set ns = namespace(last=0) -%}
         {%- for p in pagination.pages %}
         {#- a gap in the window renders as an ellipsis, never as a link to a page we skipped -#}
         {%- if ns.last and p > ns.last + 1 %}
-        <li><span class="px-2 py-2 text-sm text-gray-400">&hellip;</span></li>
+        <li><span class="{{ pg.gap }}">&hellip;</span></li>
         {%- endif %}
         <li>
             {%- if p == pagination.page %}
-            <span class="px-3 py-2 text-sm rounded bg-gray-900 text-white" aria-current="page">{{ p }}</span>
+            <span class="{{ pg.current }}" aria-current="page">{{ p }}</span>
             {%- else %}
             <a href="{{ paginated_url(base_url, query_params, page=p) }}"
-               class="px-3 py-2 text-sm rounded hover:bg-gray-100">{{ p }}</a>
+               class="{{ pg.link }}">{{ p }}</a>
             {%- endif -%}
         </li>
         {%- set ns.last = p -%}
@@ -118,9 +142,9 @@
         <li>
             {%- if pagination.has_next %}
             <a href="{{ paginated_url(base_url, query_params, page=pagination.next_page) }}"
-               class="px-3 py-2 text-sm rounded hover:bg-gray-100" rel="next">Next</a>
+               class="{{ pg.link }}" rel="next">Next</a>
             {%- else %}
-            <span class="px-3 py-2 text-sm text-gray-400" aria-disabled="true">Next</span>
+            <span class="{{ pg.disabled }}" aria-disabled="true">Next</span>
             {%- endif -%}
         </li>
     </ul>
