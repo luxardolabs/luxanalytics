@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.268.0",
+  "guard_version": "0.269.1",
   "repo": "/repo",
   "targets": [
     {
@@ -572,7 +572,7 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "the fleet logging module (app/core/logging_config.py) is installed: a colliding `extra=` key is kept as `extra_<key>` instead of raising"
+          "inert_reason": "the fleet logging module (app/core/logging_config.py) is installed: a colliding `extra=` key is written under `attributes` by its own name instead of raising"
         },
         {
           "rule": "fw.restricted_imports",
@@ -1613,6 +1613,15 @@
         "inert_reason": ""
       },
       {
+        "rule": "repo.log_fields_explicit",
+        "status": "PASS",
+        "since": "0.269.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": ""
+      },
+      {
         "rule": "repo.makefile_no_command_substitution",
         "status": "PASS",
         "since": "0.185.0",
@@ -2064,7 +2073,7 @@
       }
     ],
     "summary": {
-      "PASS": 57,
+      "PASS": 58,
       "FAIL": 1,
       "XFAIL": 0,
       "XPASS": 0,
@@ -2072,12 +2081,12 @@
     }
   },
   "summary": {
-    "PASS": 198,
+    "PASS": 199,
     "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "798924a8381718b79fe877b5cca1c2066ea6f9b1",
-  "generated_at": "2026-10-08T00:45:18Z"
+  "commit": "7f48c2657899af71b82488105d1d312983392b0e",
+  "generated_at": "2026-10-08T00:49:05Z"
 }

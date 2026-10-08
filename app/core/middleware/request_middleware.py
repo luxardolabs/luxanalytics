@@ -126,14 +126,16 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
             request._receive = receive
 
-        # Log at debug level for full headers, info level for summary
-        logger.debug("Request details", extra={"headers": dict(request.headers)})
-
+        # Named fields only: the full header map carried Authorization, Cookie and the HMAC
+        # signature into the logs (repo.log_fields_explicit).
         logger.debug(
             "Request started",
             extra={
                 "method": request.method,
                 "path": request.url.path,
+                "content_type": request.headers.get("content-type"),
+                "user_agent": request.headers.get("user-agent"),
+                "key_id": request.headers.get("x-key-id"),
                 "body_size": len(body) if body else 0,
                 "compressed": content_encoding == "deflate",
                 "client_ip": request.client.host if request.client else None,

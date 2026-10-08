@@ -1,4 +1,4 @@
-# luxarch:logging asset v4 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit logging`.
+# luxarch:logging asset v5 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit logging`.
 """The fleet's ONE logging setup: standard-library `logging`, one JSON line per record on stdout.
 
 Why the standard library (sources in `luxarch --playbook logging`): every log platform the fleet might
@@ -11,8 +11,15 @@ Why the collision fix: `Logger.makeRecord` raises `KeyError("Attempt to overwrit
 for any `extra=` key that is already a LogRecord attribute (`name`, `filename`, `module`, `args`,
 `message`, ...), so a log call crashes, usually inside an `except` branch. The Python docs name
 `makeRecord` as the method to override; `configure_logging()` installs an override that keeps the
-value under `extra_<key>` instead. Installed on `logging.Logger` itself, so it covers every logger,
-including ones created before `configure_logging()` ran and third-party ones.
+value under `extra_<key>` ON THE RECORD instead. Installed on `logging.Logger` itself, so it covers
+every logger, including ones created before `configure_logging()` ran and third-party ones.
+
+Why `attributes` (v5): the JSON line keeps the module's own fields (timestamp, level, service, version,
+module, ...) at the top level and every caller field (`extra=`, `log_context`) under `attributes`,
+UNDER ITS OWN NAME. `extra={"name": ..., "version": ..., "created": ...}` is written as exactly that,
+because nothing a caller passes can collide with the envelope or with LogRecord's internals. This is
+OpenTelemetry's log data model (`attributes` beside the envelope) and Elastic ECS's rule for custom
+fields; v1-v4 wrote caller fields flat and renamed the common ones to `extra_<key>`.
 
 Use, once, in the process entrypoint (`app/main.py`, a collector's `__main__`), before serving:
 
@@ -58,7 +65,7 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Any, TextIO
+from typing import Any, TextIO, cast
 
 # Every attribute a bare LogRecord carries on this interpreter (taskName on 3.12+, ...), plus the two
 # makeRecord also refuses. Computed, not listed, so a new CPython attribute is covered automatically.
@@ -66,30 +73,14 @@ _RECORD_ATTRS = frozenset(vars(logging.LogRecord("", 0, "", 0, "", (), None))) |
     "message",
     "asctime",
 }
-# The JSON line's own fields. An `extra=` key with one of these names is kept as `extra_<key>` too,
-# so a caller can never overwrite `level` or `timestamp` in what the platform indexes.
-_LINE_FIELDS = frozenset(
-    {
-        "timestamp",
-        "level",
-        "logger",
-        "message",
-        "service",
-        "version",
-        "exception",
-        "exception_type",
-        "stack",
-        "module",
-        "function",
-        "line",
-        "thread_name",
-        "environment",
-        "trace_id",
-        "span_id",
-    }
-)
+# Where `_make_record` notes each caller field's own name and the record attribute it was written to
+# (renamed or not). The formatter reads the VALUE from the record, so a `logging.Filter` that scrubs or
+# deletes `record.email` is honoured, and writes it under the caller's name.
+_FIELD_KEYS = "_log_field_keys"
 # OpenTelemetry's logging instrumentation sets these record attributes; the line carries them under
-# the names log platforms index (`trace_id`/`span_id`). Absent without the instrumentation.
+# the names log platforms index (`trace_id`/`span_id`), at the top level. A `trace_id` / `span_id` the
+# caller bound itself (`log_context(trace_id=...)`) is lifted there too when the instrumentation did not
+# set one.
 _TRACE_FIELDS = {"otelTraceID": "trace_id", "otelSpanID": "span_id"}
 # What a hostile or broken value can raise while being serialised or repr()'d (RecursionError is a
 # RuntimeError). A log line is never dropped for any of them.
@@ -125,33 +116,47 @@ _SysExcInfo = (
 )
 
 
-# A repo's redactor: the assembled line in, the line to write out. See `configure_logging(redact=)`.
+# A repo's redactor: a flat mapping in, the mapping to write out. It is called twice per line, on the
+# envelope and on `attributes`, so it sees every caller field under its own name, never nested.
+# See `configure_logging(redact=)`.
 Redactor = Callable[[dict[str, Any]], Mapping[str, Any]]
 # What survives a redactor that raised: only fields the module itself wrote and no caller controls.
 _SAFE_ON_FAILURE = ("timestamp", "level", "logger", "service", "version", "environment")
 
 
-def _redacted(line: dict[str, Any], redact: Redactor | None) -> dict[str, Any]:
-    """`line` through the repo's redactor. Fails CLOSED: a redactor that raises (or returns something
-    that is not a mapping) never lets the unscrubbed line through, and the record is still written."""
-    if redact is None:
-        return line
+def _scrubbed(part: dict[str, Any], redact: Redactor) -> dict[str, Any] | str:
+    """`part` through the redactor, or why it failed."""
     # Any exception, not a list: one that escaped would reach logging.Handler.handleError, which prints
     # the record's raw arguments to stderr, i.e. exactly the data the redactor exists to remove.
-    failure: str | None = None
     try:
-        out = redact(dict(line))
+        # Typed as returning a Mapping; a repo's redactor may still return anything at run time.
+        out = cast(object, redact(dict(part)))
     except Exception as exc:
-        failure, out = type(exc).__qualname__, None
-    if failure is None and isinstance(out, Mapping):
+        return type(exc).__qualname__
+    if isinstance(out, Mapping):
         return dict(out)
+    return f"returned {type(out).__name__}, not a mapping"
+
+
+def _redacted(
+    line: dict[str, Any], attributes: dict[str, Any], redact: Redactor | None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The envelope and the attributes through the repo's redactor, each on its own. Fails CLOSED: if
+    either call raises (or returns something that is not a mapping), neither unscrubbed part is
+    written; the record still is, with its fixed fields and the reason."""
+    if redact is None:
+        return line, attributes
+    head = _scrubbed(line, redact)
+    attrs = _scrubbed(attributes, redact) if attributes else {}
+    if isinstance(head, dict) and isinstance(attrs, dict):
+        return head, attrs
     safe = {k: line[k] for k in _SAFE_ON_FAILURE if k in line}
     safe["message"] = "[REDACTED: the redactor failed on this line]"
-    safe["redaction_error"] = failure or f"returned {type(out).__name__}, not a mapping"
-    return safe
+    safe["redaction_error"] = head if isinstance(head, str) else str(attrs)
+    return safe, {}
 
 
-def _free_key(key: str, taken: Mapping[str, Any] | frozenset[str]) -> str:
+def _free_key(key: str, taken: Mapping[str, Any]) -> str:
     while key in taken or key in _RECORD_ATTRS:
         key = f"extra_{key}"
     return key
@@ -170,17 +175,23 @@ def _make_record(
     extra: Mapping[str, object] | None = None,
     sinfo: str | None = None,
 ) -> logging.LogRecord:
-    """`logging.Logger.makeRecord`, except a colliding `extra` key is renamed, never raised on."""
+    """`logging.Logger.makeRecord`, except a colliding `extra` key is renamed on the record, never
+    raised on. The caller's fields are also kept under their own names for the formatter."""
     record = logging.getLogRecordFactory()(
         name, level, fn, lno, msg, args, exc_info, func, sinfo
     )
+    names: dict[str, str] = {}
+    record.__dict__[_FIELD_KEYS] = names
     for key, value in (extra or {}).items():
-        record.__dict__[_free_key(key, record.__dict__)] = value
+        free = _free_key(key, record.__dict__)
+        record.__dict__[free] = value
+        names[key] = free
     return record
 
 
 class JsonFormatter(logging.Formatter):
-    """One JSON object per record: the fixed fields, the bound context, then every `extra=` field.
+    """One JSON object per record: the fixed fields, then `attributes`: the bound context and every
+    `extra=` field, each under the name the caller gave it.
 
     The fixed fields are what an operator needs from one line read on its own: when, how bad, which
     service/version/environment, WHERE in the code (`module`, `function`, `line`, `thread_name`), the
@@ -217,25 +228,32 @@ class JsonFormatter(logging.Formatter):
         }
         if self.environment:
             line["environment"] = self.environment
-        extras = _extras(record)
+        attributes = {**_bound(), **_extras(record)}
         for otel, ours in _TRACE_FIELDS.items():
-            if otel in extras:
-                line[ours] = extras.pop(otel)
+            if otel in attributes:
+                line[ours] = attributes.pop(otel)
+        for ours in _TRACE_FIELDS.values():
+            if ours not in line and ours in attributes:
+                line[ours] = attributes.pop(ours)
         if record.exc_info:
             line["exception"] = self.formatException(record.exc_info)
             if record.exc_info[0] is not None:
                 line["exception_type"] = record.exc_info[0].__qualname__
         if record.stack_info:
             line["stack"] = self.formatStack(record.stack_info)
-        for key, value in {**_bound(), **extras}.items():
-            line[_free_key(key, _LINE_FIELDS | frozenset(line))] = value
-        line = _redacted(line, self.redact)
+        line, attributes = _redacted(line, attributes, self.redact)
+        if attributes:
+            line["attributes"] = attributes
         try:
             return json.dumps(line, default=str, ensure_ascii=False, allow_nan=False)
         except _VALUE_ERRORS:
             # A circular structure, a non-string key, NaN/Infinity, or a value whose str() raises:
             # stock logging would still print this record, so it must not be lost here either.
-            safe = {str(k): _plain(v) for k, v in line.items()}
+            safe = {str(k): _plain(v) for k, v in line.items() if k != "attributes"}
+            if isinstance(line.get("attributes"), Mapping):
+                safe["attributes"] = {
+                    str(k): _plain(v) for k, v in line["attributes"].items()
+                }
             return json.dumps(safe, ensure_ascii=False)
 
 
@@ -274,29 +292,39 @@ class TextFormatter(logging.Formatter):
         self.redact = redact
 
     def format(self, record: logging.LogRecord) -> str:
-        line: dict[str, Any] = {
-            "message": record.getMessage(),
-            **_bound(),
-            **_extras(record),
-        }
+        line: dict[str, Any] = {"message": record.getMessage()}
         if record.exc_info:
             line["exception"] = self.formatException(record.exc_info)
         if record.stack_info:
             line["stack"] = self.formatStack(record.stack_info)
-        line = _redacted(line, self.redact)
+        line, attributes = _redacted(line, {**_bound(), **_extras(record)}, self.redact)
         message = line.pop("message", "")
         trace = [str(line.pop(k)) for k in ("exception", "stack") if k in line]
         head = f"{self.formatTime(record)} {record.levelname} {record.name} {message}"
-        tail = " ".join(f"{k}={v}" for k, v in line.items())
+        tail = " ".join(f"{k}={v}" for k, v in {**line, **attributes}.items())
         return "\n".join([f"{head} {tail}" if tail else head, *trace])
 
 
 def _extras(record: logging.LogRecord) -> dict[str, Any]:
-    return {
+    """The caller's fields under their own names, plus any attribute a filter or adapter set on the
+    record (OpenTelemetry's trace ids, for one)."""
+    names = record.__dict__.get(_FIELD_KEYS)
+    names = names if isinstance(names, dict) else {}
+    own = set(names.values())
+    other = {
         k: v
         for k, v in record.__dict__.items()
-        if k not in _RECORD_ATTRS and k not in _DROPPED
+        if k not in _RECORD_ATTRS
+        and k not in _DROPPED
+        and k not in own
+        and k != _FIELD_KEYS
     }
+    fields = {
+        name: record.__dict__[key]
+        for name, key in names.items()
+        if key in record.__dict__
+    }
+    return {**other, **fields}
 
 
 def _plain(value: object) -> object:
@@ -371,9 +399,10 @@ def configure_logging(
     `environment` (e.g. `settings.environment`: dev, staging, prod) goes on every JSON line, so a line
     copied out of one cluster's logs still says which one it came from.
 
-    `redact` is the repo's redactor, for a service that logs personal data: it receives each line as a
-    dict (message, context, extras, traceback included) and returns the dict to write. If it raises,
-    the line keeps its fixed fields and says the redaction failed; the unscrubbed content is dropped.
+    `redact` is the repo's redactor, for a service that logs personal data. It is called on the
+    envelope (message and traceback included) and, separately, on the caller's fields (context and
+    `extra=`, flat, under their own names); each returns the dict to write. If either raises, the line
+    keeps its fixed fields and says the redaction failed; the unscrubbed content is dropped.
 
     Idempotent: calling it again replaces the handler instead of adding a second one.
     """
