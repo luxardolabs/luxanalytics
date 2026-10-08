@@ -22,10 +22,12 @@ def test_a_naive_timestamp_is_taken_as_utc() -> None:
     assert _event("2026-10-06T12:00:00").timestamp.tzinfo == UTC
 
 
-def test_a_timestamp_beyond_the_skew_tolerance_is_rejected() -> None:
-    future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
-    with pytest.raises(ValidationError, match="in the future"):
-        _event(future)
+def test_a_timestamp_beyond_the_skew_tolerance_is_clamped_to_now() -> None:
+    """A fast device clock is clamped, not rejected: a 422 made the SDK drop the batch
+    (LUXANALYTI-80)."""
+    before = datetime.now(UTC)
+    clamped = _event((before + timedelta(hours=1)).isoformat()).timestamp
+    assert before <= clamped <= datetime.now(UTC)
 
 
 @pytest.mark.parametrize("bad", ["yesterday", 1759752000, None])

@@ -77,7 +77,7 @@ class EventBase(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def parse_timestamp(cls, v: object) -> datetime:
-        """ISO8601 strings only (the SDK's wire format); naive means UTC; bounded clock skew."""
+        """ISO8601 strings only (the SDK's wire format); naive means UTC; a fast clock clamped."""
         if not isinstance(v, str):
             raise ValueError("timestamp must be an ISO8601 string")
         try:
@@ -90,12 +90,13 @@ class EventBase(BaseModel):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
 
-        # Not too far in the future (configurable tolerance for clock skew)
-        tolerance = settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE
-        if dt > datetime.now(UTC) + timedelta(seconds=tolerance):
-            raise ValueError(
-                f"Event timestamp cannot be more than {tolerance} seconds in the future"
-            )
+        # A timestamp more than the tolerance ahead is a fast device clock: clamp it to now rather
+        # than reject it. The SDK drops a batch answered 4xx, so a rejection lost every event from
+        # that device for as long as its clock was off (LUXANALYTI-80). Within the tolerance it is
+        # stored as sent; a past timestamp (an event queued offline) always is.
+        now = datetime.now(UTC)
+        if dt > now + timedelta(seconds=settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE):
+            return now
         return dt
 
 

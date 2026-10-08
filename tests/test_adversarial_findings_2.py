@@ -208,10 +208,10 @@ async def test_startup_migrations_do_not_relabel_the_app_logs(
 async def test_a_custom_validator_failure_is_a_422_not_a_500(
     client: AsyncClient, sample_app: object
 ) -> None:
-    """A future timestamp fails a custom validator; its error context is not JSON."""
+    """A blank name fails a custom validator; its error context is not JSON."""
     response = await client.post(
         f"/api/v1/events/{PROJECT}",
-        json=_event(timestamp="2999-01-01T00:00:00Z"),
+        json=_event(name="   "),
         headers=_dsn_auth(),
     )
     assert response.status_code == 422
