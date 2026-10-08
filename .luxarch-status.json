@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.271.1",
+  "guard_version": "0.273.0",
   "repo": "/repo",
   "targets": [
     {
@@ -14,7 +14,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_legacy_routers",
@@ -23,7 +25,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.model_naming",
@@ -32,7 +36,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.crud_naming",
@@ -41,7 +47,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.schema_naming",
@@ -50,7 +58,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.router_naming",
@@ -59,7 +69,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.service_naming",
@@ -68,7 +80,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.core_service_dir",
@@ -77,7 +91,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.view_service_dir",
@@ -86,7 +102,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_stray_services",
@@ -95,7 +113,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.core_service_class",
@@ -104,7 +124,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.view_service_class",
@@ -113,7 +135,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_raw_sql_in_services",
@@ -122,7 +146,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_raw_sql_in_routers",
@@ -131,7 +157,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_raw_sql_outside_crud",
@@ -140,7 +168,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.web_no_cascading_delete",
@@ -149,7 +179,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare the repo's cascading-delete call patterns to enforce that web routers enqueue them instead of running them inside the request; until then nothing is searched."
+          "inert_reason": "declare the repo's cascading-delete call patterns to enforce that web routers enqueue them instead of running them inside the request; until then nothing is searched.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.core_no_fastapi",
@@ -158,7 +190,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.crud_no_fastapi",
@@ -167,7 +201,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.views_no_sqlalchemy",
@@ -176,7 +212,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.routers_no_sqlalchemy",
@@ -185,7 +223,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_view_imports_crud",
@@ -194,7 +234,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_crud_imports_crud",
@@ -203,7 +245,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_models_in_routers",
@@ -212,7 +256,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_response_models_in_routers",
@@ -221,7 +267,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_dto_in_routers",
@@ -230,7 +278,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enum_query_params",
@@ -239,7 +289,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.web_router_composition",
@@ -248,7 +300,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_inline_imports",
@@ -257,7 +311,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_inline_html",
@@ -266,7 +322,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enum_model_exists",
@@ -275,7 +333,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "list this repo's enums under [enums].declared to enforce they live in the enum module. See --playbook enum-typing."
+          "inert_reason": "list this repo's enums under [enums].declared to enforce they live in the enum module. See --playbook enum-typing.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enum_labels",
@@ -284,7 +344,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "list enums that must carry member labels under [enums].labelled to enforce it. See --playbook enum-typing."
+          "inert_reason": "list enums that must carry member labels under [enums].labelled to enforce it. See --playbook enum-typing.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.uuid_id_typing",
@@ -293,7 +355,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enumish_columns",
@@ -302,7 +366,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.jsonb_shaping",
@@ -311,7 +377,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.hypertable_bounds",
@@ -320,7 +388,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "no [hypertables] declaration and no `create_hypertable(...)` anywhere in the repo, so no aggregate is over a hypertable."
+          "inert_reason": "no [hypertables] declaration and no `create_hypertable(...)` anywhere in the repo, so no aggregate is over a hypertable.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.worker_sessions_commit",
@@ -329,7 +399,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.template_pagination",
@@ -338,7 +410,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.view_pagination",
@@ -347,7 +421,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.template_table",
@@ -356,7 +432,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.selects_accessible",
@@ -365,7 +443,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_redundant_commit",
@@ -374,7 +454,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.js_no_fetch",
@@ -383,7 +465,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.js_no_reload",
@@ -392,7 +476,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.js_no_alert",
@@ -401,7 +487,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.import_linter_declared",
@@ -410,7 +498,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "half the fleet enforces layering via luxarch's AST rules, not import-linter. Set [importlinter].required = true ONLY if this repo also uses import-linter; then this rule verifies the [tool.importlinter] block exists (the run is the in-repo lint-imports tail)."
+          "inert_reason": "half the fleet enforces layering via luxarch's AST rules, not import-linter. Set [importlinter].required = true ONLY if this repo also uses import-linter; then this rule verifies the [tool.importlinter] block exists (the run is the in-repo lint-imports tail).",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.routers_dont_import_crud",
@@ -419,7 +509,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.views_dont_import_models",
@@ -428,7 +520,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.web_routers_dont_import_core",
@@ -437,7 +531,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.core_no_outbound_deps",
@@ -446,7 +542,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.crud_dont_import_services",
@@ -455,7 +553,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.routers_no_transaction_control",
@@ -464,7 +564,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_session_mutation_outside_crud",
@@ -473,7 +575,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.web_routers_no_nested_functions",
@@ -482,7 +586,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.web_routers_dont_parse_json",
@@ -491,7 +597,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_naive_utcnow",
@@ -500,7 +608,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_private_cross_module_imports",
@@ -509,7 +619,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.paginated_responses_subclass_base",
@@ -518,7 +630,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_browser_confirm_in_templates",
@@ -527,7 +641,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_inline_style_in_pages",
@@ -536,7 +652,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_private_macros_in_pages",
@@ -545,7 +663,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enum_dto_fields_enum_typed",
@@ -554,7 +674,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.migration_revision_ids_fit",
@@ -563,7 +685,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_reserved_logging_keys",
@@ -572,7 +696,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "the fleet logging module (app/core/logging_config.py) is installed: a colliding `extra=` key is written under `attributes` by its own name instead of raising"
+          "inert_reason": "the fleet logging module (app/core/logging_config.py) is installed: a colliding `extra=` key is written under `attributes` by its own name instead of raising",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.restricted_imports",
@@ -581,7 +707,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare packages + their boundary files under [restricted].imports to enforce them; until then this rule has nothing to check."
+          "inert_reason": "declare packages + their boundary files under [restricted].imports to enforce them; until then this rule has nothing to check.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.restricted_calls",
@@ -590,7 +718,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare call patterns + their boundary files under [restricted].calls to enforce them; until then this rule has nothing to check."
+          "inert_reason": "declare call patterns + their boundary files under [restricted].calls to enforce them; until then this rule has nothing to check.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.admin_endpoints_rbac",
@@ -599,7 +729,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare [rbac].admin_url_patterns and [rbac].require_names to enforce that admin-tier mutating routes carry an RBAC dependency; until then this rule does not run."
+          "inert_reason": "declare [rbac].admin_url_patterns and [rbac].require_names to enforce that admin-tier mutating routes carry an RBAC dependency; until then this rule does not run.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.fields_wired_into_pipeline",
@@ -608,7 +740,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare [field_wiring] specs (class + fields + accessors) to enforce that UI/config-driving fields are actually read by the pipeline; until then this rule has nothing to check."
+          "inert_reason": "declare [field_wiring] specs (class + fields + accessors) to enforce that UI/config-driving fields are actually read by the pipeline; until then this rule has nothing to check.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_aliased_first_party_imports",
@@ -617,7 +751,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.routers_in_router_dirs",
@@ -626,7 +762,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.vendored_js_in_vendor",
@@ -635,7 +773,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_hand_rolled_components_in_pages",
@@ -644,7 +784,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.optional_query_empty_safe",
@@ -653,7 +795,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.crud_orm_over_text",
@@ -662,7 +806,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_template_logic",
@@ -671,7 +817,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.tenant_scoped",
@@ -680,7 +828,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "set [tenant].column to the tenant FK (e.g. organization_id) to enable per-tenant query scoping; until then this rule does not run. See --playbook tenant-scoped."
+          "inert_reason": "set [tenant].column to the tenant FK (e.g. organization_id) to enable per-tenant query scoping; until then this rule does not run. See --playbook tenant-scoped.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.component_registry",
@@ -689,7 +839,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.layout",
@@ -698,7 +850,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enum_column_roundtrips",
@@ -707,7 +861,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "list this repo's enums under [enums].declared to enforce enum columns round-trip to the enum (not raw str). See --playbook enum-typing."
+          "inert_reason": "list this repo's enums under [enums].declared to enforce enum columns round-trip to the enum (not raw str). See --playbook enum-typing.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_hand_rolled_pagination",
@@ -716,7 +872,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_dynamic_column_sort",
@@ -725,7 +883,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enum_persists_value",
@@ -734,7 +894,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.aware_datetime_columns",
@@ -743,7 +905,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.side_effects_after_commit",
@@ -752,7 +916,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.static_assets_cache_busted",
@@ -761,7 +927,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.commented_enum_columns",
@@ -770,7 +938,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.web_templates_at_fleet_path",
@@ -779,7 +949,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.static_js_at_fleet_path",
@@ -788,7 +960,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.secure_cookies",
@@ -797,7 +971,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.template_refs_resolve",
@@ -806,7 +982,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_orphan_pages",
@@ -815,7 +993,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.tenant_route_reachability",
@@ -824,7 +1004,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare [tenant].column and the [tenant.auth] role markers to turn on the static cross-tenant reachability analysis; until then it does not run. See --playbook tenant-scoped."
+          "inert_reason": "declare [tenant].column and the [tenant.auth] role markers to turn on the static cross-tenant reachability analysis; until then it does not run. See --playbook tenant-scoped.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.state_changing_get",
@@ -833,7 +1015,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enum_not_native_pg",
@@ -842,7 +1026,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.route_smoke_wired",
@@ -851,7 +1037,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.session_minted_in_owner",
@@ -860,7 +1048,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.dev_prod_pool_parity",
@@ -869,7 +1059,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.app_dont_import_scripts",
@@ -878,7 +1070,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enums_in_enum_model",
@@ -887,7 +1081,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.enums_declared",
@@ -896,7 +1092,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_threaded_aliasing",
@@ -905,7 +1103,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_dropped_input",
@@ -914,7 +1114,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_passthrough_view_service",
@@ -923,7 +1125,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_orphan_partials",
@@ -932,7 +1136,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.mutating_route_authenticated",
@@ -941,7 +1147,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.annotated_dep_is_depends",
@@ -950,7 +1158,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.feature_flag_is_not_authz",
@@ -959,7 +1169,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "list the feature-gate dependency factories in [features].gate_names (e.g. require_feature) to flag a state-changing route whose ONLY authorization is a feature flag (feature-enabled is not permission \u2014 a mutating route needs a role gate or an ownership scope). See --playbook route-auth."
+          "inert_reason": "list the feature-gate dependency factories in [features].gate_names (e.g. require_feature) to flag a state-changing route whose ONLY authorization is a feature flag (feature-enabled is not permission \u2014 a mutating route needs a role gate or an ownership scope). See --playbook route-auth.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.feature_keys_declared",
@@ -968,7 +1180,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "set [features].registry = 'app.core.features:Feature' \u2014 the canonical closed set \u2014 to enforce that every feature-key literal is a declared member (a typo silently locks everyone out of a surface, or hides a page). ADR-001 for feature keys. See --playbook route-auth."
+          "inert_reason": "set [features].registry = 'app.core.features:Feature' \u2014 the canonical closed set \u2014 to enforce that every feature-key literal is a declared member (a typo silently locks everyone out of a surface, or hides a page). ADR-001 for feature keys. See --playbook route-auth.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_any_typed_service_boundary",
@@ -977,7 +1191,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.strftime_is_display_only",
@@ -986,7 +1202,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.crud_paginated_signature",
@@ -995,7 +1213,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.crud_base_single_pattern",
@@ -1004,7 +1224,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "no crud class defines an `__init__`, so no construction pattern is declared here"
+          "inert_reason": "no crud class defines an `__init__`, so no construction pattern is declared here",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.template_role_placement",
@@ -1013,7 +1235,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.api_routers_dont_import_views",
@@ -1022,7 +1246,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.web_routers_single_surface",
@@ -1031,7 +1257,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.json_routes_typed",
@@ -1040,7 +1268,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.js_in_files",
@@ -1049,7 +1279,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.injected_models_dont_cross_the_seam",
@@ -1058,7 +1290,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.templates_compile",
@@ -1067,7 +1301,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.color_mode_tokens",
@@ -1076,7 +1312,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_nested_session",
@@ -1085,7 +1323,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.jinja_strict_undefined",
@@ -1094,7 +1334,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_orm_dict_across_seam",
@@ -1103,7 +1345,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_naive_datetime_default",
@@ -1112,7 +1356,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.auth_fails_closed",
@@ -1121,7 +1367,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.url_assembly_in_view",
@@ -1130,7 +1378,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.url_builder_not_in_template",
@@ -1139,7 +1389,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.url_assembly_in_data_layer",
@@ -1148,7 +1400,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.route_no_broad_except",
@@ -1157,7 +1411,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_crud_reach_through",
@@ -1166,7 +1422,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_layer_reach_through",
@@ -1175,7 +1433,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.datetime_display_via_filter",
@@ -1184,7 +1444,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.dto_in_schemas",
@@ -1193,7 +1455,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.paginated_result_unpacked",
@@ -1202,7 +1466,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.test_engine_pool_parity",
@@ -1211,7 +1477,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "the harness isolates by holding ONE connection and rolling it back (tests/conftest.py:234), so a pooled test engine cannot work here \u2014 each pytest-asyncio test gets its own loop and a pooled connection belongs to the loop that opened it. **This INERT is the correct END STATE for such a harness, not a todo.** Do NOT migrate to DELETE/TRUNCATE-per-test to satisfy this rule: luxlint's test.no_handrolled_cleanup exists to red exactly that, and rollback isolation is the better pattern (faster, no table-ordering bugs, nothing to forget). An earlier version of this message named that migration as the prerequisite and was wrong \u2014 it pointed at something another fleet guard forbids. Measured, pursuing pooling here costs you: 0 failures on NullPool, 139 pooled, 366 pooled+dispose. And you lose nothing in DETECTION \u2014 the cross-session visibility class this rule guards is caught by durability locks that read on a SEPARATE connection, which works whatever the pool class. Pool the APP engine (fw.dev_prod_pool_parity); leave the test engine alone."
+          "inert_reason": "the harness isolates by holding ONE connection and rolling it back (tests/conftest.py:234), so a pooled test engine cannot work here \u2014 each pytest-asyncio test gets its own loop and a pooled connection belongs to the loop that opened it. **This INERT is the correct END STATE for such a harness, not a todo.** Do NOT migrate to DELETE/TRUNCATE-per-test to satisfy this rule: luxlint's test.no_handrolled_cleanup exists to red exactly that, and rollback isolation is the better pattern (faster, no table-ordering bugs, nothing to forget). An earlier version of this message named that migration as the prerequisite and was wrong \u2014 it pointed at something another fleet guard forbids. Measured, pursuing pooling here costs you: 0 failures on NullPool, 139 pooled, 366 pooled+dispose. And you lose nothing in DETECTION \u2014 the cross-session visibility class this rule guards is caught by durability locks that read on a SEPARATE connection, which works whatever the pool class. Pool the APP engine (fw.dev_prod_pool_parity); leave the test engine alone.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.template_context_complete",
@@ -1220,7 +1488,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.asserter_current",
@@ -1229,7 +1499,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.broad_except_is_logged",
@@ -1238,7 +1510,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.core_mutation_checks_permission",
@@ -1247,7 +1521,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare [rbac].require_names (the same list the route-level RBAC rules use) to enforce that a mutating core method taking a `user` actually checks that user's permission. Until then this rule does not run."
+          "inert_reason": "declare [rbac].require_names (the same list the route-level RBAC rules use) to enforce that a mutating core method taking a `user` actually checks that user's permission. Until then this rule does not run.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.destructive_macro_gated",
@@ -1256,7 +1532,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare [components].destructive (the macros that delete/reindex/revoke) and [rbac].require_names (what a permission check looks like here) to enforce that a destructive control is rendered only inside a permission conditional. The image cannot infer either: a macro NAME does not tell you whether it destroys, and every repo spells its permission check differently. Until both are declared this rule does not run."
+          "inert_reason": "declare [components].destructive (the macros that delete/reindex/revoke) and [rbac].require_names (what a permission check looks like here) to enforce that a destructive control is rendered only inside a permission conditional. The image cannot infer either: a macro NAME does not tell you whether it destroys, and every repo spells its permission check differently. Until both are declared this rule does not run.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.route_dep_matches_surface",
@@ -1265,7 +1543,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "declare [[authz.signature]] rows (`prefix` + `require_dep`) to enforce that a route under a surface carries THAT surface's dependency. `fw.admin_endpoints_rbac` asks whether any gate exists; this asks whether it is the right one \u2014 a bare CurrentUser on /admin is a gate and not an admin gate. Until rows are declared this rule does not run."
+          "inert_reason": "declare [[authz.signature]] rows (`prefix` + `require_dep`) to enforce that a route under a surface carries THAT surface's dependency. `fw.admin_endpoints_rbac` asks whether any gate exists; this asks whether it is the right one \u2014 a bare CurrentUser on /admin is a gate and not an admin gate. Until rows are declared this rule does not run.",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.credential_routes_limited",
@@ -1274,7 +1554,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.committed_artifacts_declared",
@@ -1283,7 +1565,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_reserved_query_params",
@@ -1292,7 +1576,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.surface_separation",
@@ -1301,7 +1587,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "opt-in \u2014 N/A until [surfaces].admin and [surfaces].tenant name the two surfaces' template roots (read: admin=[], tenant=[]). Each is a path prefix, or a list of them, relative to the web templates dir (`admin = \"pages/admin/\"`, `tenant = [\"pages/\", \"partials/\"]`); the admin root may sit inside the tenant one. A repo with an operator surface and a customer surface should declare them"
+          "inert_reason": "opt-in \u2014 N/A until [surfaces].admin and [surfaces].tenant name the two surfaces' template roots (read: admin=[], tenant=[]). Each is a path prefix, or a list of them, relative to the web templates dir (`admin = \"pages/admin/\"`, `tenant = [\"pages/\", \"partials/\"]`); the admin root may sit inside the tenant one. A repo with an operator surface and a customer surface should declare them",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.auth_surface_declared",
@@ -1310,7 +1598,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.rate_limit_enforced",
@@ -1319,7 +1609,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.module_homes",
@@ -1328,7 +1620,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.file_size",
@@ -1337,7 +1631,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.no_noload_loader",
@@ -1346,7 +1642,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.sqlalchemy_21_ready",
@@ -1355,7 +1653,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.non_request_callers_use_core",
@@ -1364,7 +1664,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.service_owns_its_tasks",
@@ -1373,7 +1675,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "fw.generated_assets_built_in_image",
@@ -1382,7 +1686,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.method_span",
@@ -1391,7 +1697,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.span_name_matches_class",
@@ -1400,7 +1708,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.record_exception",
@@ -1409,7 +1719,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.route_enrich_user",
@@ -1418,7 +1730,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "no route handler annotates a parameter with matches `CurrentUser` \u2014 set `[observability.markers].current_user_type` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert_reason": "no route handler annotates a parameter with matches `CurrentUser` \u2014 set `[observability.markers].current_user_type` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.no_router_span",
@@ -1427,7 +1741,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.client_span_kind",
@@ -1436,7 +1752,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "no external-client service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert_reason": "no external-client service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.no_silent_suppress",
@@ -1445,7 +1763,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.job_root_span",
@@ -1454,7 +1774,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "no function is decorated with matches `scheduled_job` \u2014 set `[observability.markers].job_decorator` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert_reason": "no function is decorated with matches `scheduled_job` \u2014 set `[observability.markers].job_decorator` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.record_before_raise",
@@ -1463,7 +1785,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.enrich_early",
@@ -1472,7 +1796,9 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "no route handler both annotates and calls matches `CurrentUser + enrich_span_from_user` \u2014 set `[observability.markers].current_user_type/enrich_user_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything"
+          "inert_reason": "no route handler both annotates and calls matches `CurrentUser + enrich_span_from_user` \u2014 set `[observability.markers].current_user_type/enrich_user_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.entity_id_forwarded",
@@ -1481,7 +1807,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.metric_label_cardinality",
@@ -1490,7 +1818,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         },
         {
           "rule": "obs.no_dead_metric",
@@ -1499,7 +1829,9 @@
           "violations": 0,
           "deferred": false,
           "inert": false,
-          "inert_reason": ""
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
         }
       ],
       "summary": {
@@ -1520,7 +1852,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.guards_wired",
@@ -1529,7 +1863,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.no_public_ci",
@@ -1538,7 +1874,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.oci_image_labels",
@@ -1547,7 +1885,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.components_declared",
@@ -1556,7 +1896,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.no_piped_installer",
@@ -1565,7 +1907,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.makefile_canonical",
@@ -1574,7 +1918,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.guard_owned_tools_undeclared",
@@ -1583,7 +1929,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.dev_tools_not_in_production",
@@ -1592,7 +1940,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.fleet_skills_present",
@@ -1601,7 +1951,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.logging_canonical",
@@ -1610,7 +1962,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.log_fields_explicit",
@@ -1619,7 +1973,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.makefile_no_command_substitution",
@@ -1628,7 +1984,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.makefile_no_fixed_tmp",
@@ -1637,7 +1995,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.guard_pins_not_overridable",
@@ -1646,7 +2006,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.guard_upgrade_verifies_write",
@@ -1655,7 +2017,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.db_verify_image_is_current",
@@ -1664,7 +2028,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.image_name_declares_provenance",
@@ -1673,7 +2039,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.deploy_tag_is_immutable",
@@ -1682,7 +2050,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.release_scans_candidate",
@@ -1691,7 +2061,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.makefile_image_ref_well_formed",
@@ -1700,7 +2072,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.alembic_env_honors_caller_url",
@@ -1709,7 +2083,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.emitted_assets_current",
@@ -1718,7 +2094,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.luxpm_receipt_current",
@@ -1727,7 +2105,9 @@
         "violations": 1,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "re-issue it and commit the text VERBATIM: `luxpm_issue_sync_receipt` for this project, written to `.luxpm-receipt`. Editing any byte invalidates the signature, which is the point \u2014 the counts are the TRACKER's statement, not the repo's. If it names a different repository_url it was copied from a sibling and attests nothing about this one.",
+        "example": ""
       },
       {
         "rule": "repo.luxpm_backlog_triaged",
@@ -1736,7 +2116,9 @@
         "violations": 0,
         "deferred": false,
         "inert": true,
-        "inert_reason": "this checkout's git remote cannot be read here, so whether `.luxpm-receipt` describes THIS repo is unknown \u2014 the backlog counts are only trusted from a verified receipt (`repo.luxpm_receipt_current` says what to fix). NOT a clearance"
+        "inert_reason": "this checkout's git remote cannot be read here, so whether `.luxpm-receipt` describes THIS repo is unknown \u2014 the backlog counts are only trusted from a verified receipt (`repo.luxpm_receipt_current` says what to fix). NOT a clearance",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.guard_status_current",
@@ -1745,7 +2127,9 @@
         "violations": 0,
         "deferred": false,
         "inert": true,
-        "inert_reason": "this run is WRITING the status files (`make status`), so the files on disk are the ones it is replacing \u2014 judging them would record a red about themselves in the committed snapshot. The next `make check` judges what was written"
+        "inert_reason": "this run is WRITING the status files (`make status`), so the files on disk are the ones it is replacing \u2014 judging them would record a red about themselves in the committed snapshot. The next `make check` judges what was written",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.claude_pointer_present",
@@ -1754,7 +2138,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.gitleaks_scans_identity",
@@ -1763,7 +2149,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.makefile_test_db_harness",
@@ -1772,7 +2160,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.migrations_build_schema",
@@ -1781,7 +2171,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.release_docs_present",
@@ -1790,7 +2182,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.release_docs_current",
@@ -1799,7 +2193,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.github_release_wired",
@@ -1808,7 +2204,9 @@
         "violations": 0,
         "deferred": false,
         "inert": true,
-        "inert_reason": "no git remote \u2014 a GitHub Release has nowhere to be created; wire `gh release create` when this repo gains one. NOT a clearance: the moment a GitHub remote exists this is checked again"
+        "inert_reason": "no git remote \u2014 a GitHub Release has nowhere to be created; wire `gh release create` when this repo gains one. NOT a clearance: the moment a GitHub remote exists this is checked again",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.release_tag_hygiene",
@@ -1817,7 +2215,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.hooks_wired",
@@ -1826,7 +2226,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.hooks_current",
@@ -1835,7 +2237,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.allowlist_wellformed",
@@ -1844,7 +2248,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.python_version_consistent",
@@ -1853,7 +2259,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.fleet_dep_floor",
@@ -1862,7 +2270,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.schema_from_migrations",
@@ -1871,7 +2281,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.metadata_naming_convention",
@@ -1880,7 +2292,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.compose_conventions",
@@ -1889,7 +2303,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.compose_command_no_orphan_flags",
@@ -1898,7 +2314,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.shared_buildx_builder",
@@ -1907,7 +2325,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.compose_project_name",
@@ -1916,7 +2336,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.compose_db_ephemeral_volume",
@@ -1925,7 +2347,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.makefile_db_ephemeral_volume",
@@ -1934,7 +2358,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.compose_up_selects_services",
@@ -1943,7 +2369,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.test_stack_parity",
@@ -1952,7 +2380,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.stack_smoke_wired",
@@ -1961,7 +2391,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.test_block_wired",
@@ -1970,7 +2402,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.poetry_version_consistent",
@@ -1979,7 +2413,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.alembic_path_separator",
@@ -1988,7 +2424,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.alembic_autogen_comparisons",
@@ -1997,7 +2435,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.migration_notnull_safe",
@@ -2006,7 +2446,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.buildx_builder_gc_capped",
@@ -2015,7 +2457,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.buildx_strays_refused",
@@ -2024,7 +2468,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.version_single_source",
@@ -2033,7 +2479,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.hatchling_build_backend",
@@ -2042,7 +2490,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.hatch_version_source_buildable",
@@ -2051,7 +2501,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.app_version_calver",
@@ -2060,7 +2512,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.dockerfile_provenance_args",
@@ -2069,7 +2523,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       },
       {
         "rule": "repo.entrypoint_execs",
@@ -2078,7 +2534,9 @@
         "violations": 0,
         "deferred": false,
         "inert": false,
-        "inert_reason": ""
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
       }
     ],
     "summary": {
@@ -2096,6 +2554,6 @@
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "b2281188ede0ce9c7b1d93a64b440641eed6b75d",
-  "generated_at": "2026-10-08T20:00:31Z"
+  "commit": "bf953767e6edcf141b45540bbc889e2c8a44918d",
+  "generated_at": "2026-10-08T20:04:39Z"
 }

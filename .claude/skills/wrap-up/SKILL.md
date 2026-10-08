@@ -3,11 +3,20 @@ name: wrap-up
 description: Close out a piece of work the fleet way before calling it done — tests written and run for what changed, every red in touched files fixed, docs updated (stale advice removed), make check green, committed and pushed, and LuxPM fully closed out (issues, checklists, activities, commit links, sync receipt). Every step reports evidence, not a tick.
 ---
 
-<!-- luxarch:wrap-up-skill asset v6 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit wrap-up-skill`. -->
+<!-- luxarch:wrap-up-skill asset v7 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit wrap-up-skill`. -->
 
 # Wrap up
 
 The runnable close-out for any piece of work in this repo. Emitted from luxarch (`luxarch --emit wrap-up-skill`) so every repo runs the same one; do not hand-edit it, re-emit to update. The standard behind each step is `luxarch --doc FLEET-AGENT-CONDUCT-STANDARD` (the honesty gate, "End of session"); this is the steps.
+
+**In an iOS repo** (luxios: native, no Docker), luxios installs this file unchanged (`bash $LUXIOS/scripts/install.sh`). Read it with these substitutions:
+
+- **The gate.** It is `make ios-check` wherever this says `make check` or `make test`.
+- **Seeing a test fail.** Run `swift test --filter <name>` for a package, or `xcodebuild test -only-testing:<target>/<class>/<method>` for an app.
+- **What the suite cannot see** (step 2). That is the live backend, a device, push notifications or background tasks, not the deployed stack. `/adversarial` also covers the Keychain, in-app purchase and the backend contract.
+- **The reds** (step 3). They are SwiftLint, swift-format, luxios's arch-check and Swift concurrency warnings. `make ios-format` fixes layout. The mypy playbook does not apply. A genuine waiver is a `swiftlint:disable` with its `// <why>` on the line directly above, never a bare one.
+- **References.** Every `luxarch --doc X` is `$LUXIOS/docs/fleet/X.md`.
+- **Pushing** (step 5). Push only where the owner has said pushing this repo is yours to do. Otherwise stop at the commit and say it is ready.
 
 **Every step ends with its evidence**: a count, a command's output line, a commit SHA, an issue key. "Done" without the evidence is not done. If a step cannot be completed, say which and why; never skip it silently.
 
