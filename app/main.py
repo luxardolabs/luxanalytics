@@ -34,6 +34,7 @@ from app.db.database import async_engine
 
 # Every model registered on Base.metadata before anything migrates or queries.
 from app.models import App, Device, Event  # noqa: F401
+from app.schemas.event_schema import INGEST_BODY_COMPONENTS
 from app.utils.exception_handlers import general_exception_handler
 from app.web.routers import router as web_router
 from app.web.templates import error_templates
@@ -127,6 +128,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.warning("Redis close failed during shutdown", extra={"error": str(e)})
 
 
+def _publish_ingest_schemas(app: FastAPI) -> None:
+    """Add the ingest body's models (EventCreate, BatchEventRequest) to the OpenAPI components.
+    The ingest routes declare their body by reference (INGEST_OPENAPI), not through a parameter,
+    so FastAPI does not collect them. app.openapi() caches the dict it returns and serves it."""
+    components = app.openapi().setdefault("components", {}).setdefault("schemas", {})
+    components.update(INGEST_BODY_COMPONENTS)
+
+
 def create_application() -> FastAPI:
     """Create and configure FastAPI application."""
 
@@ -183,6 +192,7 @@ def create_application() -> FastAPI:
     # Include routers — web (HTMX/HTML) and API (JSON) separated
     app.include_router(web_router)
     app.include_router(api_router)
+    _publish_ingest_schemas(app)
 
     return app
 

@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 from app.core.config import settings
 
@@ -196,3 +196,25 @@ class BatchEventRequest(BaseModel):
         if not v:
             raise ValueError("At least one event is required")
         return v
+
+
+# The ingest body in the OpenAPI document. The ingest routes read the raw body themselves (the
+# middleware inflates it and HMAC is over the wire bytes), so FastAPI cannot infer it: without this
+# the published spec showed no request body at all, and a client's contract check passed anything.
+# Generated from the models ingest validates with (events_from_payload), so it cannot drift.
+_INGEST_BODY_SCHEMA = TypeAdapter(
+    EventCreate
+    | BatchEventRequest
+    | Annotated[list[EventCreate], Field(min_length=1, max_length=MAX_BATCH_EVENTS)]
+).json_schema(by_alias=True, ref_template="#/components/schemas/{model}")
+INGEST_BODY_COMPONENTS: dict[str, Any] = _INGEST_BODY_SCHEMA.pop("$defs", {})
+INGEST_OPENAPI: dict[str, Any] = {
+    "requestBody": {
+        "required": True,
+        "description": (
+            'One event, {"events": [...]}, or a list of events (at most '
+            f"{MAX_BATCH_EVENTS}). May be sent with Content-Encoding: deflate (zlib, RFC 1950)."
+        ),
+        "content": {"application/json": {"schema": _INGEST_BODY_SCHEMA}},
+    }
+}

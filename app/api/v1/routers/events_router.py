@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dsn_auth import extract_app_from_dsn, verify_project_dsn
 from app.core.security import verify_hmac_signature
 from app.db.database import get_db
-from app.schemas.event_schema import AppStatsResponse, EventResponse
+from app.schemas.event_schema import INGEST_OPENAPI, AppStatsResponse, EventResponse
 from app.services.core.event_core_service import EventCoreService, InvalidEventPayload
 
 router = APIRouter()
@@ -48,7 +48,7 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
     )
 
 
-@router.post("/", response_model=EventResponse)
+@router.post("/", response_model=EventResponse, openapi_extra=INGEST_OPENAPI)
 async def create_events(
     request: Request,
     app_id: str = Depends(verify_hmac_signature),
@@ -61,7 +61,7 @@ async def create_events(
     return await _ingest(request, app_id, db)
 
 
-@router.post("/public", response_model=EventResponse)
+@router.post("/public", response_model=EventResponse, openapi_extra=INGEST_OPENAPI)
 async def create_events_public(
     request: Request,
     app_id: str = Depends(extract_app_from_dsn),
@@ -74,7 +74,9 @@ async def create_events_public(
     return await _ingest(request, app_id, db)
 
 
-@router.post("/{project_id}", response_model=EventResponse)
+@router.post(
+    "/{project_id}", response_model=EventResponse, openapi_extra=INGEST_OPENAPI
+)
 async def create_events_by_project_id(
     request: Request,
     app_id: str = Depends(verify_project_dsn),
