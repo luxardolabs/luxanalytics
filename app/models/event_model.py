@@ -25,6 +25,9 @@ class Event(Base, UUIDMixin):
         nullable=False,
     )
 
+    # The client's id for this event (the SDK's idempotency key), unique per app when present.
+    client_event_id: Mapped[str | None] = mapped_column(String(64))
+
     # Actor
     user_id: Mapped[str | None] = mapped_column(String, index=True)
     session_id: Mapped[str | None] = mapped_column(String, index=True)
@@ -51,6 +54,14 @@ class Event(Base, UUIDMixin):
         Index("ix_events_app_device_received", "app_id", "device_id", "received_at"),
         Index("ix_events_app_user_received", "app_id", "user_id", "received_at"),
         Index("ix_events_app_session_received", "app_id", "session_id", "received_at"),
+        # A resent event (same client id, same app) is dropped on insert (LUXANALYTI-68).
+        Index(
+            "ix_events_app_id_client_event_id",
+            "app_id",
+            "client_event_id",
+            unique=True,
+            postgresql_where=text("client_event_id IS NOT NULL"),
+        ),
         # GIN index on properties for JSONB key/value queries
         Index("ix_events_properties_gin", "properties", postgresql_using="gin"),
         # Analytics query indexes (partial — only relevant rows indexed)

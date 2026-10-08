@@ -115,6 +115,7 @@ curl -X GET "http://localhost:4000/api/v1/events/stats" \
 
 ```json
 {
+  "id": "5f0c3c1e-2c1b-4d8a-9a57-1d3c7f3e9b10",
   "name": "page_view",
   "timestamp": "2024-01-01T12:00:00",
   "user_id": "user123",
@@ -144,7 +145,7 @@ curl -X GET "http://localhost:4000/api/v1/events/stats" \
 }
 ```
 
-A payload may be one event object, `{"events": [...]}` or a bare list. A batch is at most 1000 events and is bulk-inserted. A malformed payload is a 400, an invalid event a 422.
+`id` is optional: a client-generated id (up to 64 characters), set once per event and resent unchanged on every retry. A resent event is acknowledged (2xx, counted in the response's `duplicates`) and not stored twice. A payload may be one event object, `{"events": [...]}` or a bare list. A batch is at most 1000 events and is bulk-inserted. A malformed payload is a 400, an invalid event a 422.
 
 ## Configuration
 

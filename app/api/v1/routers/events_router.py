@@ -27,7 +27,7 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
         raise HTTPException(status_code=400, detail="Invalid JSON") from e
 
     try:
-        created = await EventCoreService(db).ingest(app_id, payload)
+        result = await EventCoreService(db).ingest(app_id, payload)
     except InvalidEventPayload as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except ValidationError as e:
@@ -37,8 +37,9 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
 
     return EventResponse(
         status="success",
-        events_received=len(created),
-        message=f"Successfully processed {len(created)} analytics events",
+        events_received=result.received,
+        duplicates=result.received - result.stored,
+        message=f"Successfully processed {result.received} analytics events",
     )
 
 

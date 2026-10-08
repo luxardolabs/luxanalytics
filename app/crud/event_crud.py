@@ -12,12 +12,12 @@ from sqlalchemy import (
     cast,
     desc,
     func,
-    insert,
     literal_column,
     select,
     text,
     true,
 )
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
@@ -36,9 +36,24 @@ def _has_value(expr: ColumnElement[str]) -> ColumnElement[bool]:
 class EventWriteCRUD:
     """Write operations for events."""
 
-    async def bulk_insert(self, db: AsyncSession, rows: list[dict[str, Any]]) -> None:
-        stmt = insert(Event).values(rows)
-        await db.execute(stmt)
+    async def bulk_insert(
+        self, db: AsyncSession, rows: list[dict[str, Any]]
+    ) -> set[str]:
+        """Insert the rows; one whose (app_id, client_event_id) is already stored is skipped.
+        Returns the ids of the rows actually inserted."""
+        if not rows:
+            return set()
+        stmt = (
+            pg_insert(Event)
+            .values(rows)
+            .on_conflict_do_nothing(
+                index_elements=["app_id", "client_event_id"],
+                index_where=Event.client_event_id.isnot(None),
+            )
+            .returning(Event.id)
+        )
+        result = await db.execute(stmt)
+        return {str(row_id) for row_id in result.scalars().all()}
 
 
 class EventCRUD:

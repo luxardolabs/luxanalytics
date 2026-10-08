@@ -8,6 +8,18 @@ from app.core.config import settings
 
 
 class EventBase(BaseModel):
+    # The SDK sets one id per event at track time and resends it unchanged on every retry: the
+    # idempotency key. A duplicate is acknowledged and dropped (LUXANALYTI-68). Optional, so a
+    # client that does not send one is still accepted. The wire key is `id`; the name says whose id
+    # it is (not one of our UUID keys).
+    client_event_id: str | None = Field(
+        None,
+        alias="id",
+        min_length=1,
+        max_length=64,
+        description="Client-generated event id; resending it is acknowledged, not stored twice",
+        examples=["5f0c3c1e-2c1b-4d8a-9a57-1d3c7f3e9b10"],
+    )
     name: str = Field(
         ...,
         min_length=1,
@@ -101,9 +113,20 @@ class EventInDB(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class IngestResult(BaseModel):
+    """What one ingest request did: events accepted, and how many of them were newly stored
+    (the rest were duplicates of an id this app had already sent)."""
+
+    received: int
+    stored: int
+
+
 class EventResponse(BaseModel):
     status: Literal["success"] = Field(examples=["success"])
     events_received: int = Field(examples=[1])
+    # Events whose id this app had already sent (or that repeated within the request): accepted,
+    # not stored again.
+    duplicates: int = Field(0, examples=[0])
     message: str | None = Field(examples=["Successfully processed 1 analytics events"])
 
 
