@@ -3,7 +3,7 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import Field, TypeAdapter
+from pydantic import Field, TypeAdapter, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _STR_DICT = TypeAdapter(dict[str, str])
@@ -21,6 +21,10 @@ def _running_version() -> str:
     except PackageNotFoundError:
         version_file = Path(__file__).resolve().parents[2] / "VERSION"
         return version_file.read_text(encoding="utf-8").strip()
+
+
+PRODUCTION_ENVIRONMENTS = {"production", "prod"}
+WEAK_PASSWORDS = {"admin", "changeme", "password", "secret"}
 
 
 class Settings(BaseSettings):
@@ -127,6 +131,24 @@ class Settings(BaseSettings):
         if external_host:
             hosts.insert(0, external_host)
         return hosts
+
+    @model_validator(mode="after")
+    def production_is_safe(self) -> Settings:
+        """Production refuses to start on a setting that is only safe in development
+        (LUXANALYTI-22): a guessable dashboard password, DEBUG (it serves /docs and /openapi.json),
+        or no EXTERNAL_URL (DSNs and the allowed host derive from it)."""
+        if self.ENVIRONMENT not in PRODUCTION_ENVIRONMENTS:
+            return self
+        password = self.DASHBOARD_PASSWORD
+        if password.lower() in WEAK_PASSWORDS or password == self.DASHBOARD_USERNAME:
+            raise ValueError(
+                "DASHBOARD_PASSWORD is a default or guessable value in production"
+            )
+        if self.DEBUG:
+            raise ValueError("DEBUG must be false in production")
+        if not self.EXTERNAL_URL:
+            raise ValueError("EXTERNAL_URL must be set in production")
+        return self
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
