@@ -91,12 +91,11 @@ curl -X POST "http://localhost:4000/api/v1/events/${PROJECT_ID}" \
 
 #### Compression Support
 
-The API automatically handles compressed payloads:
-
-- Requests with `Content-Encoding: deflate` header are automatically decompressed
-- Supports zlib/deflate compression
-- HMAC signature must be calculated on the compressed payload
-- Typically used by clients for payloads ≥ 1KB
+- `Content-Encoding: deflate` means the zlib format (RFC 1950) wrapping a DEFLATE stream, as RFC 9110 §8.4.1.2 defines it. The Swift SDK 1.1.0 and later sends exactly that.
+- Raw DEFLATE (RFC 1951, no zlib wrapper) is still accepted, for apps on SDK 1.0.2 and earlier. New clients must not send it.
+- Clients compress only above their threshold (the SDK's default is 1 KB).
+- Where HMAC is used, the signature is over the compressed bytes.
+- A body that is neither format gets `400 Invalid compressed data`.
 
 #### Stats Endpoint
 

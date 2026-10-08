@@ -21,6 +21,18 @@ from app.core.security import get_app_id_from_headers
 logger = logging.getLogger(__name__)
 
 
+def _inflate(body: bytes) -> tuple[bytes, bool] | None:
+    """(decoded body, whether it was the legacy raw format), or None when it is neither."""
+    try:
+        return zlib.decompress(body), False
+    except zlib.error:
+        pass
+    try:
+        return zlib.decompress(body, -15), True
+    except zlib.error:
+        return None
+
+
 class LoggingMiddleware(BaseHTTPMiddleware):
     """Log all requests and capture raw body for HMAC verification."""
 
@@ -48,7 +60,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Capture raw body for HMAC verification (API routes only)
         # Check if RequestSizeLimitMiddleware already read the body
         body = getattr(request.state, "body", None)
-        decompressed_body = None
         content_encoding = request.headers.get("content-encoding", "").lower()
 
         if request.method in ["POST", "PUT", "PATCH"] and body is None:
@@ -56,63 +67,31 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Store raw body in request state for HMAC verification
             request.state.raw_body = body
 
-            # Check if body is compressed
+            # `Content-Encoding: deflate` is zlib (RFC 1950) per RFC 9110 §8.4.1.2, and that is what
+            # the Swift SDK >= 1.1.0 sends. Raw DEFLATE (RFC 1951) is legacy-client support: SDK
+            # <= 1.0.2 sent NSData.compressed(using: .zlib), which is raw despite its name, and
+            # installed apps keep sending it until their users update (LUXANALYTI-69).
             if content_encoding == "deflate":
-                try:
-                    # NSData.compressed(using: .zlib) produces standard zlib format
-                    # which should have header bytes 0x78 0x9C (default) or 0x78 0xDA (max compression)
-                    decompressed_body = zlib.decompress(body)
-
-                    logger.info(
-                        "Request decompressed",
-                        extra={
-                            "original_size": len(body),
-                            "decompressed_size": len(decompressed_body),
-                            "compression_ratio": round(
-                                len(body) / len(decompressed_body), 2
-                            ),
-                        },
+                decoded = _inflate(body)
+                if decoded is None:
+                    # A client error, answered as one: an HTTPException raised from a
+                    # middleware reaches no exception handler and becomes a 500.
+                    logger.warning(
+                        "Undecodable deflate body", extra={"body_size": len(body)}
                     )
-                    # Use decompressed body for downstream processing
-                    body_for_processing = decompressed_body
-                except zlib.error as e:
-                    # Log detailed error information for debugging
-                    logger.debug(
-                        "Standard zlib decompression failed, trying raw deflate",
-                        extra={
-                            "error": str(e),
-                            "content_encoding": content_encoding,
-                            "body_length": len(body),
-                            "body_start": body[:20].hex()
-                            if len(body) >= 20
-                            else body.hex(),
-                            "expected_headers": "78 9C or 78 DA for zlib",
-                        },
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": "Invalid compressed data"},
                     )
-                    # Try raw deflate as fallback
-                    try:
-                        decompressed_body = zlib.decompress(body, -15)
-                        logger.info(
-                            "Request decompressed (raw deflate)",
-                            extra={
-                                "original_size": len(body),
-                                "decompressed_size": len(decompressed_body),
-                                "compression_ratio": round(
-                                    len(body) / len(decompressed_body), 2
-                                ),
-                            },
-                        )
-                        body_for_processing = decompressed_body
-                    except zlib.error:
-                        # A client error, answered as one: an HTTPException raised from a
-                        # middleware reaches no exception handler and becomes a 500.
-                        logger.warning(
-                            "Raw deflate decompression also failed", exc_info=True
-                        )
-                        return JSONResponse(
-                            status_code=400,
-                            content={"error": "Invalid compressed data"},
-                        )
+                body_for_processing, legacy = decoded
+                logger.debug(
+                    "Request decompressed",
+                    extra={
+                        "format": "raw deflate (legacy SDK)" if legacy else "zlib",
+                        "original_size": len(body),
+                        "decompressed_size": len(body_for_processing),
+                    },
+                )
             else:
                 # Use original body if not compressed
                 body_for_processing = body
