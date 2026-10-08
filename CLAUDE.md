@@ -233,7 +233,7 @@ make prod-release
 ## Authentication
 
 - **Dashboard**: Session-based (cookie), configured via `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`
-- **API ingest**: HMAC-SHA256 (primary), DSN/Basic auth (Sentry-style), API key (fallback)
+- **API ingest**: HMAC-SHA256 (primary) and DSN/Basic auth (Sentry-style); there is no API-key mode
 - API auth is unaffected by dashboard auth
 
 ## Key Technical Notes
@@ -261,5 +261,5 @@ See `deploy/prod/.env.prod` for production values. Key ones:
 
 - `DATABASE_URL` — `postgresql+asyncpg://` (the fleet driver; the emitted test harness and `make db-verify` assume it)
 - `DASHBOARD_PASSWORD` — change from default
-- `HMAC_KEYS` / `API_KEYS` — JSON strings
+- `HMAC_KEYS` — JSON string `{"app_id": "secret"}`
 - `EXTERNAL_URL` — `https://analytics.luxardolabs.com`

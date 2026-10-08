@@ -1,134 +1,52 @@
-# Analytics Event Collector API
+# LuxAnalytics
 
-A production-ready FastAPI application for collecting and analyzing analytics events from iOS apps and other clients.
+The analytics event collector for Luxardo Labs' iOS apps: a FastAPI API that ingests events from the Swift SDK, and a Tailwind + HTMX dashboard to explore them. PostgreSQL stores the events, Redis holds the rate-limit windows.
 
 ## Features
 
-### Core Functionality
+- **Ingest:** single or batched events (bulk insert, up to 1000 per request), zlib/deflate request compression, two authentication modes: HMAC-SHA256 signatures with replay protection, and Sentry-style DSNs.
+- **Event model:** device context is promoted to columns (`device_model`, `os_version`, `app_version`, `platform`, `device_id`); everything else is `properties` JSONB. A `devices` table is upserted on ingest.
+- **Dashboard:** overview, events, devices, errors, performance, features, journeys (Sankey and transition heatmap), feedback, a properties explorer with per-key deep dives, user profiles, sessions, and app management with DSNs. Session login; slider panels for detail views.
+- **Operations:** per-app and per-IP rate limits (Redis, with an in-memory fallback), JSON logs on stdout, OpenTelemetry traces (a span per service method), a Prometheus scrape, and a health check that names the running build.
 
-- 🚀 **FastAPI** with async/await support
-- 🗄️ **PostgreSQL** with SQLAlchemy, connection pooling, and optimized indexes
-- 🔐 **Triple Authentication**:
-  - HMAC-SHA256 signatures with timestamp validation (primary)
-  - DSN-style endpoints (Sentry-compatible format)
-  - API keys (fallback)
-- 📊 **Event Validation** with Pydantic v2 schemas
-- 🗜️ **Compression Support**: Automatic zlib/deflate decompression
-- 📦 **Batch Processing**: Bulk insert optimization for high throughput
-- 🌐 **Analytics Dashboard**: Full web UI with 10+ visualization views
+## Quick start (development)
 
-### Production Features
-
-- 🛡️ **Rate Limiting**: Redis-based distributed limiting with in-memory fallback
-- 📝 **Structured Logging**: JSON logs with correlation IDs via structlog
-- 📈 **Observability**: Prometheus metrics + OpenTelemetry tracing
-- 🔄 **Connection Pooling**: Database pool monitoring with circuit breakers
-- 🚦 **Request Size Limiting**: Configurable payload size limits (default 10MB)
-- ⚡ **Performance**: Database indexes, bulk inserts, connection pooling
-- 🐳 **Docker**: Multi-stage builds with health checks and non-root user
-- 🧪 **Testing**: Async test suite with pytest
-
-### Security
-
-- **HMAC Authentication**: SHA256 signatures with timestamp validation (configurable tolerance)
-- **DSN Authentication**: Sentry-style endpoints with Basic auth
-- **Web Dashboard Auth**: Session-based username/password authentication
-- **Replay Protection**: Timestamp-based request validation
-- **Request Validation**: Size limits, compression bomb protection
-- **Error Handling**: Graceful failures with circuit breakers
-
-## Quick Start
-
-### 1. Setup Environment
+Everything runs in containers through `make`; `make help` lists the targets.
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd ll_analytics
-
-# Generate API keys and HMAC secrets for your apps
-python scripts/generate_keys.py app1 app2 app3
-python scripts/generate_hmac_secrets.py app1 app2 app3
-
-# Create .env file with generated keys
-cp .env.example .env
-# Update .env with the generated API_KEYS and HMAC_KEYS
+cp .env.example .env.dev            # then set DASHBOARD_PASSWORD, HMAC_KEYS, ...
+cp Makefile.local.example Makefile.local   # registry host, prod node (gitignored)
+make network                        # the shared docker network, once per host
+make dev-deploy                     # build + push this commit, pin it in .env.dev, start, smoke
+make migrate                        # alembic upgrade head
 ```
 
-### 2. Run with Docker Compose
+The app listens on `http://localhost:4000`; the dashboard is `/dashboard/overview`.
+
+## Development
 
 ```bash
-# Development environment (with hot reload)
-docker compose -f compose.dev.yaml up
-
-# Production environment
-docker compose -f compose.prod.yaml up -d
-
-# Rebuild after dependency changes
-docker compose -f compose.dev.yaml up --build
-
-# View logs
-docker compose logs -f ll-analytics
+make test        # the full suite against a throwaway Postgres and Redis
+make check       # THE gate: guard pins, lint, mypy, tests, luxarch, luxaudit, gitleaks
+make db-verify   # migrate an empty database to head and diff it against the models
+make migrate-create   # a new Alembic revision
+make css-watch   # live Tailwind rebuilds while editing templates
+make format      # the fleet formatter
 ```
 
-### 3. Run Locally (Development)
-
-```bash
-# Install dependencies
-cd src
-pip install -r ../requirements.txt
-
-# Run database migrations
-./scripts/run_migrations.sh
-
-# Run the application
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Run tests
-pytest
-```
-
-## Analytics Dashboard
-
-The application includes a comprehensive web dashboard accessible at `http://localhost:8000/dashboard`
-
-### Dashboard Authentication
-
-- Default credentials: `admin` / `admin` (change in production!)
-- Configure via environment variables:
-  - `DASHBOARD_USERNAME`
-  - `DASHBOARD_PASSWORD`
-  - `DASHBOARD_SESSION_SECRET`
-  - `DASHBOARD_SESSION_TIMEOUT`
-
-### Dashboard Features
-
-- **Apps Management**: Full CRUD operations for multi-tenant app configuration
-- **Apps Overview**: View all apps with event counts and last activity
-- **Events Timeline**: Interactive time-series visualization
-- **Event Details**: Deep dive into individual events with metadata
-- **Search & Filtering**: Find events by name, user, session, or metadata
-- **Analytics Views**:
-  - Device Analytics: Device models, OS versions, app versions
-  - Feature Usage: Track feature adoption and usage patterns
-  - Error Analytics: Monitor errors and exceptions
-  - Performance Metrics: API latencies and response times
-  - User Journey: Track user paths through the application
-  - JSON Analyzer: Explore metadata fields with frequency analysis
-  - **Feedback Analytics**: Dedicated view for user feedback with:
-    - Summary statistics and categorization
-    - Contact information for follow-up
-    - Device and user context
-    - Custom detail view for feedback events
+Architecture, conventions and the full command list are in `CLAUDE.md`.
 
 ## API Endpoints
 
 ### Core Endpoints
 
-- `GET /` - Redirects to dashboard
-- `GET /dashboard` - Main analytics dashboard
-- `GET /health` - Health check with component status
-- `GET /metrics` - Prometheus metrics endpoint
+- `GET /` - Redirects to the dashboard
+- `GET /dashboard/overview` - Analytics dashboard (session login)
+- `GET /api/v1/stats/overview` - Cross-app stats as JSON (dashboard session required)
+- `GET /health` - Health check: database, Redis, pool counters, version and build commit
+- `GET /metrics` - Prometheus scrape (process, GC and `db_pool_*` series)
+
+`/health` and `/metrics` are internal: the production nginx answers 404 for both, so scrape and probe them from inside the network.
 
 ### Event Collection API
 
@@ -144,7 +62,7 @@ PAYLOAD='{"name": "screen_view", "timestamp": "2024-01-01T12:00:00", "user_id": 
 # Calculate HMAC signature
 SIGNATURE=$(echo -n "${PAYLOAD}${TIMESTAMP}" | openssl dgst -sha256 -hmac "${HMAC_SECRET}" | cut -d' ' -f2)
 
-curl -X POST "http://localhost:8000/api/v1/events/" \
+curl -X POST "http://localhost:4000/api/v1/events/" \
   -H "Content-Type: application/json" \
   -H "X-HMAC-Signature: ${SIGNATURE}" \
   -H "X-Key-ID: ${KEY_ID}" \
@@ -153,6 +71,8 @@ curl -X POST "http://localhost:8000/api/v1/events/" \
 ```
 
 #### DSN-Style Endpoint (Sentry-compatible)
+
+Each app registered in the dashboard (Apps) gets a DSN. `POST /api/v1/events/public` is the legacy DSN form, kept for older SDK builds.
 
 ```bash
 # Using DSN format: https://PUBLIC_ID@host/api/v1/events/PROJECT_ID
@@ -163,7 +83,7 @@ PUBLIC_ID="abc123"
 PROJECT_ID="proj123"
 
 # Send event with Basic Auth
-curl -X POST "http://localhost:8000/api/v1/events/${PROJECT_ID}" \
+curl -X POST "http://localhost:4000/api/v1/events/${PROJECT_ID}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Basic $(echo -n ${PUBLIC_ID}: | base64)" \
   -d '{"name": "test_event", "timestamp": "2024-01-01T12:00:00"}'
@@ -174,7 +94,7 @@ curl -X POST "http://localhost:8000/api/v1/events/${PROJECT_ID}" \
 The API automatically handles compressed payloads:
 
 - Requests with `Content-Encoding: deflate` header are automatically decompressed
-- Supports zlib/deflate compression (raw deflate format)
+- Supports zlib/deflate compression
 - HMAC signature must be calculated on the compressed payload
 - Typically used by clients for payloads ≥ 1KB
 
@@ -182,7 +102,7 @@ The API automatically handles compressed payloads:
 
 ```bash
 # Stats endpoint also requires HMAC authentication
-curl -X GET "http://localhost:8000/api/v1/events/stats" \
+curl -X GET "http://localhost:4000/api/v1/events/stats" \
   -H "X-HMAC-Signature: ${SIGNATURE}" \
   -H "X-Key-ID: ${KEY_ID}" \
   -H "X-Timestamp: ${TIMESTAMP}"
@@ -223,326 +143,44 @@ curl -X GET "http://localhost:8000/api/v1/events/stats" \
 }
 ```
 
-**Note**: Batch requests now use bulk insert for optimal performance. Maximum batch size is 1000 events per request.
+A payload may be one event object, `{"events": [...]}` or a bare list. A batch is at most 1000 events and is bulk-inserted. A malformed payload is a 400, an invalid event a 422.
 
 ## Configuration
 
-All configuration is managed through environment variables:
+Environment variables, one file per environment (`.env.dev`, `deploy/prod/.env.prod`; the template is `.env.example`). The main ones:
+
+| Variable                                                                                            | Purpose                                                                                      |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                                                      | `postgresql+asyncpg://…`; keep `DB_POOL_PRE_PING=true` (it catches stale pooled connections) |
+| `DB_POOL_SIZE`, `DB_POOL_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`                        | Connection pool                                                                              |
+| `REDIS_URL`                                                                                         | Rate-limit state shared across workers (in-memory fallback when unset or down)               |
+| `HMAC_KEYS`                                                                                         | JSON `{"app_id": "secret"}` for signed ingest                                                |
+| `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW`, `LOGIN_RATE_LIMIT`                                      | Request limits                                                                               |
+| `TRUSTED_PROXIES`                                                                                   | Proxies whose `X-Forwarded-For` is believed                                                  |
+| `ALLOWED_HOSTS`, `CORS_ORIGINS`, `EXTERNAL_URL`                                                     | Host and origin allowlists; the public base URL used in DSNs                                 |
+| `EVENT_TIMESTAMP_FUTURE_TOLERANCE`                                                                  | Seconds an event may be in the future (default 60)                                           |
+| `MAX_REQUEST_SIZE`                                                                                  | Request body limit (default 10 MB)                                                           |
+| `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, `DASHBOARD_SESSION_SECRET`, `DASHBOARD_SESSION_TIMEOUT` | Dashboard login; the password is required                                                    |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                       | Turns tracing on; setup fails loudly if it is set and broken                                 |
+| `LOG_LEVEL`                                                                                         | Log level (JSON lines; caller fields under `attributes`)                                     |
+
+## Production
+
+Production runs the released image (`make release` cuts `:VERSION`) from the one `compose.yml` with `deploy/prod/.env.prod`, behind nginx (`deploy/prod/analytics.luxardolabs.com.conf`).
 
 ```bash
-# Database (asyncpg; keep DB_POOL_PRE_PING=true — it detects stale pooled connections)
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/analytics
-DATABASE_URL_SYNC=postgresql://user:password@localhost:5432/analytics
-
-# Database Connection Pool Settings (Production Optimized)
-DB_POOL_SIZE=100                   # Increased for high concurrency
-DB_POOL_MAX_OVERFLOW=0             # Disabled to prevent connection storms
-DB_POOL_TIMEOUT=3                  # Fail fast strategy
-DB_POOL_RECYCLE=600               # 10 minutes for stable connections
-DB_POOL_PRE_PING=true             # Test connections before use
-DB_POOL_RESET_ON_RETURN=rollback  # Reset connection state
-
-# Redis Configuration (for distributed rate limiting)
-REDIS_URL=redis://localhost:6379/0  # Optional, falls back to in-memory
-
-# Security
-SECRET_KEY=your-secret-key
-HMAC_KEYS={"app1": "hmac-secret-1", "app2": "hmac-secret-2"}
-
-# Rate Limiting
-RATE_LIMIT_REQUESTS=1000           # Increased for production
-RATE_LIMIT_WINDOW=60               # Per minute
-
-# Request Limits
-MAX_REQUEST_SIZE=10485760          # 10MB maximum request size
-
-# Event Timestamp Validation
-EVENT_TIMESTAMP_FUTURE_TOLERANCE=300  # Max seconds events can be in future (default: 300)
-
-# Web Dashboard Authentication
-DASHBOARD_USERNAME=admin           # Dashboard login username (default: admin)
-DASHBOARD_PASSWORD=changeme        # Dashboard login password (CHANGE THIS!)
-DASHBOARD_SESSION_SECRET=          # Session encryption key (auto-generated if empty)
-DASHBOARD_SESSION_TIMEOUT=3600     # Session timeout in seconds (default: 1 hour)
-
-# Performance Settings (Flags exist but not all implemented)
-ENABLE_ASYNC_PROCESSING=false      # Flag exists, no queue implementation yet
-UVLOOP_ENABLED=true               # Flag exists, uvloop installed but not used
-USE_ORJSON=true                   # Flag exists, orjson installed but not used
-
-# Logging
-LOG_LEVEL=INFO                    # INFO for production
-LOG_FORMAT=json
+make release && make prod-deploy   # or: make prod-release
+make prod-migrate                  # migrations on the prod database
+make prod-status / prod-logs / prod-version
 ```
-
-## Database Schema
-
-The `events` table includes:
-
-- `id`: UUID primary key
-- `app_id`: Application identifier
-- `name`: Event name (required)
-- `timestamp`: Event timestamp (required)
-- `user_id`: User identifier (optional)
-- `session_id`: Session identifier (optional)
-- `metadata`: JSON metadata (optional)
-- `received_at`: Server timestamp
-
-## Development
-
-### Running Tests
-
-```bash
-pytest tests/ -v
-```
-
-### Creating New Migrations
-
-```bash
-alembic revision --autogenerate -m "Description of changes"
-alembic upgrade head
-```
-
-### Generating New Keys
-
-```bash
-python scripts/generate_keys.py myapp1 myapp2
-```
-
-## Authentication
-
-The API uses HMAC-SHA256 authentication for all endpoints:
-
-1. **Required Headers**:
-
-   - `X-HMAC-Signature`: HMAC-SHA256 signature in hex format
-   - `X-Key-ID`: Your application ID
-   - `X-Timestamp`: Unix timestamp (must be within 5 minutes)
-
-1. **Signature Calculation**:
-
-   - For uncompressed requests: `HMAC-SHA256(payload + timestamp, secret)`
-   - For compressed requests: `HMAC-SHA256(compressed_payload + timestamp, secret)`
-
-1. **Compression**:
-
-   - Automatic decompression for requests with `Content-Encoding: deflate`
-   - Supports raw deflate format (as used by iOS NSData.compressed)
-   - HMAC is always calculated on the compressed payload when compression is used
-
-## Production Deployment
-
-### 1. **High-Performance Configuration**
-
-For handling millions of requests, use the optimized production settings:
-
-```bash
-# Copy optimized production config
-cp .env.prod.optimized .env.prod
-
-# Key settings for high load:
-DB_POOL_SIZE=100              # Support 100 concurrent connections
-DB_POOL_MAX_OVERFLOW=0        # No overflow to prevent connection storms
-DB_POOL_TIMEOUT=3             # Fail fast under load
-REDIS_URL=redis://redis:6379  # Enable distributed rate limiting
-MAX_REQUEST_SIZE=10485760     # 10MB request limit
-UVLOOP_ENABLED=true           # Better async performance
-```
-
-### 2. **PostgreSQL Optimization**
-
-Apply the PostgreSQL configuration for high load:
-
-```bash
-# Copy to PostgreSQL config directory
-cp postgres-optimization.conf /etc/postgresql/conf.d/
-
-# Key settings:
-max_connections = 500
-shared_buffers = 4GB          # 25% of RAM
-effective_cache_size = 12GB   # 75% of RAM
-```
-
-### 3. **Build and Deploy**
-
-```bash
-# Build with version tag (extracts version from directory structure)
-./build.sh                    # Builds with version tag only (e.g., 2025.7.13)
-./build.sh latest            # Also tags as 'latest'
-./build.sh --private-registry # Push to private registry
-./build.sh --no-cache        # Build without cache
-
-# The build script:
-# - Extracts version from the build directory path: <builds>/YYYY/MM/DD → YYYY.MM.DD
-# - Captures build timestamp in ISO 8601 format
-# - Passes both as Docker build arguments
-# - Version and timestamp are displayed in the app (login page, dashboard, /health endpoint)
-
-# Deploy with Docker Compose
-docker-compose -f compose.prod.yaml up -d
-```
-
-### 4. **Run Migrations and Indexes**
-
-```bash
-# Run migrations
-docker-compose exec app ./scripts/run_migrations.sh
-
-# Apply performance indexes
-docker-compose exec app alembic upgrade head
-```
-
-### 5. **Health Monitoring**
-
-The enhanced `/health` endpoint now includes:
-
-- Database connectivity status
-- Redis connectivity status
-- Connection pool metrics
-
-```bash
-curl http://localhost:8000/health
-```
-
-### 6. **Metrics and Monitoring**
-
-Access Prometheus metrics at `/metrics` endpoint for:
-
-- Connection pool utilization
-- Rate limit statistics
-- Request processing times
-- Event insertion performance
-
-## Monitoring
-
-The application includes:
-
-- **Structured Logging**: Request/response details with correlation IDs
-- **Request Timing**: Middleware tracks processing time
-- **Health Check**: Enhanced endpoint with component status
-- **Rate Limiting**: Redis-based with headers and metrics
-- **Connection Pool**: Real-time metrics and circuit breaker
-- **Prometheus Metrics**: Export endpoint at `/metrics`
-- **Request Size Tracking**: Monitors and limits payload sizes
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **"Invalid compressed data" errors**:
-
-   - Ensure client is sending with `Content-Encoding: deflate` header
-   - Verify compression format (raw deflate vs zlib with headers)
-   - Check HMAC is calculated on compressed payload
-
-1. **Database connection issues**:
-
-   - **"password authentication failed" errors** (usually stale connections):
-     - This is NOT actually a password issue - it's stale connections in the pool
-     - Set `DB_POOL_RECYCLE=120` (or less than your network/DB timeout)
-     - Ensure `DB_POOL_PRE_PING=true` is enabled
-     - Apply PostgreSQL config with proper TCP keepalive settings
-     - Check cloud provider network timeouts (AWS: 350s, GCP: 600s)
-   - Adjust pool settings based on load:
-     - `DB_POOL_SIZE` - concurrent connections needed
-     - `DB_POOL_MAX_OVERFLOW` - burst capacity
-     - `DB_POOL_TIMEOUT` - how long to wait for connection
-
-1. **HMAC authentication failures**:
-
-   - Verify timestamp is within 5-minute window
-   - Ensure signature is calculated correctly (payload + timestamp)
-   - Check `HMAC_KEYS` configuration matches client
-
-1. **Rate limiting issues**:
-
-   - Check Redis connectivity for distributed rate limiting
-   - Monitor rate limit headers: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
-   - Adjust `RATE_LIMIT_REQUESTS` and `RATE_LIMIT_WINDOW`
-   - Different limits can be set per app_id in code
-
-1. **High load performance**:
-
-   - Ensure `DB_POOL_SIZE` matches expected concurrent connections
-   - Set `DB_POOL_MAX_OVERFLOW=0` to prevent connection storms
-   - Enable `UVLOOP_ENABLED=true` for better async performance
-   - Monitor `/metrics` endpoint for pool utilization
-
-1. **Request too large errors**:
-
-   - Adjust `MAX_REQUEST_SIZE` for larger payloads
-   - Default is 10MB, suitable for most batch operations
-   - Consider splitting very large batches into multiple requests
-
-## Implementation Status
-
-### ✅ Fully Implemented
-
-- **Event Collection**: Single and batch submission with bulk insert optimization
-- **Security**: HMAC authentication with timestamp validation, API key fallback
-- **Compression**: Request decompression (zlib/deflate)
-- **Rate Limiting**: Redis-based with in-memory fallback
-- **Database**: Async PostgreSQL with connection pooling and indexes
-- **Monitoring**: Prometheus metrics, OpenTelemetry, structured logging
-- **Dashboard**: Full analytics web UI with 10+ visualization views
-- **Error Handling**: Circuit breakers, graceful degradation
-- **Docker**: Multi-stage builds, health checks, production-ready
-
-### ⚠️ Not Yet Implemented
-
-- **CI/CD Pipeline**: No automated testing or deployment
-- **Async Processing**: Configuration flag exists but no queue implementation
-- **Response Compression**: Only request decompression works
-- **Data Retention**: No automatic cleanup or archival
-- **Application Caching**: Redis only used for rate limiting
-- **Performance Flags**: UVLOOP_ENABLED and USE_ORJSON not actually used
-
-### Recent Fixes (2025-07-05 & 2025-07-06)
-
-- **Critical**: Fixed stale PostgreSQL connections causing fake "password authentication failed" errors
-  - Switched from asyncpg to psycopg3 driver for better connection handling
-  - Simplified database session management to match proven patterns
-  - Added explicit commit/rollback logic to session management
-- **Model Loading**: Fixed critical bug where App model wasn't loaded before migrations
-  - Models must be imported at module level to ensure registration with SQLAlchemy Base
-  - This was causing `project_id` column to be missing from apps table
-- **Authentication**: Implemented web dashboard session-based authentication
-  - API endpoints remain unchanged (HMAC/DSN auth)
-  - Configure via DASHBOARD_USERNAME, DASHBOARD_PASSWORD environment variables
-- **Timestamp Validation**: Made event timestamp tolerance configurable
-  - Configure via EVENT_TIMESTAMP_FUTURE_TOLERANCE (default: 300 seconds)
-  - Prevents legitimate events from being rejected due to clock skew
-- **Middleware**: Fixed ClientDisconnect exceptions during request streaming
-  - Added proper exception handling for client disconnections
-  - Returns 499 status code when clients disconnect mid-request
-- **Dependencies**: Fixed missing packages (OpenTelemetry exporter, itsdangerous)
-- **Deprecations**: Updated Pydantic v2 validators (@validator → @field_validator)
-- **Dashboard**: Fixed template errors when performance data is empty
-
-## Production Deployment Notes
-
-### Environment Variable Requirements
-
-The following environment variables have been added or modified for production:
-
-- `EVENT_TIMESTAMP_FUTURE_TOLERANCE`: Set to 300 (5 minutes) to handle client/server clock skew
-- `DASHBOARD_USERNAME`: Web dashboard login username (default: admin)
-- `DASHBOARD_PASSWORD`: Web dashboard login password (MUST be changed from default)
-- `DASHBOARD_SESSION_SECRET`: Session encryption key (generate with `./scripts/generate_session_secret.sh`)
-- `DASHBOARD_SESSION_TIMEOUT`: Session timeout in seconds (default: 3600)
-
-### Security Updates
-
-- Web dashboard now requires authentication (separate from API authentication)
-- Session secrets should be generated using the provided script for production
-- All compose files have been updated with new authentication variables
-
-### Database Driver Change
-
-- **Driver**: Database URLs use `postgresql+asyncpg://` (the fleet driver)
-- This change resolves stale connection issues that manifest as authentication errors
-- Both `DATABASE_URL` and `DATABASE_URL_SYNC` must be updated
+- **"Invalid compressed data":** send `Content-Encoding: deflate` and sign the compressed body.
+- **HMAC failures:** the timestamp must be within the tolerance window; the signature is over `payload + timestamp`; the key id must be in `HMAC_KEYS`.
+- **"password authentication failed" from the pool:** usually a stale pooled connection, not a password. Keep `DB_POOL_PRE_PING=true` and set `DB_POOL_RECYCLE` below the network idle timeout.
+- **400 on every request after a deploy:** the proxy must forward `Host $host`; the app only answers hosts in `ALLOWED_HOSTS` (default: `EXTERNAL_URL`'s host and localhost).
 
 ## License
 
-MIT License
+The server is licensed under the GNU Affero General Public License v3.0 (`LICENSE`).
