@@ -77,8 +77,50 @@ def test_a_short_or_padded_default_password_is_refused(password: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "url", ["", " ", "analytics.example.com", "ftp://a.b", "https://"]
+    "url",
+    [
+        "",
+        " ",
+        "analytics.example.com",
+        "ftp://a.b",
+        "https://",
+        "http://analytics.example.com",
+        "https://a example.com",
+        "https://u:p@analytics.example.com",
+    ],
 )
-def test_external_url_must_be_an_http_url_with_a_host(url: str) -> None:
+def test_external_url_must_be_an_https_url_with_a_plain_host(url: str) -> None:
     with pytest.raises(ValidationError, match="EXTERNAL_URL"):
         _settings(EXTERNAL_URL=url)
+
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        "password1234",
+        "changeme1234",
+        "admin1234567",
+        "Admin!!!!!!!",
+        "admin\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
+    ],
+)
+def test_a_padded_default_password_is_refused(password: str) -> None:
+    """The 12-character floor alone let a default plus digits, punctuation or zero-width
+    characters through (adversarial pass 4)."""
+    with pytest.raises(ValidationError, match="guessable"):
+        _settings(DASHBOARD_PASSWORD=password)
+
+
+def test_the_username_in_another_case_is_refused() -> None:
+    with pytest.raises(ValidationError, match="guessable"):
+        _settings(
+            DASHBOARD_USERNAME="Operations-Team", DASHBOARD_PASSWORD="operations-team"
+        )
+
+
+def test_the_external_url_the_app_uses_is_the_one_checked() -> None:
+    settings = _settings(
+        EXTERNAL_URL="https://analytics.example.com ", ALLOWED_HOSTS=None
+    )
+    assert settings.EXTERNAL_URL == "https://analytics.example.com"
+    assert settings.allowed_hosts_list[0] == "analytics.example.com"

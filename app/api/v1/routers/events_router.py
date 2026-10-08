@@ -23,7 +23,8 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
         body = await request.body()
     try:
         payload = json.loads(body)
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        # A body that is not UTF-8 is as malformed as bad JSON (it was a 500).
         raise HTTPException(status_code=400, detail="Invalid JSON") from e
 
     try:

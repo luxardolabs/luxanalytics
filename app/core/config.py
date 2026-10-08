@@ -1,13 +1,26 @@
+import string
+import unicodedata
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import Field, TypeAdapter, model_validator
+from pydantic import Field, TypeAdapter, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _STR_DICT = TypeAdapter(dict[str, str])
 _STR_LIST = TypeAdapter(list[str])
+
+
+def _guessable(password: str, username: str) -> bool:
+    """A default or the username, bare or padded: "admin1234567" and "password!!!!" are as
+    guessable as "admin". Invisible format characters (zero-width spaces) do not count."""
+    visible = "".join(c for c in password if unicodedata.category(c) != "Cf")
+    core = visible.lower().strip(string.digits + string.punctuation + string.whitespace)
+    return len(visible.strip()) < MIN_PRODUCTION_PASSWORD or core in {
+        *WEAK_PASSWORDS,
+        username.strip().lower(),
+    }
 
 
 def _running_version() -> str:
@@ -135,6 +148,15 @@ class Settings(BaseSettings):
             hosts.insert(0, external_host)
         return hosts
 
+    @field_validator("EXTERNAL_URL")
+    @classmethod
+    def external_url_stripped(cls, v: str | None) -> str | None:
+        """The value the app uses is the value the production check judged: a quoted trailing
+        space would otherwise reach the allowed host and every DSN."""
+        if v is None:
+            return None
+        return v.strip() or None
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.strip().lower() not in DEVELOPMENT_ENVIRONMENTS
@@ -143,25 +165,26 @@ class Settings(BaseSettings):
     def production_is_safe(self) -> Settings:
         """Production refuses to start on a setting that is only safe in development
         (LUXANALYTI-22): a guessable dashboard password, DEBUG (it serves /docs and /openapi.json),
-        or no usable EXTERNAL_URL (DSNs and the allowed host derive from it)."""
+        or no usable https EXTERNAL_URL (DSNs and the allowed host derive from it)."""
         if not self.is_production:
             return self
-        password = self.DASHBOARD_PASSWORD.strip()
-        if (
-            len(password) < MIN_PRODUCTION_PASSWORD
-            or password.lower() in WEAK_PASSWORDS
-            or password == self.DASHBOARD_USERNAME
-        ):
+        if _guessable(self.DASHBOARD_PASSWORD, self.DASHBOARD_USERNAME):
             raise ValueError(
                 "DASHBOARD_PASSWORD is a default or guessable value in production "
                 f"(it needs {MIN_PRODUCTION_PASSWORD}+ characters)"
             )
         if self.DEBUG:
             raise ValueError("DEBUG must be false in production")
-        url = urlparse((self.EXTERNAL_URL or "").strip())
-        if url.scheme not in ("http", "https") or not url.hostname:
+        # DSNs are built as https://PUBLIC_ID@<netloc>/…, and the allowed host is the hostname.
+        url = urlparse(self.EXTERNAL_URL or "")
+        if (
+            url.scheme != "https"
+            or not url.hostname
+            or url.username is not None
+            or any(c.isspace() for c in url.netloc)
+        ):
             raise ValueError(
-                "EXTERNAL_URL must be an http(s) URL with a host in production"
+                "EXTERNAL_URL must be an https URL with a plain host in production"
             )
         return self
 

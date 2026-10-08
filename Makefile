@@ -38,7 +38,7 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.274.0
+LUXARCH_VERSION  := 0.274.1
 LUXLINT_VERSION  := 0.62.1
 LUXAUDIT_VERSION := 0.13.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)

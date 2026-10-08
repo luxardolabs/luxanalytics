@@ -50,6 +50,19 @@ def events_from_payload(payload: object) -> list[EventCreate]:
     )
 
 
+def _latest_device_row(
+    rows: list[tuple[datetime, dict[str, Any]]],
+) -> dict[str, Any]:
+    """One device's upsert from a batch: its events in time order, each later event's keys over
+    the earlier ones. An offline queue flushes oldest first, so the first event is the stalest; a
+    key no event sent stays None (the upsert then keeps the stored value)."""
+    ordered = sorted(rows, key=lambda row: row[0])
+    merged = dict(ordered[0][1])
+    for _, row in ordered[1:]:
+        merged.update({key: value for key, value in row.items() if value is not None})
+    return merged
+
+
 class EventCoreService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -94,7 +107,8 @@ class EventCoreService:
         with create_service_span("EventCoreService", "create_events", app_id=app_id):
             received_at = datetime.now(UTC)
             insert_data = []
-            devices_to_upsert: dict[str, dict[str, Any]] = {}
+            # Each device's rows from this batch, with their event times (merged below).
+            device_rows: dict[str, list[tuple[datetime, dict[str, Any]]]] = {}
 
             seen_client_ids: set[str] = set()
             for event_data in events:
@@ -144,32 +158,39 @@ class EventCoreService:
                     }
                 )
 
-                if device_id and device_id not in devices_to_upsert:
-                    devices_to_upsert[device_id] = {
-                        "device_id": device_id,
-                        "app_id": app_id,
-                        "device_model": device_model,
-                        "device_type": metadata.get("device_type"),
-                        "os_version": os_version,
-                        "app_version": app_version,
-                        "build_number": metadata.get("build_number"),
-                        "screen_resolution": metadata.get("screen_resolution"),
-                        "locale": metadata.get("locale"),
-                        "timezone": metadata.get("timezone"),
-                        "is_testflight": metadata["is_testflight"] == "true"
-                        if "is_testflight" in metadata
-                        else None,
-                        "platform": platform,
-                        "first_seen": received_at,
-                        "last_seen": received_at,
-                    }
+                if device_id:
+                    device_rows.setdefault(device_id, []).append(
+                        (
+                            event_data.timestamp,
+                            {
+                                "device_id": device_id,
+                                "app_id": app_id,
+                                "device_model": device_model,
+                                "device_type": metadata.get("device_type"),
+                                "os_version": os_version,
+                                "app_version": app_version,
+                                "build_number": metadata.get("build_number"),
+                                "screen_resolution": metadata.get("screen_resolution"),
+                                "locale": metadata.get("locale"),
+                                "timezone": metadata.get("timezone"),
+                                "is_testflight": metadata["is_testflight"] == "true"
+                                if "is_testflight" in metadata
+                                else None,
+                                "platform": platform,
+                                "first_seen": received_at,
+                                "last_seen": received_at,
+                            },
+                        )
+                    )
 
             # One key order for every request: two concurrent requests carrying the same client
             # ids (or devices) in different orders would otherwise deadlock on the unique index.
             insert_data.sort(key=lambda row: str(row["client_event_id"] or ""))
             inserted = await event_write_crud.bulk_insert(self.db, insert_data)
 
-            for device_id in sorted(devices_to_upsert):
-                await device_crud.upsert(self.db, devices_to_upsert[device_id])
+            for device_id in sorted(device_rows):
+                await device_crud.upsert(
+                    self.db, _latest_device_row(device_rows[device_id])
+                )
 
             return [Event(**data) for data in insert_data if data["id"] in inserted]

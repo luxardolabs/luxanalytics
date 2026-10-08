@@ -254,7 +254,7 @@ make prod-release
 - **Nginx**: Reverse proxy config at `deploy/prod/analytics.luxardolabs.com.conf`
 - **Compose**: the ONE `compose.yml` (repo root) with `.env.prod` — `make prod-sync` ships `compose.yml`, `scripts/init.sql`, `scripts/backup.sh` and `deploy/prod/.env.prod` to the node; environments differ only by `.env.<env>` (template `.env.example`), the dev-only nginx is the `dev` profile, compose never builds
 - **Port mapping**: 4000:4000 (no mental remapping)
-- **Backups**: the `backup` compose profile (on in `.env.prod`) runs `luxanalytics_backup` (`scripts/backup.sh`): a daily gzip `pg_dump` into `backups/` on the node, newest 14 kept, unhealthy when the newest is over two days old; `make prod-backup` pulls one off-node. Events are never deleted (owner ruling)
+- **Backups**: the `backup` compose profile (on in `.env.prod`) runs `luxanalytics_backup` (`scripts/backup.sh`): a daily gzip `pg_dump` into `backups/` on the node, 14 days kept (a dump goes only when more than 14 exist and it is 14 days old), unhealthy when the newest is over two days old; `make prod-backup` pulls one off-node. Events are never deleted (owner ruling)
 
 ## Environment Variables
 

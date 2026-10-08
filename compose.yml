@@ -115,9 +115,10 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
     entrypoint: ["sh", "/usr/local/bin/backup.sh"]
-    # Red when the newest scheduled dump is over two days old (a run of failed dumps).
+    # Red when no scheduled dump is from the last two days (a run of failed dumps). `! -mmin -0`
+    # skips a file dated in the future, which would otherwise keep it green forever.
     healthcheck:
-      test: ["CMD-SHELL", "find /backups -maxdepth 1 -name 'luxanalytics-[0-9]*Z.sql.gz' -mmin -2880 | grep -q ."]
+      test: ["CMD-SHELL", "find /backups -maxdepth 1 -name 'luxanalytics-[0-9]*Z.sql.gz' -mmin -2880 ! -mmin -0 | grep -q ."]
       interval: 1h
       start_period: 30m
     networks:
