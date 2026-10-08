@@ -56,7 +56,7 @@ export TLS_CERTS_DIR
         arch-rule arch-file lint-file mypy-file status test-db-up test-db-down db-verify \
         audit gitleaks gitleaks-staged onboard-check \
         network up down restart logs logs-app logs-db shell shell-db migrate migrate-down \
-        migrate-create clean stack-status health ps backup restore work quick css-watch check-env \
+        migrate-create clean stack-status health ps backup restore work quick seed-sdk-app css-watch check-env \
         publish-sha release gh-release dev-deploy dev-pin test-build \
         buildx-setup version \
         prod-sync prod-pin prod-deploy prod-restart prod-stop prod-logs prod-status prod-shell prod-shell-db \
@@ -853,6 +853,9 @@ work: ## Publish this commit, pin it in .env.dev, restart, migrate, tail logs
 	$(MAKE) dev-deploy
 	$(MAKE) migrate
 	$(MAKE) logs
+
+seed-sdk-app: ## Dev only: ensure the Swift SDK's integration-test app exists and print its DSN (LUXANALYTI-73)
+	@$(DEV_COMPOSE) exec -T luxanalytics_app python -m app.scripts.seed_sdk_app
 
 quick:
 	$(DEV_COMPOSE) restart luxanalytics_app
