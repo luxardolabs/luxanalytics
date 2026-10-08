@@ -2,6 +2,8 @@
 
 The analytics event collector for Luxardo Labs' iOS apps: a FastAPI API that ingests events from the Swift SDK, and a Tailwind + HTMX dashboard to explore them. PostgreSQL stores the events, Redis holds the rate-limit windows.
 
+The client is the Swift SDK, [luxardolabs/luxanalytics-swift](https://github.com/luxardolabs/luxanalytics-swift) (MIT). This repository is the server, which you can self-host (see Quick start and Production).
+
 ## Features
 
 - **Ingest:** single or batched events (bulk insert, up to 1000 per request), zlib/deflate request compression, two authentication modes: HMAC-SHA256 signatures with replay protection, and Sentry-style DSNs.
