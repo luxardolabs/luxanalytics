@@ -690,9 +690,12 @@ version: ## Show the version and the image refs this commit builds
 	@echo "Release:  $(VERSION_IMAGE)"
 	@echo "This sha: $(SHA_IMAGE)"
 
-# The dev stack runs on this host and publishes the app on :4000. Smoke the app itself, not the
-# dev nginx: the proxy returns 404 for /health and /metrics (internal to the network, by design).
-SMOKE_URL ?= http://localhost:4000
+# The dev stack is reached the way a browser reaches it: the dev nginx publishes :4000 over HTTPS
+# with a self-signed certificate (hence -k). /health is internal by design (the proxy returns 404),
+# so the build check reads /login, whose stylesheet cache-buster is the running BUILD_COMMIT.
+SMOKE_URL ?= https://localhost:4000
+SMOKE_CURL_OPTS ?= -k
+SMOKE_HEALTH_PATH ?= /login
 # luxarch:smoke asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit smoke`.
 # ── Smoke: probe the DEPLOYED stack from outside, after every dev deploy ──────────────────────────
 # Emitted by `luxarch --emit smoke`; paste below the image block. `make test` runs the app in-process
