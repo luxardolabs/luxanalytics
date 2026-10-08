@@ -40,6 +40,8 @@ Architecture, conventions and the full command list are in `CLAUDE.md`.
 
 ## API Endpoints
 
+The full client contract (body shapes, field rules, idempotency, compression, response codes, the event names the dashboard reads) is [docs/event-format.md](docs/event-format.md). This section is a summary.
+
 ### Core Endpoints
 
 - `GET /` - Redirects to the dashboard
