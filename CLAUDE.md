@@ -89,14 +89,14 @@ app/
 │   ├── redis_client.py      # Redis connection
 │   ├── rate_limiter.py      # Rate limiting
 │   ├── logging_config.py    # Fleet stdlib JSON logging (luxarch --emit logging)
-│   ├── telemetry.py         # OpenTelemetry + Prometheus
+│   ├── telemetry.py         # OpenTelemetry setup + /metrics (default registry; db_pool_* gauges set per scrape)
+│   ├── tracing.py           # Canonical span helpers: create_service_span, record_exception_in_span
 │   ├── constants.py         # App constants
 │   └── middleware/
 │       ├── request_middleware.py   # Logging, rate limit middleware
 │       └── security_headers.py    # CSP, HSTS, X-Frame-Options
 ├── db/
-│   ├── database.py          # Async SQLAlchemy engine + sessions
-│   └── pool_monitor.py      # Connection pool monitoring
+│   └── database.py          # Async SQLAlchemy engine + the two session owners (get_db, get_db_context)
 ├── models/
 │   ├── base_model.py        # Base (canonical naming_convention), UUIDMixin, TimestampMixin, SoftDeleteMixin
 │   ├── event_model.py       # Event with promoted columns + properties JSONB

@@ -61,7 +61,10 @@ async def test_metrics_scrape_runs(client: AsyncClient) -> None:
     assert r.headers["content-type"].startswith("text/plain")
     # The scrape has series: it served an empty private registry nothing registered into.
     assert "python_info" in r.text
-    assert "db_pool_checkouts_total" in r.text
+    # The pool gauges are read from the engine at scrape time, not left at zero.
+    from app.core.config import settings
+
+    assert f"db_pool_size {float(settings.DB_POOL_SIZE)}" in r.text
 
 
 @pytest.mark.db

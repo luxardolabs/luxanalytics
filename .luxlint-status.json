@@ -67,26 +67,10 @@
     },
     {
       "rule": "lint.ruff",
-      "status": "FAIL",
+      "status": "PASS",
       "since": "0.1.0",
-      "violations": 3,
-      "sites": [
-        {
-          "path": "app/db/pool_monitor.py",
-          "line": 73,
-          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
-        },
-        {
-          "path": "app/db/pool_monitor.py",
-          "line": 85,
-          "detail": "DTZ005 `datetime.datetime.now()` called without a `tz` argument"
-        },
-        {
-          "path": "app/db/pool_monitor.py",
-          "line": 155,
-          "detail": "TRY400 Use `logging.exception` instead of `logging.error`"
-        }
-      ],
+      "violations": 0,
+      "sites": [],
       "deferred": false
     },
     {
@@ -99,21 +83,10 @@
     },
     {
       "rule": "lint.eslint",
-      "status": "FAIL",
+      "status": "PASS",
       "since": "0.18.0",
-      "violations": 2,
-      "sites": [
-        {
-          "path": "app/static/js/app.js",
-          "line": 11,
-          "detail": "no-unused-vars: 'event' is defined but never used. Allowed unused args must match /^_/u."
-        },
-        {
-          "path": "app/static/js/app.js",
-          "line": 25,
-          "detail": "no-unused-vars: 'event' is defined but never used. Allowed unused args must match /^_/u."
-        }
-      ],
+      "violations": 0,
+      "sites": [],
       "deferred": false
     },
     {
@@ -206,13 +179,13 @@
     }
   ],
   "summary": {
-    "PASS": 19,
-    "FAIL": 2,
+    "PASS": 21,
+    "FAIL": 0,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "92296eb9dd4d9389b433a1d03daefc1c8b483508",
-  "generated_at": "2026-10-07T20:55:06Z"
+  "commit": "798924a8381718b79fe877b5cca1c2066ea6f9b1",
+  "generated_at": "2026-10-08T00:45:18Z"
 }

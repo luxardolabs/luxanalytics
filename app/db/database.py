@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.db.pool_monitor import PoolMonitor
 
 # Re-export Base from models.base for backward compatibility
 from app.models.base_model import Base  # noqa: F401
@@ -42,9 +41,6 @@ async_engine = create_async_engine(
 # Async session factory
 AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False)
 
-# Initialize pool monitor
-pool_monitor = PoolMonitor(async_engine)
-
 
 async def get_db() -> AsyncIterator[AsyncSession]:
     """The REQUEST transaction owner (FastAPI dependency): commits on success, rolls back on error."""
@@ -70,15 +66,3 @@ async def get_db_context() -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             raise
-
-
-async def get_monitored_db() -> AsyncIterator[AsyncSession]:
-    """Get database session with connection monitoring."""
-    async with (
-        pool_monitor.get_connection_with_metrics(),
-        AsyncSessionLocal() as session,
-    ):
-        try:
-            yield session
-        finally:
-            await session.close()

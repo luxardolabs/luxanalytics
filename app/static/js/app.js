@@ -7,11 +7,6 @@ window.addEventListener('unhandledrejection', function(e) {
     }
 });
 
-// HTMX configuration
-document.body.addEventListener('htmx:configRequest', function(event) {
-    // Add headers if needed
-});
-
 // Handle HTMX errors - redirect on 401
 document.body.addEventListener('htmx:responseError', function(event) {
     if (event.detail.xhr.status === 401) {
@@ -19,11 +14,6 @@ document.body.addEventListener('htmx:responseError', function(event) {
         return;
     }
     console.error('HTMX Error:', event.detail);
-});
-
-// Re-initialize Chart.js instances after HTMX swaps
-document.body.addEventListener('htmx:afterSwap', function(event) {
-    // Charts will self-initialize via inline scripts in templates
 });
 
 // Close modal utility

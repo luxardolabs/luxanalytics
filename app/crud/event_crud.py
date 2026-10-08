@@ -192,19 +192,6 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.scalars().all())
 
-    async def get_with_properties(
-        self, db: AsyncSession, conditions: Conditions, limit: int = 500
-    ) -> list[Event]:
-        """Get events that have non-null properties."""
-        query = (
-            select(Event)
-            .where(and_(true(), *conditions), Event.properties.isnot(None))
-            .order_by(desc(Event.received_at))
-            .limit(limit)
-        )
-        result = await db.execute(query)
-        return list(result.scalars().all())
-
     # ── Timeline ──────────────────────────────────────────────────────────
 
     # Pre-approved bucket SQL expressions — prevents injection via literal_column
@@ -363,18 +350,6 @@ class EventCRUD:
         return list(result.scalars().all())
 
     # ── User / Session queries ─────────────────────────────────────────
-
-    async def get_events_by_user(
-        self, db: AsyncSession, user_id: str, limit: int = 200
-    ) -> list[Event]:
-        query = (
-            select(Event)
-            .where(Event.user_id == user_id)
-            .order_by(desc(Event.received_at))
-            .limit(limit)
-        )
-        result = await db.execute(query)
-        return list(result.scalars().all())
 
     async def get_events_by_session(
         self, db: AsyncSession, session_id: str, limit: int = 200

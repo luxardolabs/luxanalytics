@@ -8,17 +8,22 @@ from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.metrics import Counter, Histogram, UpDownCounter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from prometheus_client import generate_latest
+from prometheus_client import Gauge, generate_latest
 
 from app.core.config import settings
+from app.crud.health_crud import pool_counters
 from app.db.database import async_engine
 
 logger = logging.getLogger(__name__)
+
+# The database pool, read from the engine at each scrape (the same counters /health reports).
+POOL_SIZE = Gauge("db_pool_size", "Connections the pool keeps open")
+POOL_CHECKED_OUT = Gauge("db_pool_checked_out", "Pooled connections in use")
+POOL_OVERFLOW = Gauge("db_pool_overflow", "Connections open beyond the pool size")
 
 
 def setup_telemetry(app: FastAPI | None = None) -> None:
@@ -63,39 +68,11 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
 
 def get_prometheus_metrics() -> bytes:
     """The scrape body: prometheus_client's default registry, where every collector registers
-    (the process and platform collectors, and the db_pool_* metrics)."""
+    (the process and platform collectors, and the db_pool_* gauges set here)."""
+    counters = pool_counters()
+    if counters is not None:
+        size, _checked_in, checked_out, overflow = counters
+        POOL_SIZE.set(size)
+        POOL_CHECKED_OUT.set(checked_out)
+        POOL_OVERFLOW.set(overflow)
     return generate_latest()
-
-
-def create_custom_metrics() -> dict[str, Counter | Histogram | UpDownCounter]:
-    """Create custom application metrics."""
-    meter = metrics.get_meter("ll_analytics")
-
-    # Request counter
-    request_counter = meter.create_counter(
-        name="http_requests_total", description="Total HTTP requests", unit="1"
-    )
-
-    # Request duration histogram
-    request_duration = meter.create_histogram(
-        name="http_request_duration_seconds",
-        description="HTTP request duration",
-        unit="s",
-    )
-
-    # Active connections gauge
-    active_connections = meter.create_up_down_counter(
-        name="active_connections", description="Number of active connections", unit="1"
-    )
-
-    # Events processed counter
-    events_processed = meter.create_counter(
-        name="events_processed_total", description="Total events processed", unit="1"
-    )
-
-    return {
-        "request_counter": request_counter,
-        "request_duration": request_duration,
-        "active_connections": active_connections,
-        "events_processed": events_processed,
-    }
