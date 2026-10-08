@@ -23,8 +23,11 @@ def _running_version() -> str:
         return version_file.read_text(encoding="utf-8").strip()
 
 
-PRODUCTION_ENVIRONMENTS = {"production", "prod"}
+# Everything else is production: the checks fail closed, so a typo ("Production", "prd") or a new
+# environment name never switches them off.
+DEVELOPMENT_ENVIRONMENTS = {"dev", "development", "test"}
 WEAK_PASSWORDS = {"admin", "changeme", "password", "secret"}
+MIN_PRODUCTION_PASSWORD = 12
 
 
 class Settings(BaseSettings):
@@ -132,22 +135,34 @@ class Settings(BaseSettings):
             hosts.insert(0, external_host)
         return hosts
 
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT.strip().lower() not in DEVELOPMENT_ENVIRONMENTS
+
     @model_validator(mode="after")
     def production_is_safe(self) -> Settings:
         """Production refuses to start on a setting that is only safe in development
         (LUXANALYTI-22): a guessable dashboard password, DEBUG (it serves /docs and /openapi.json),
-        or no EXTERNAL_URL (DSNs and the allowed host derive from it)."""
-        if self.ENVIRONMENT not in PRODUCTION_ENVIRONMENTS:
+        or no usable EXTERNAL_URL (DSNs and the allowed host derive from it)."""
+        if not self.is_production:
             return self
-        password = self.DASHBOARD_PASSWORD
-        if password.lower() in WEAK_PASSWORDS or password == self.DASHBOARD_USERNAME:
+        password = self.DASHBOARD_PASSWORD.strip()
+        if (
+            len(password) < MIN_PRODUCTION_PASSWORD
+            or password.lower() in WEAK_PASSWORDS
+            or password == self.DASHBOARD_USERNAME
+        ):
             raise ValueError(
-                "DASHBOARD_PASSWORD is a default or guessable value in production"
+                "DASHBOARD_PASSWORD is a default or guessable value in production "
+                f"(it needs {MIN_PRODUCTION_PASSWORD}+ characters)"
             )
         if self.DEBUG:
             raise ValueError("DEBUG must be false in production")
-        if not self.EXTERNAL_URL:
-            raise ValueError("EXTERNAL_URL must be set in production")
+        url = urlparse((self.EXTERNAL_URL or "").strip())
+        if url.scheme not in ("http", "https") or not url.hostname:
+            raise ValueError(
+                "EXTERNAL_URL must be an http(s) URL with a host in production"
+            )
         return self
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)

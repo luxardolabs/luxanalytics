@@ -97,8 +97,8 @@ services:
     networks:
       - luxardolabs
 
-  # Daily pg_dump with 14-day rotation (LUXANALYTI-14), on when COMPOSE_PROFILES includes `backup`
-  # (prod). Dumps land in ./backups beside the stack; `make prod-backup` still pulls one off-node.
+  # Daily pg_dump keeping the newest 14 (scripts/backup.sh; LUXANALYTI-14), on when
+  # COMPOSE_PROFILES includes `backup` (prod). Dumps land in ./backups beside the stack; `make prod-backup` still pulls one off-node.
   luxanalytics_backup:
     image: postgres:16-alpine
     container_name: luxanalytics_backup
@@ -111,22 +111,15 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.<env>}
     volumes:
       - ./backups:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
     tmpfs:
       - /var/lib/postgresql/data
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        set -o pipefail
-        while :; do
-          f=/backups/luxanalytics-$$(date -u +%Y%m%dT%H%M%SZ).sql.gz
-          if pg_dump -h luxanalytics_db -U luxanalytics luxanalytics | gzip > "$$f.part"; then
-            mv "$$f.part" "$$f"; echo "backup written: $$f"
-          else
-            rm -f "$$f.part"; echo "backup FAILED" >&2
-          fi
-          find /backups -name 'luxanalytics-*.sql.gz' -mtime +14 -delete
-          sleep 86400
-        done
+    entrypoint: ["sh", "/usr/local/bin/backup.sh"]
+    # Red when the newest scheduled dump is over two days old (a run of failed dumps).
+    healthcheck:
+      test: ["CMD-SHELL", "find /backups -maxdepth 1 -name 'luxanalytics-[0-9]*Z.sql.gz' -mmin -2880 | grep -q ."]
+      interval: 1h
+      start_period: 30m
     networks:
       - luxardolabs
 

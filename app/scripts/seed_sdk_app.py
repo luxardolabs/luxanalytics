@@ -17,8 +17,6 @@ from app.schemas.app_schema import AppCreate, AppRow, AppUpdate
 from app.services.core.app_core_service import AppCoreService
 
 SDK_APP_ID = "sdk-integration"
-# Environments this may run in: a test app must never be minted on prod.
-SEED_ENVIRONMENTS = {"dev", "development", "test"}
 
 
 class NotADevEnvironment(RuntimeError):
@@ -27,7 +25,8 @@ class NotADevEnvironment(RuntimeError):
 
 async def ensure_sdk_app(db: AsyncSession) -> AppRow:
     """The `sdk-integration` app, created or reactivated as needed; ids stable across runs."""
-    if settings.ENVIRONMENT not in SEED_ENVIRONMENTS:
+    # A test app must never be minted on prod.
+    if settings.is_production:
         raise NotADevEnvironment(
             f"refusing to seed {SDK_APP_ID!r} in ENVIRONMENT={settings.ENVIRONMENT!r}"
         )

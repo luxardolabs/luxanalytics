@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# The test suite's compose interpolation values: placeholders only, never a secret
+!.env.test
 deploy/**/.env*
 
 # Local, untracked overrides (private registry host, prod node)

@@ -8,6 +8,20 @@ from app.core.config import settings
 
 CLIENT_EVENT_ID_MAX = 64  # the events.client_event_id column width
 MAX_BATCH_EVENTS = 1000
+# Before this, a timestamp is a device clock reset (often to 1970), not when the event happened.
+EARLIEST_TIMESTAMP = datetime(2000, 1, 1, tzinfo=UTC)
+
+
+def storable(text: str) -> bool:
+    """Postgres text holds neither NUL nor a lone UTF-16 surrogate (JSON's "\\ud800" decodes to one,
+    and it has no UTF-8 encoding)."""
+    if "\x00" in text:
+        return False
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 class EventBase(BaseModel):
@@ -48,23 +62,25 @@ class EventBase(BaseModel):
         """A key we can dedupe on, or None (stored, not deduped). Never a reason to reject the
         batch: before LUXANALYTI-68 an `id` was ignored, so a client sending some other shape
         must keep its events."""
-        if isinstance(v, str) and 0 < len(v) <= CLIENT_EVENT_ID_MAX and "\x00" not in v:
+        if isinstance(v, str) and 0 < len(v) <= CLIENT_EVENT_ID_MAX and storable(v):
             return v
         return None
 
     @field_validator("name", "user_id", "session_id")
     @classmethod
     def no_nul(cls, v: str | None) -> str | None:
-        """Postgres text cannot hold NUL: a client error (422), not a database error (500)."""
-        if v is not None and "\x00" in v:
-            raise ValueError("must not contain NUL characters")
+        """Text Postgres cannot store is a client error (422), not a database error (500)."""
+        if v is not None and not storable(v):
+            raise ValueError("must not contain NUL characters or lone surrogates")
         return v
 
     @field_validator("metadata")
     @classmethod
     def no_nul_in_metadata(cls, v: dict[str, str]) -> dict[str, str]:
-        if any("\x00" in k or "\x00" in val for k, val in v.items()):
-            raise ValueError("metadata must not contain NUL characters")
+        if not all(storable(k) and storable(val) for k, val in v.items()):
+            raise ValueError(
+                "metadata must not contain NUL characters or lone surrogates"
+            )
         return v
 
     @field_validator("name")
@@ -90,12 +106,17 @@ class EventBase(BaseModel):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
 
-        # A timestamp more than the tolerance ahead is a fast device clock: clamp it to now rather
-        # than reject it. The SDK drops a batch answered 4xx, so a rejection lost every event from
-        # that device for as long as its clock was off (LUXANALYTI-80). Within the tolerance it is
-        # stored as sent; a past timestamp (an event queued offline) always is.
+        # A timestamp outside [EARLIEST_TIMESTAMP, now + tolerance] is a broken device clock: store
+        # the receive time rather than reject it. The SDK drops a batch answered 4xx, so a rejection
+        # lost every event from that device for as long as its clock was off (LUXANALYTI-80).
+        # Within the window it is stored as sent, so an event queued offline keeps its real time.
         now = datetime.now(UTC)
-        if dt > now + timedelta(seconds=settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE):
+        try:
+            dt = dt.astimezone(UTC)
+        except OverflowError:  # year 1 or 9999 at an offset leaves datetime's range
+            return now
+        latest = now + timedelta(seconds=settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE)
+        if not EARLIEST_TIMESTAMP <= dt <= latest:
             return now
         return dt
 

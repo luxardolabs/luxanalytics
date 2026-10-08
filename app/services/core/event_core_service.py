@@ -156,7 +156,9 @@ class EventCoreService:
                         "screen_resolution": metadata.get("screen_resolution"),
                         "locale": metadata.get("locale"),
                         "timezone": metadata.get("timezone"),
-                        "is_testflight": metadata.get("is_testflight") == "true",
+                        "is_testflight": metadata["is_testflight"] == "true"
+                        if "is_testflight" in metadata
+                        else None,
                         "platform": platform,
                         "first_seen": received_at,
                         "last_seen": received_at,

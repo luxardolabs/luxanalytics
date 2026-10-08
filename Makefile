@@ -38,7 +38,7 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.273.0
+LUXARCH_VERSION  := 0.274.0
 LUXLINT_VERSION  := 0.62.1
 LUXAUDIT_VERSION := 0.13.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
@@ -949,10 +949,10 @@ PROD_SSH := ssh $(PROD_JUMP) "ssh $(PROD_HOST)
 # -f compose.yml: the node may still hold the retired compose.yaml, which compose would prefer.
 PROD_COMPOSE := docker compose -f compose.yml --env-file .env.prod
 
-prod-sync: ## Sync the stack (compose.yml, scripts/init.sql, .env.prod) to the prod node
+prod-sync: ## Sync the stack (compose.yml, scripts/init.sql + backup.sh, .env.prod) to the prod node
 	@echo "Pushing deploy config to production..."
 	@# Streamed through both ssh hops: no staging file on any host.
-	@tar -czf - compose.yml scripts/init.sql -C deploy/prod .env.prod | $(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf - -C $(PROD_PATH)/'"
+	@tar -czf - compose.yml scripts/init.sql scripts/backup.sh -C deploy/prod .env.prod | $(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf - -C $(PROD_PATH)/'"
 	@echo "✅ Deploy config pushed to $(PROD_PATH)"
 
 # Prod runs a CUT release: the immutable :$(VERSION) that `make release` pushed, persisted as TAG= in

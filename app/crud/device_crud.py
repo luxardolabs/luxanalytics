@@ -110,19 +110,29 @@ class DeviceCRUD:
         return list(result.all())
 
     async def upsert(self, db: AsyncSession, device_data: dict[str, Any]) -> None:
+        """Insert the device, or refresh it from this event. A key the event did not send (None)
+        keeps the value the device already has rather than erasing it."""
         stmt = pg_insert(Device).values(**device_data)
+        kept = (
+            "os_version",
+            "app_version",
+            "build_number",
+            "device_model",
+            "is_testflight",
+            "locale",
+            "timezone",
+            "screen_resolution",
+        )
         stmt = stmt.on_conflict_do_update(
             index_elements=["device_id"],
             set_={
                 "last_seen": device_data["last_seen"],
-                "os_version": device_data["os_version"],
-                "app_version": device_data["app_version"],
-                "build_number": device_data["build_number"],
-                "device_model": device_data["device_model"],
-                "is_testflight": device_data["is_testflight"],
-                "locale": device_data["locale"],
-                "timezone": device_data["timezone"],
-                "screen_resolution": device_data["screen_resolution"],
+                **{
+                    column: func.coalesce(
+                        stmt.excluded[column], Device.__table__.c[column]
+                    )
+                    for column in kept
+                },
             },
         )
         await db.execute(stmt)

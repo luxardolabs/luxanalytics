@@ -178,7 +178,7 @@ make prod-migrate                  # migrations on the prod database
 make prod-status / prod-logs / prod-version
 ```
 
-The `backup` compose profile (on in prod) takes a daily gzip `pg_dump` into `backups/` on the node and keeps 14 days; `make prod-backup` pulls a copy off-node.
+The `backup` compose profile (on in prod) runs `scripts/backup.sh`: a daily gzip `pg_dump` into `backups/` on the node, keeping the newest 14, and the service turns unhealthy when the newest dump is over two days old. `make prod-backup` pulls a copy off-node; run it immediately before any deploy that migrates.
 
 ## Troubleshooting
 
