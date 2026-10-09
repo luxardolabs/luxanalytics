@@ -1,6 +1,6 @@
 {
   "guard": "luxaudit",
-  "guard_version": "0.13.0",
+  "guard_version": "0.13.1",
   "repo": "/repo",
   "packages": 69,
   "source": "poetry.lock",
@@ -23,6 +23,6 @@
     "vulnerable": [],
     "deferred": []
   },
-  "commit": "6816bd90f5c4edc163f96c02e27bb508e4e9eb7e",
-  "generated_at": "2026-10-09T03:27:55Z"
+  "commit": "49c97f7c76c05e6d46e112dde4e05cc88a736d3d",
+  "generated_at": "2026-10-09T03:28:34Z"
 }
