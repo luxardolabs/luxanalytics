@@ -170,10 +170,10 @@ Environment variables, one file per environment (`.env.dev`, `deploy/prod/.env.p
 
 ## Production
 
-Production runs the released image (`make release` cuts `:VERSION`) from the one `compose.yml` with `deploy/prod/.env.prod`, behind nginx (`deploy/prod/analytics.luxardolabs.com.conf`).
+Production runs the released image (`make release` cuts `:VERSION`; `make release-ghcr` publishes it as `ghcr.io/luxardolabs/luxanalytics:VERSION`) from the one `compose.yml` with `deploy/prod/.env.prod`, behind nginx (`deploy/prod/analytics.luxardolabs.com.conf`).
 
 ```bash
-make release && make prod-deploy   # or: make prod-release
+make release && make release-ghcr && make prod-deploy   # or: make prod-release
 make prod-migrate                  # migrations on the prod database
 make prod-status / prod-logs / prod-version
 ```

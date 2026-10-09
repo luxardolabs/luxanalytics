@@ -39,7 +39,7 @@ endif
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
 LUXARCH_VERSION  := 0.274.1
-LUXLINT_VERSION  := 0.62.1
+LUXLINT_VERSION  := 0.62.2
 LUXAUDIT_VERSION := 0.13.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
 LUXLINT  := $(REGISTRY)/luxardolabs/luxlint:$(LUXLINT_VERSION)
@@ -60,7 +60,7 @@ export TLS_CERTS_DIR
         publish-sha release gh-release dev-deploy dev-pin test-build \
         buildx-setup version \
         prod-sync prod-pin prod-deploy prod-restart prod-stop prod-logs prod-status prod-shell prod-shell-db \
-        prod-nginx prod-migrate prod-backup prod-version prod-release
+        prod-nginx prod-migrate prod-backup prod-version prod-release release-ghcr
 
 # THE fleet gate — byte-identical composition across every app repo. Make stops at the FIRST
 # failing step; for every architecture red at once, run `make plan`.
@@ -358,7 +358,8 @@ help:
 	@echo "  make version       - Show the version and image refs"
 	@echo ""
 	@echo "Production:"
-	@echo "  make prod-release  - release + prod-deploy (pin TAG=$(VERSION), sync, pull, up)"
+	@echo "  make release-ghcr  - promote the released :$(VERSION) to GHCR unchanged (prod pulls it there)"
+	@echo "  make prod-release  - release + release-ghcr + prod-deploy (pin TAG=$(VERSION), sync, pull, up)"
 	@echo ""
 
 # =============================================================================
@@ -955,14 +956,36 @@ prod-sync: ## Sync the stack (compose.yml, scripts/init.sql + backup.sh, .env.pr
 	@tar -czf - compose.yml scripts/init.sql scripts/backup.sh -C deploy/prod .env.prod | $(PROD_SSH) 'mkdir -p $(PROD_PATH) && tar -xzf - -C $(PROD_PATH)/'"
 	@echo "✅ Deploy config pushed to $(PROD_PATH)"
 
-# Prod runs a CUT release: the immutable :$(VERSION) that `make release` pushed, persisted as TAG= in
-# .env.prod so the stack comes back after a reboot. PROD_TAG=<older version> is the rollback path.
+# The PUBLIC image: an OSS app also publishes each release to GHCR, the fleet's external registry
+# (COLLECTOR-FLEET-STANDARD §1; luxmark does the same). It is the private registry's :$(VERSION),
+# promoted unchanged: same digest, nothing rebuilt. The prod node pulls it from here
+# (REGISTRY=ghcr.io in .env.prod), anonymously, so the package must be public.
+PUBLIC_IMAGE ?= ghcr.io/luxardolabs/luxanalytics
+
+release-ghcr: ## Promote the released :$(VERSION) to GHCR unchanged (same digest; refuses a version GHCR already has)
+	@docker manifest inspect $(VERSION_IMAGE) >/dev/null 2>&1 || \
+	  { echo "$(VERSION_IMAGE) is not released — make release first"; exit 1; }
+	@if docker manifest inspect $(PUBLIC_IMAGE):$(VERSION) >/dev/null 2>&1; then echo "REFUSING: $(PUBLIC_IMAGE):$(VERSION) is already published; a released version is immutable"; exit 1; fi
+	@# Fails CLOSED like `release`: only GHCR's own not-found answer reads as unpublished.
+	@out=$$(docker manifest inspect $(PUBLIC_IMAGE):$(VERSION) 2>&1) || case "$$out" in \
+	  *[Nn]"o such manifest"*|*"manifest unknown"*|*"not found"*) ;; \
+	  *) echo "REFUSING: cannot verify $(PUBLIC_IMAGE):$(VERSION) is unpublished: $$out"; exit 1 ;; esac
+	docker buildx imagetools create --tag $(PUBLIC_IMAGE):$(VERSION) $(VERSION_IMAGE)
+	@# imagetools wraps a single image in a manifest list, so the check is that the published list
+	@# references the very image the private registry holds, not that the two top digests match.
+	@src=$$(docker buildx imagetools inspect $(VERSION_IMAGE) --format '{{.Manifest.Digest}}'); \
+	docker buildx imagetools inspect --raw $(PUBLIC_IMAGE):$(VERSION) | grep -qF "$$src" || \
+	  { echo "FAIL  $(PUBLIC_IMAGE):$(VERSION) does not reference $$src"; exit 1; }; \
+	echo "published $(PUBLIC_IMAGE):$(VERSION), image $$src (unchanged)"
+
+# Prod runs a CUT release: the immutable :$(VERSION) promoted to GHCR, persisted as TAG= in .env.prod
+# so the stack comes back after a reboot. PROD_TAG=<older version> is the rollback path.
 PROD_ENV := deploy/prod/.env.prod
 PROD_TAG ?= $(VERSION)
 
-prod-pin: ## Point .env.prod at an ALREADY-RELEASED version (PROD_TAG, default VERSION)
-	@docker manifest inspect $(IMAGE):$(PROD_TAG) >/dev/null 2>&1 || \
-	  { echo "$(IMAGE):$(PROD_TAG) is not in the registry — make release first"; exit 1; }
+prod-pin: ## Point .env.prod at a version already on GHCR (PROD_TAG, default VERSION)
+	@docker manifest inspect $(PUBLIC_IMAGE):$(PROD_TAG) >/dev/null 2>&1 || \
+	  { echo "$(PUBLIC_IMAGE):$(PROD_TAG) is not published — make release release-ghcr first"; exit 1; }
 	@$(call pin_env_tag,$(PROD_ENV),$(PROD_TAG))
 
 prod-deploy: prod-pin prod-sync ## Pin TAG, sync deploy/prod, pull + restart on the prod node
@@ -1014,5 +1037,5 @@ prod-backup:
 prod-version:
 	@$(PROD_SSH) 'docker inspect luxanalytics_app --format \"{{.Config.Image}}\" 2>/dev/null || echo not running'"
 
-prod-release: release prod-deploy ## Cut VERSION and deploy it to production
+prod-release: release release-ghcr prod-deploy ## Cut VERSION, publish it to GHCR and deploy it to production
 	@echo "✅ Released $(VERSION) to production"

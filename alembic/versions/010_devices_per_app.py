@@ -56,7 +56,7 @@ def upgrade() -> None:
         """
         CREATE TEMPORARY TABLE shared_devices ON COMMIT DROP AS
         SELECT device_id FROM events
-        WHERE device_id IS NOT NULL
+        WHERE device_id IS NOT NULL AND device_id <> ''
         GROUP BY device_id HAVING count(DISTINCT app_id) > 1
         """
     )

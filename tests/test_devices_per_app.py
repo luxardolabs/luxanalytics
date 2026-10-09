@@ -6,6 +6,7 @@ device list missed the phone, and every app overwrote its version, build and Tes
 from datetime import UTC, datetime
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +14,9 @@ from app.crud.device_crud import device_crud
 from app.models.device_model import Device
 from app.models.event_model import Event
 from app.schemas.event_schema import EventCreate
+from app.services.core.analytics_core_service import AnalyticsCoreService
 from app.services.core.event_core_service import EventCoreService
+from tests.test_apps_web import _login
 
 pytestmark = pytest.mark.db
 
@@ -90,3 +93,23 @@ async def test_events_are_untouched(db: AsyncSession) -> None:
         await db.execute(select(Event.app_id).where(Event.device_id == PHONE))
     ).scalars()
     assert sorted(apps) == ["app_card", "app_wx"]
+
+
+async def test_all_apps_device_rows_name_their_app(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """All apps: one row per install, so a shared phone is listed once per app, and each row
+    must say which app it is (adversarial pass 5: two identical-looking ids, different badges)."""
+    await _send(db, "app_card", "3037.0.2", "false")
+    await _send(db, "app_wx", "1.0.23", "true")
+    rows = (await AnalyticsCoreService(db).get_device_analytics(app_id=None, hours=0))[
+        "device_details"
+    ]
+    assert sorted(r["app_id"] for r in rows if r["device_id"] == PHONE[:8] + "...") == [
+        "app_card",
+        "app_wx",
+    ]
+    await _login(client, "198.51.100.84")
+    page = (await client.get("/dashboard/devices/content", params={"hours": 0})).text
+    assert page.count(PHONE[:8] + "...") == 2
+    assert "app_card" in page and "app_wx" in page

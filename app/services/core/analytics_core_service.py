@@ -300,6 +300,8 @@ class AnalyticsCoreService:
                 details.append(
                     {
                         "device_id": device.device_id[:8] + "...",
+                        # A row is one app's install: across all apps a shared phone has one each.
+                        "app_id": device.app_id,
                         "model": device.device_model or "Unknown",
                         "ios_version": device.os_version or "Unknown",
                         "app_version": device.app_version or "Unknown",

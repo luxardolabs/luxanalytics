@@ -33,6 +33,7 @@
                 <tr class="hover:bg-surface-10/50 transition-colors">
                     {% call td() %}
                         <span class="font-mono text-xs text-slate-500">{{ d.device_id }}</span>
+                        <div class="text-xs text-fg mt-0.5">{{ d.app_id }}</div>
                         <div class="text-xs text-slate-500 mt-0.5">{{ d.locale }} · {{ d.timezone.split('/')[-1] if '/' in d.timezone else d.timezone }}</div>
                     {% endcall %}
                     {% call td() %}
