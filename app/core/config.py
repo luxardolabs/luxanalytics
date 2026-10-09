@@ -55,7 +55,6 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str
-    DATABASE_URL_SYNC: str
 
     # Database Connection Pool
     DB_POOL_SIZE: int = 20

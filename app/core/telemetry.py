@@ -12,7 +12,9 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import TracerProvider as TracerProviderAPI
 from prometheus_client import Gauge, generate_latest
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import settings
 from app.crud.health_crud import pool_counters
@@ -57,12 +59,26 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
 
     if app:
         FastAPIInstrumentor.instrument_app(app)
-    SQLAlchemyInstrumentor().instrument(
-        engine=async_engine.sync_engine, service="ll_analytics_db"
-    )
+    instrument_database(async_engine)
     logger.info(
         "OpenTelemetry initialized",
         extra={"endpoint": otel_endpoint, "service_name": service_name},
+    )
+
+
+def instrument_database(
+    engine: AsyncEngine, tracer_provider: TracerProviderAPI | None = None
+) -> None:
+    """A span per statement on this engine (its sync core: an async engine is not instrumentable
+    itself). `tracer_provider` defaults to the global one."""
+    # skip_dep_check: instrumentor 0.66b1 declares sqlalchemy < 2.1 and so instruments nothing on the
+    # fleet's 2.1; the pair is measured and the bypass sanctioned (luxarch --playbook
+    # otel-instrumentors). The rule reds it once a covering release is locked: then it comes out.
+    SQLAlchemyInstrumentor().instrument(
+        engine=engine.sync_engine,
+        service="ll_analytics_db",
+        tracer_provider=tracer_provider,
+        skip_dep_check=True,
     )
 
 

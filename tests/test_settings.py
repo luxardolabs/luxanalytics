@@ -7,7 +7,6 @@ from app.core.config import Settings
 
 REQUIRED = {
     "DATABASE_URL": "postgresql+asyncpg://u:p@h/d",
-    "DATABASE_URL_SYNC": "postgresql://u:p@h/d",
     "SECRET_KEY": "s",
 }
 SAFE = {
@@ -124,3 +123,10 @@ def test_the_external_url_the_app_uses_is_the_one_checked() -> None:
     )
     assert settings.EXTERNAL_URL == "https://analytics.example.com"
     assert settings.allowed_hosts_list[0] == "analytics.example.com"
+
+
+def test_no_unread_database_url_is_required() -> None:
+    """DATABASE_URL is the one database setting: the old DATABASE_URL_SYNC was required, read by
+    nothing, and made every operator invent a value (LUXANALYTI-85)."""
+    assert "DATABASE_URL_SYNC" not in Settings.model_fields
+    assert REQUIRED["DATABASE_URL"] == _settings().DATABASE_URL

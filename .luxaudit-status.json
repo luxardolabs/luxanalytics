@@ -7,8 +7,7 @@
   "summary": {
     "PASS": 69,
     "FAIL": 0,
-    "XFAIL": 0,
-    "INERT": 1
+    "XFAIL": 0
   },
   "vulnerable": [],
   "deferred": [],
@@ -16,15 +15,13 @@
   "not_audited": [],
   "image": {
     "ref": "luxardolabs/luxanalytics:2026.10.0",
-    "inert": true,
-    "inert_reason": "luxardolabs/luxanalytics:2026.10.0: not in the registry, so nothing was released at this VERSION. A deploy that pins `:sha-\u2026` is not visible from the mount; name it in `[image] refs`",
+    "inert": false,
+    "inert_reason": "",
     "error": "",
-    "not_released": [
-      "luxardolabs/luxanalytics:2026.10.0"
-    ],
+    "not_released": [],
     "vulnerable": [],
     "deferred": []
   },
-  "commit": "9f49963d939534ded7f88b773b77d1807f48e247",
-  "generated_at": "2026-10-09T03:46:45Z"
+  "commit": "25a2a29f53518df9e9d9686edb9c2b3d8c9366d3",
+  "generated_at": "2026-10-09T22:24:28Z"
 }

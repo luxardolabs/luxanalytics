@@ -38,7 +38,7 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.274.1
+LUXARCH_VERSION  := 0.275.2
 LUXLINT_VERSION  := 0.62.2
 LUXAUDIT_VERSION := 0.13.1
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
@@ -161,9 +161,9 @@ status: guard-registry ## Regenerate committed guard-status files (.lux*-status.
 
 # db-verify settings (the emitted block below reads these; set ABOVE it, as it says).
 DBV_PG_IMAGE  := postgres:16-alpine
-DBV_EXTRA_ENV := -e ENVIRONMENT=test -e DATABASE_URL_SYNC=unused -e SECRET_KEY=db-verify-only -e DASHBOARD_PASSWORD=db-verify-only
+DBV_EXTRA_ENV := -e ENVIRONMENT=test -e SECRET_KEY=db-verify-only -e DASHBOARD_PASSWORD=db-verify-only
 
-# luxarch:db-verify asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
+# luxarch:db-verify asset v3 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
 # ── The migration-chain gate ────────────────────────────────────────────────────────────────────
 # Emitted by `luxarch --emit db-verify`. Drop in verbatim and set the five variables above it.
 #
@@ -214,7 +214,7 @@ db-verify: ## PROVE the chain builds the schema from EMPTY, no drift vs models
 	  $(DBV_PG_IMAGE) >/dev/null; \
 	until docker exec -e PGPASSWORD=$(DBV_DB) $(DBV_DB) \
 	  psql -h 127.0.0.1 -U $(DBV_DB) -d $(DBV_DB) -tAc 'select 1' >/dev/null 2>&1; do sleep 1; done; \
-	docker build -q -t $(DBV_IMAGE) . >/dev/null; \
+	docker build --load -q -t $(DBV_IMAGE) . >/dev/null; \
 	echo "db-verify: alembic upgrade head (empty -> head)"; \
 	docker run --rm --network $(DBV_NET) $(DBV_EXTRA_ENV) \
 	  -e DATABASE_URL="postgresql+asyncpg://$(DBV_DB):$(DBV_DB)@$(DBV_DB):5432/$(DBV_DB)" \
@@ -385,7 +385,7 @@ buildx-setup:
 # =============================================================================
 # Images, deploy tags and the release (emitted asset — never hand-edit)
 # =============================================================================
-# luxarch:image-block asset v10 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
+# luxarch:image-block asset v11 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
 # ── Images: ONE naming scheme, and the NAME declares what the image IS ──────────────────────────
 # Emitted by `luxarch --emit image-block`. Two axes, both readable from the name alone:
 #
@@ -483,6 +483,9 @@ define refuse_dirty_tree
 	fi
 endef
 
+# v11: every build names its output (`--load`). On the fleet's shared builder (`buildx-setup`, driver
+# `docker-container`) a build with no output writes only to the build cache: it warns, exits 0, and
+# the tag the next line scans, pushes or runs does not exist. `--load` is a no-op on the `docker` driver.
 # Every commit's deployable: build, scan, push `:sha-<commit>` (what a dev/demo stack pins) and move the
 # `:dev` alias. NEVER the version tag. v6: v5's `dev-deploy` ran `release`, which pushed `:$(VERSION)`
 # on every run, so the first dev deploy after a version shipped overwrote that RELEASED tag with
@@ -490,7 +493,7 @@ endef
 # commit's bits, caught by hand before the next prod pull).
 publish-sha: ## Build + scan + PUSH this commit as :sha-<commit> (and move the :dev alias) — never the version
 	$(refuse_dirty_tree)
-	docker build --target production $(BUILD_ARGS) -f $(DOCKERFILE) -t $(SHA_IMAGE) $(BUILD_CONTEXT)
+	docker build --load --target production $(BUILD_ARGS) -f $(DOCKERFILE) -t $(SHA_IMAGE) $(BUILD_CONTEXT)
 	$(call scan_candidate,$(SHA_IMAGE))
 	docker push $(SHA_IMAGE)
 	@# The alias moves LAST and carries nothing: it is a label on an already-published artifact.
@@ -559,7 +562,7 @@ release: ## Cut VERSION: build + scan + PUSH :sha-<commit> AND :$(VERSION), then
 	  echo "    git tag -a v$(VERSION) -m v$(VERSION) && git push origin v$(VERSION)"; exit 1; \
 	fi
 	$(gh_release_preflight)
-	docker build --target production $(BUILD_ARGS) -f $(DOCKERFILE) -t $(SHA_IMAGE) -t $(VERSION_IMAGE) $(BUILD_CONTEXT)
+	docker build --load --target production $(BUILD_ARGS) -f $(DOCKERFILE) -t $(SHA_IMAGE) -t $(VERSION_IMAGE) $(BUILD_CONTEXT)
 	$(call scan_candidate,$(SHA_IMAGE))
 	docker push $(SHA_IMAGE)
 	docker push $(VERSION_IMAGE)
@@ -636,7 +639,7 @@ dev-pin: ## Point the dev stack at an ALREADY-PUBLISHED tag and restart it (roll
 # Either way the Dockerfile needs a stage named `test`: this target builds it.
 
 test-build: ## Build the LOCAL test image from source (never pushed, never a deploy tag)
-	@docker build --target test $(BUILD_ARGS) -f $(DOCKERFILE) -t $(TEST_IMAGE) $(BUILD_CONTEXT) >/dev/null
+	@docker build --load --target test $(BUILD_ARGS) -f $(DOCKERFILE) -t $(TEST_IMAGE) $(BUILD_CONTEXT) >/dev/null
 
 version: ## Show the version and the image refs this commit builds
 	@echo "Version:  $(VERSION)"
@@ -741,7 +744,7 @@ smoke: ## Probe the deployed dev stack: build commit, static asset, forged Host 
 TEST_SERVICES := db-test redis-test
 TEST_DB_URL   := postgresql+asyncpg://test:test@db-test:5432/test
 TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
-            -e DATABASE_URL_SYNC=$(TEST_DB_URL) -e REDIS_URL=redis://redis-test:6379/0 \
+            -e REDIS_URL=redis://redis-test:6379/0 \
             -e SECRET_KEY=test-only -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost \
             -e DASHBOARD_SESSION_SECRET=test-only -e DASHBOARD_PASSWORD=test-only-dashboard-password \
             -e 'HMAC_KEYS={"test_app": "test-only-hmac-secret"}'
