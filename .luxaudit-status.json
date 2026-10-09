@@ -15,14 +15,16 @@
   "banned": [],
   "not_audited": [],
   "image": {
-    "ref": "",
+    "ref": "luxardolabs/luxanalytics:2026.10.0",
     "inert": true,
-    "inert_reason": "cannot derive the shipped image: needs the git remote and a VERSION file, or `[image] refs = [\"<registry>/<name>:{version}\"]` in .luxaudit.toml",
+    "inert_reason": "luxardolabs/luxanalytics:2026.10.0: not in the registry, so nothing was released at this VERSION. A deploy that pins `:sha-\u2026` is not visible from the mount; name it in `[image] refs`",
     "error": "",
-    "not_released": [],
+    "not_released": [
+      "luxardolabs/luxanalytics:2026.10.0"
+    ],
     "vulnerable": [],
     "deferred": []
   },
-  "commit": "49c97f7c76c05e6d46e112dde4e05cc88a736d3d",
-  "generated_at": "2026-10-09T03:28:34Z"
+  "commit": "9f49963d939534ded7f88b773b77d1807f48e247",
+  "generated_at": "2026-10-09T03:46:45Z"
 }

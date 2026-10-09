@@ -2111,23 +2111,23 @@
       },
       {
         "rule": "repo.luxpm_receipt_current",
-        "status": "FAIL",
+        "status": "PASS",
         "since": "0.211.0",
-        "violations": 1,
+        "violations": 0,
         "deferred": false,
         "inert": false,
         "inert_reason": "",
-        "fix": "re-issue it and commit the text VERBATIM: `luxpm_issue_sync_receipt` for this project, written to `.luxpm-receipt`. Editing any byte invalidates the signature, which is the point \u2014 the counts are the TRACKER's statement, not the repo's. If it names a different repository_url it was copied from a sibling and attests nothing about this one.",
+        "fix": "",
         "example": ""
       },
       {
         "rule": "repo.luxpm_backlog_triaged",
-        "status": "INERT",
+        "status": "PASS",
         "since": "0.252.0",
         "violations": 0,
         "deferred": false,
-        "inert": true,
-        "inert_reason": "this checkout's git remote cannot be read here, so whether `.luxpm-receipt` describes THIS repo is unknown \u2014 the backlog counts are only trusted from a verified receipt (`repo.luxpm_receipt_current` says what to fix). NOT a clearance",
+        "inert": false,
+        "inert_reason": "",
         "fix": "",
         "example": ""
       },
@@ -2210,12 +2210,12 @@
       },
       {
         "rule": "repo.github_release_wired",
-        "status": "INERT",
+        "status": "PASS",
         "since": "0.150.0",
         "violations": 0,
         "deferred": false,
-        "inert": true,
-        "inert_reason": "no git remote \u2014 a GitHub Release has nowhere to be created; wire `gh release create` when this repo gains one. NOT a clearance: the moment a GitHub remote exists this is checked again",
+        "inert": false,
+        "inert_reason": "",
         "fix": "",
         "example": ""
       },
@@ -2551,20 +2551,20 @@
       }
     ],
     "summary": {
-      "PASS": 59,
-      "FAIL": 1,
+      "PASS": 62,
+      "FAIL": 0,
       "XFAIL": 0,
       "XPASS": 0,
-      "INERT": 3
+      "INERT": 1
     }
   },
   "summary": {
-    "PASS": 201,
-    "FAIL": 1,
+    "PASS": 204,
+    "FAIL": 0,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 28
+    "INERT": 26
   },
-  "commit": "49c97f7c76c05e6d46e112dde4e05cc88a736d3d",
-  "generated_at": "2026-10-09T03:28:34Z"
+  "commit": "9f49963d939534ded7f88b773b77d1807f48e247",
+  "generated_at": "2026-10-09T03:46:45Z"
 }
