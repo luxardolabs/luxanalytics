@@ -7,12 +7,17 @@ from app.models.base_model import Base
 
 
 class Device(Base):
-    """Tracks unique devices across events. Upserted on each event ingest."""
+    """One app's install on one device: its latest context, upserted on each event ingest.
+
+    Keyed on (app_id, device_id), not the device alone: the SDK's device id comes from
+    identifierForVendor, which every app of one vendor shares, so one phone running two apps
+    reports one id to both. Version, build and TestFlight are facts about the install
+    (LUXANALYTI-84)."""
 
     __tablename__ = "devices"
 
+    app_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
     device_id: Mapped[str] = mapped_column(String, primary_key=True)
-    app_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
 
     # Device hardware
     device_model: Mapped[str | None] = mapped_column(String)

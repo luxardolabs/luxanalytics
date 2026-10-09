@@ -100,7 +100,7 @@ app/
 ├── models/
 │   ├── base_model.py        # Base (canonical naming_convention), UUIDMixin, TimestampMixin, SoftDeleteMixin
 │   ├── event_model.py       # Event with promoted columns + properties JSONB
-│   ├── device_model.py      # Device table (upserted on ingest)
+│   ├── device_model.py      # Device table: one row per (app_id, device_id) install, upserted on ingest
 │   └── app_model.py         # App registration (public_id, project_id)
 ├── schemas/
 │   ├── event_schema.py      # Event Pydantic schemas
@@ -238,7 +238,7 @@ make prod-release
 
 ## Key Technical Notes
 
-- **Event ingest** splits incoming metadata into per-event device columns (`device_id`, `device_model`, `os_version`, `app_version`, `platform`, `device_type`, `build_number`, `screen_resolution`, `locale`, `timezone`, `is_testflight`) + `properties` JSONB, and upserts the device table (its latest values). There is no raw-metadata copy: `event_metadata` was dropped in migration 009
+- **Event ingest** splits incoming metadata into per-event device columns (`device_id`, `device_model`, `os_version`, `app_version`, `platform`, `device_type`, `build_number`, `screen_resolution`, `locale`, `timezone`, `is_testflight`) + `properties` JSONB, and upserts the device table (each app install's latest values, keyed on `(app_id, device_id)`: the SDK's device id is shared by every app of one vendor on a phone, migration 010). There is no raw-metadata copy: `event_metadata` was dropped in migration 009
 - **Raw SQL queries** in `event_crud.py` use `CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id` pattern to handle NULL app_id filtering in PostgreSQL
 - **Journey page** requires app selection — cross-app Sankey flows are meaningless
 - **Device queries** filter on `Device.last_seen` for time range

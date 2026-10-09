@@ -36,10 +36,11 @@ class DeviceCRUD:
         hours: int = 0,
         limit: int = 20,
     ) -> list[tuple[T, int]]:
-        """GROUP BY a devices table column. Returns [(value, count)]."""
+        """GROUP BY a devices table column. Returns [(value, count of devices)]. A row is one app's
+        install, so across all apps a phone running two of them is counted once."""
         filters = self._time_filters(hours, app_id) + [column.isnot(None)]
         query = (
-            select(column, func.count().label("cnt"))
+            select(column, func.count(func.distinct(Device.device_id)).label("cnt"))
             .where(and_(true(), *filters))
             .group_by(column)
             .order_by(desc("cnt"))
@@ -54,6 +55,8 @@ class DeviceCRUD:
         app_id: str | None = None,
         hours: int = 0,
     ) -> dict[str, int]:
+        """TestFlight vs App Store installs: TestFlight is a fact about one app's install, so a
+        phone with a TestFlight build of one app and the store build of another counts in both."""
         filters = self._time_filters(hours, app_id)
         query = select(
             func.count().filter(Device.is_testflight.is_(True)).label("testflight"),
@@ -84,12 +87,13 @@ class DeviceCRUD:
 
         event_count_subq = (
             select(
+                Event.app_id,
                 Event.device_id,
                 func.count(Event.id).label("total_events"),
                 func.count(func.distinct(Event.name)).label("event_types"),
             )
             .where(and_(true(), *event_filters))
-            .group_by(Event.device_id)
+            .group_by(Event.app_id, Event.device_id)
             .subquery()
         )
 
@@ -99,7 +103,11 @@ class DeviceCRUD:
                 Device, event_count_subq.c.total_events, event_count_subq.c.event_types
             )
             .outerjoin(
-                event_count_subq, Device.device_id == event_count_subq.c.device_id
+                event_count_subq,
+                and_(
+                    Device.app_id == event_count_subq.c.app_id,
+                    Device.device_id == event_count_subq.c.device_id,
+                ),
             )
             .order_by(desc(event_count_subq.c.total_events))
             .limit(limit)
@@ -124,7 +132,7 @@ class DeviceCRUD:
             "screen_resolution",
         )
         stmt = stmt.on_conflict_do_update(
-            index_elements=["device_id"],
+            index_elements=["app_id", "device_id"],
             set_={
                 "last_seen": device_data["last_seen"],
                 **{
