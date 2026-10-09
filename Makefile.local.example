@@ -3,9 +3,10 @@
 #
 #   cp Makefile.local.example Makefile.local     # then edit the values below
 #
-# REGISTRY is the ONE artifact registry: this app's images (`make release`, `make publish-sha`), the
-# image production pulls, AND the luxarch / luxlint / luxaudit guard images, so `make check` and
-# every guard target need it. PROD_JUMP / PROD_HOST are the ssh jump host and the prod node behind it.
+# REGISTRY is the private artifact registry: every build of this app (`make release`, `make
+# publish-sha`) AND the luxarch / luxlint / luxaudit guard images, so `make check` and every guard
+# target need it. Releases are also promoted to the public GHCR image (`make release-ghcr`), which
+# production pulls. PROD_JUMP / PROD_HOST are the ssh jump host and the prod node behind it.
 # Without this file `make up` / `make dev` still work; only the registry, guard and prod targets
 # need it.
 REGISTRY                   ?= docker.your-registry.example:5000

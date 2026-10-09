@@ -2,7 +2,7 @@
 
 The analytics event collector for Luxardo Labs' iOS apps: a FastAPI API that ingests events from the Swift SDK, and a Tailwind + HTMX dashboard to explore them. PostgreSQL stores the events, Redis holds the rate-limit windows.
 
-The client is the Swift SDK, [luxardolabs/luxanalytics-swift](https://github.com/luxardolabs/luxanalytics-swift) (MIT). This repository is the server, which you can self-host (see Quick start and Production).
+The client is the Swift SDK, [luxardolabs/luxanalytics-swift](https://github.com/luxardolabs/luxanalytics-swift) (MIT). This repository is the server, which you can self-host (see Self-hosting).
 
 ## Features
 
@@ -168,9 +168,30 @@ Environment variables, one file per environment (`.env.dev`, `deploy/prod/.env.p
 | `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                       | Turns tracing on; setup fails loudly if it is set and broken                                 |
 | `LOG_LEVEL`                                                                                         | Log level (JSON lines; caller fields under `attributes`)                                     |
 
+## Self-hosting
+
+Each release is published as a public image, `ghcr.io/luxardolabs/luxanalytics:<version>` (from 2026.10.0), and runs from this repository's `compose.yml`. You need Docker with the compose plugin and a TLS reverse proxy.
+
+```bash
+cp .env.example .env.prod          # fill it in (below)
+docker network create luxardolabs  # the stack joins this network; your proxy should too
+docker volume create luxanalytics-postgres-data
+docker compose --env-file .env.prod up -d
+```
+
+The values that matter in `.env.prod`:
+
+- `REGISTRY=ghcr.io` and `TAG=<a released version>`; never `latest`.
+- `DEPLOY_ENV=prod`, `POSTGRES_VOLUME=luxanalytics-postgres-data`, `REDIS_VOLUME=luxanalytics-redis-data`; `COMPOSE_PROFILES=backup` adds the daily database dump into `./backups`.
+- `POSTGRES_PASSWORD`, and `DATABASE_URL=postgresql+asyncpg://luxanalytics:<that password>@luxanalytics_db:5432/luxanalytics`.
+- `ENVIRONMENT=production`, `SECRET_KEY`, `DASHBOARD_PASSWORD` (12+ characters, not a default), `DASHBOARD_SESSION_SECRET` (unset, every restart signs everyone out), `EXTERNAL_URL=https://<your host>`, and `DATABASE_URL_SYNC` (required but unused; any value). Startup refuses an unsafe production configuration and says which setting is wrong.
+- Leave the commented keys commented unless you change one: a blank value overrides the default.
+
+The database migrates itself at startup. The app listens on port 4000 inside the `luxardolabs` network (`luxanalytics_app:4000`) and publishes no port: put your proxy on that network and forward `Host` and `X-Forwarded-For`. Keep `/health` and `/metrics` off the public internet; `deploy/prod/analytics.luxardolabs.com.conf` is a working nginx example. Then sign in at `/dashboard/overview`, register an app under Apps, and give its DSN to the SDK ([docs/event-format.md](docs/event-format.md) is the wire format).
+
 ## Production
 
-Production runs the released image (`make release` cuts `:VERSION`; `make release-ghcr` publishes it as `ghcr.io/luxardolabs/luxanalytics:VERSION`) from the one `compose.yml` with `deploy/prod/.env.prod`, behind nginx (`deploy/prod/analytics.luxardolabs.com.conf`).
+Luxardo Labs' own deployment. Production runs the released image (`make release` cuts `:VERSION`; `make release-ghcr` publishes it as `ghcr.io/luxardolabs/luxanalytics:VERSION`) from the one `compose.yml` with `deploy/prod/.env.prod`, behind nginx (`deploy/prod/analytics.luxardolabs.com.conf`).
 
 ```bash
 make release && make release-ghcr && make prod-deploy   # or: make prod-release
