@@ -187,7 +187,12 @@ class Settings(BaseSettings):
             )
         return self
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    # extra="ignore": a key the settings no longer declare (DATABASE_URL_SYNC, retired by
+    # LUXANALYTI-85) is ignored from a `.env` file exactly as it already is from the environment,
+    # so a config written for an older release still starts this one.
+    model_config = SettingsConfigDict(
+        env_file=".env", case_sensitive=True, extra="ignore"
+    )
 
 
 settings = Settings()

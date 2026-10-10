@@ -186,6 +186,7 @@ The values that matter in `.env.prod`:
 - `POSTGRES_PASSWORD`, and `DATABASE_URL=postgresql+asyncpg://luxanalytics:<that password>@luxanalytics_db:5432/luxanalytics`.
 - `ENVIRONMENT=production`, `SECRET_KEY`, `DASHBOARD_PASSWORD` (12+ characters, not a default), `DASHBOARD_SESSION_SECRET` (unset, every restart signs everyone out), `EXTERNAL_URL=https://<your host>`. Startup refuses an unsafe production configuration and says which setting is wrong.
 - Leave the commented keys commented unless you change one: a blank value overrides the default.
+- Release 2026.10.0 also requires `DATABASE_URL_SYNC` (any value; nothing reads it). The template sets it, and later releases ignore it.
 
 The database migrates itself at startup. The app listens on port 4000 inside the `luxardolabs` network (`luxanalytics_app:4000`) and publishes no port: put your proxy on that network and forward `Host` and `X-Forwarded-For`. Keep `/health` and `/metrics` off the public internet; `deploy/prod/analytics.luxardolabs.com.conf` is a working nginx example. Then sign in at `/dashboard/overview`, register an app under Apps, and give its DSN to the SDK ([docs/event-format.md](docs/event-format.md) is the wire format).
 

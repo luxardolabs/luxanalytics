@@ -1,5 +1,7 @@
 """Production refuses development-only settings at startup (LUXANALYTI-22)."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -130,3 +132,15 @@ def test_no_unread_database_url_is_required() -> None:
     nothing, and made every operator invent a value (LUXANALYTI-85)."""
     assert "DATABASE_URL_SYNC" not in Settings.model_fields
     assert REQUIRED["DATABASE_URL"] == _settings().DATABASE_URL
+
+
+def test_a_dotenv_file_with_a_retired_key_still_loads(tmp_path: Path) -> None:
+    """An operator's `.env` written for 2026.10.0 still sets DATABASE_URL_SYNC: a retired key is
+    ignored, as it is from the environment, not a startup failure (adversarial pass 6)."""
+    env = tmp_path / ".env"
+    lines = [f"{k}={v}" for k, v in {**REQUIRED, **SAFE}.items()] + [
+        "DATABASE_URL_SYNC=x"
+    ]
+    env.write_text("\n".join(lines) + "\n")
+    # EXTERNAL_URL: a key only the file sets (the suite's environment sets the database URL).
+    assert SAFE["EXTERNAL_URL"] == Settings(_env_file=env).EXTERNAL_URL

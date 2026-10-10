@@ -38,9 +38,9 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.275.2
-LUXLINT_VERSION  := 0.62.2
-LUXAUDIT_VERSION := 0.13.1
+LUXARCH_VERSION  := 0.276.0
+LUXLINT_VERSION  := 0.63.0
+LUXAUDIT_VERSION := 0.13.2
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
 LUXLINT  := $(REGISTRY)/luxardolabs/luxlint:$(LUXLINT_VERSION)
 LUXAUDIT := $(REGISTRY)/luxardolabs/luxaudit:$(LUXAUDIT_VERSION)
@@ -163,7 +163,7 @@ status: guard-registry ## Regenerate committed guard-status files (.lux*-status.
 DBV_PG_IMAGE  := postgres:16-alpine
 DBV_EXTRA_ENV := -e ENVIRONMENT=test -e SECRET_KEY=db-verify-only -e DASHBOARD_PASSWORD=db-verify-only
 
-# luxarch:db-verify asset v3 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
+# luxarch:db-verify asset v4 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
 # ── The migration-chain gate ────────────────────────────────────────────────────────────────────
 # Emitted by `luxarch --emit db-verify`. Drop in verbatim and set the five variables above it.
 #
@@ -190,6 +190,12 @@ DBV_PG_IMAGE  ?= postgres:17-alpine
 # Any env the app's Settings REQUIRES to import. Values are irrelevant here — this never serves
 # traffic — but a missing required setting fails at import and reads as a migration error.
 DBV_EXTRA_ENV ?=
+# v4: where the app is built from, and where its verifier lives. v3 built `.` and mounted `$(CURDIR)/scripts`,
+# so a monorepo whose app builds from `apps/backend/` could not adopt it unedited. The same settings as the
+# image block (one variable each: set `BUILD_CONTEXT := apps/backend` once and both follow).
+BUILD_CONTEXT ?= .
+DOCKERFILE    ?= $(BUILD_CONTEXT)/Dockerfile
+DBV_SCRIPTS   ?= $(abspath $(BUILD_CONTEXT)/scripts)
 
 # v2 — IT LEAKED A VOLUME EVERY RUN, AND THE DISK FILLED. The postgres image declares a VOLUME, so
 # `docker run` minted an anonymous ~58 MB data volume each time, and `docker rm -f` (no `-v`) left it
@@ -214,13 +220,13 @@ db-verify: ## PROVE the chain builds the schema from EMPTY, no drift vs models
 	  $(DBV_PG_IMAGE) >/dev/null; \
 	until docker exec -e PGPASSWORD=$(DBV_DB) $(DBV_DB) \
 	  psql -h 127.0.0.1 -U $(DBV_DB) -d $(DBV_DB) -tAc 'select 1' >/dev/null 2>&1; do sleep 1; done; \
-	docker build --load -q -t $(DBV_IMAGE) . >/dev/null; \
+	docker build --load -q -f $(DOCKERFILE) -t $(DBV_IMAGE) $(BUILD_CONTEXT) >/dev/null; \
 	echo "db-verify: alembic upgrade head (empty -> head)"; \
 	docker run --rm --network $(DBV_NET) $(DBV_EXTRA_ENV) \
 	  -e DATABASE_URL="postgresql+asyncpg://$(DBV_DB):$(DBV_DB)@$(DBV_DB):5432/$(DBV_DB)" \
 	  $(DBV_IMAGE) alembic upgrade head; \
 	echo "db-verify: diff the migrated schema against the models"; \
-	docker run --rm --network $(DBV_NET) -w /app -v $(CURDIR)/scripts:/scripts:ro \
+	docker run --rm --network $(DBV_NET) -w /app -v "$(DBV_SCRIPTS)":/scripts:ro \
 	  -e PYTHONPATH=/app $(DBV_EXTRA_ENV) \
 	  -e DATABASE_URL="postgresql+asyncpg://$(DBV_DB):$(DBV_DB)@$(DBV_DB):5432/$(DBV_DB)" \
 	  $(DBV_IMAGE) python /scripts/verify_migration_chain.py
@@ -241,7 +247,7 @@ onboard-check: guard-registry ## Prove the repo is onboarded: all three guards o
 	$(MAKE) -s gitleaks >/dev/null 2>&1 || { echo "gitleaks found secrets in FULL history — scrub before onboarding is complete"; fail=1; }; \
 	[ $$fail -eq 0 ] && echo "onboard-check: all three guards on + honest + privacy wired + history clean ✓" || { echo "onboard-check FAILED"; exit 1; }
 
-# luxarch:gitleaks asset v11 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit gitleaks`.
+# luxarch:gitleaks asset v12 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit gitleaks`.
 # ── The privacy gate: BOTH surfaces ─────────────────────────────────────────────────────────────
 # Emitted by `luxarch --emit gitleaks`. Drop in verbatim.
 #
@@ -268,7 +274,10 @@ onboard-check: guard-registry ## Prove the repo is onboarded: all three guards o
 # `<x@users.noreply.github.com.attacker.test>` would have been allowed.
 # v11: the noreply address is `<local@users.noreply.github.com>`, and the local part has no `@`. v10's
 # `<[^>]*users…` admitted `<dev.real@gmail.com.users.noreply.github.com>`, a real address in the clear.
-GIT_IDENTITY_OK ?= <[^@<> ]+@users\.noreply\.github\.com>$$|<noreply@github\.com>$$
+# v12: the fleet ACCOUNT, not any noreply address. v11 accepted `<anyone@users.noreply.github.com>`, so a
+# stranger's (or a second account's) noreply committer passed. Measured: the fleet's whole history holds
+# exactly two noreply identities, the fleet account and GitHub's web-UI committer.
+GIT_IDENTITY_OK ?= <214140984\+luxardolabs@users\.noreply\.github\.com>$$|<noreply@github\.com>$$
 
 # The secret scanner, PINNED and MIRRORED in the fleet registry. The fleet bans a moving tag
 # everywhere it can see one, and this used to ship `ghcr.io/gitleaks/gitleaks:latest` inside the asset every
@@ -293,7 +302,28 @@ gitleaks: ## secret scan over FULL HISTORY + the commit-identity pass (the hooks
 	@set -e; C=$$(mktemp); trap 'rm -f "$$C"' EXIT INT TERM; \
 	docker run --rm -v $(PWD):/repo $(LUXLINT) --emit-config gitleaks > "$$C"; \
 	docker run --rm -v $(PWD):/repo -v "$$C":/gl.toml:ro -w /repo \
-	  $(GITLEAKS_IMAGE) git /repo -c /gl.toml --redact -v
+	  $(GITLEAKS_IMAGE) git /repo -c /gl.toml --redact -v --ignore-gitleaks-allow
+	@# v12: what `gitleaks git` never reads. It scans git's PATCHES, and git prints no patch for a file it
+	@# treats as binary: a NUL byte, UTF-16 (a `Localizable.strings`), or a `binary` / `-diff` attribute.
+	@# A token in any of them reached the remote with "no leaks found". So every path git ever showed as
+	@# binary is re-read as text, NULs stripped, and scanned by path (the config's path allowlists hold).
+	@set -e; C=$$(mktemp); D=$$(mktemp -d); trap 'rm -rf "$$C" "$$D"' EXIT INT TERM; \
+	docker run --rm -v $(PWD):/repo $(LUXLINT) --emit-config gitleaks > "$$C"; \
+	git -c core.quotePath=false log --branches --tags HEAD --format= -p --no-ext-diff --no-textconv \
+	  > "$$D/patches"; \
+	sed -n 's|^Binary files .* and b/\(.*\) differ$$|\1|p' "$$D/patches" | sort -u > "$$D/binary"; \
+	if [ -s "$$D/binary" ]; then \
+	  mkdir "$$D/t" "$$D/none"; \
+	  while IFS= read -r f; do \
+	    mkdir -p "$$D/t/$$(dirname "$$f")"; \
+	    git -c core.quotePath=false log --branches --tags HEAD --format= -p --text --no-ext-diff \
+	      --no-textconv -- "$$f" > "$$D/p"; \
+	    grep -a '^+' "$$D/p" | tr -d '\000' > "$$D/t/$$f"; \
+	  done < "$$D/binary"; \
+	  docker run --rm -v "$$D/t":/scan:ro -w /scan -v "$$D/none":/none:ro -v "$$C":/gl.toml:ro \
+	    $(GITLEAKS_IMAGE) dir . -c /gl.toml --redact -v --ignore-gitleaks-allow \
+	    --gitleaks-ignore-path /none; \
+	fi
 	@# The identity pass — the half gitleaks structurally cannot do. Cheap: one `git log`.
 	@# Walks what THIS repo publishes (branches, tags, HEAD), NOT `--all`: a remote-tracking ref caches the
 	@# remote's state, which during a scrub is by definition the un-rewritten history you are about to
@@ -324,11 +354,27 @@ gitleaks: ## secret scan over FULL HISTORY + the commit-identity pass (the hooks
 # another user's file in sticky /tmp even for root), so the privacy gate failed every commit or push
 # after a user switch (2 of 2 measured). Two repos scanning at once also shared one file, so one could
 # scan with the other's carve-outs. The full-history scan now also passes `-w /repo`, like the staged one.
+# v12: the staged bytes are read on the HOST and scanned as files, by path. v11 ran `protect --staged`
+# inside the container, which read `.git/index`, not the temporary index git hands the hook in
+# `$$GIT_INDEX_FILE`: `git commit -a` and `git commit <path>` were never scanned. It also read git's
+# patches, which skip binary, NUL, UTF-16 and `-diff` files, and it honoured a `# gitleaks:allow` on
+# the secret's own line and a committed `.gitleaksignore`, so a commit's author could waive their own
+# leak. New content gets no waiver: `.gitleaksignore` stays a ledger for the full-history scan only.
 gitleaks-staged: ## secret scan of the STAGED changes (run by hooks/pre-commit)
-	@set -e; C=$$(mktemp); trap 'rm -f "$$C"' EXIT INT TERM; \
+	@set -e; C=$$(mktemp); D=$$(mktemp -d); trap 'rm -rf "$$C" "$$D"' EXIT INT TERM; \
 	docker run --rm -v $(PWD):/repo $(LUXLINT) --emit-config gitleaks > "$$C"; \
-	docker run --rm -v $(PWD):/repo -v "$$C":/gl.toml:ro -w /repo \
-	  $(GITLEAKS_IMAGE) protect --staged /repo -c /gl.toml --redact -v
+	mkdir "$$D/t" "$$D/none"; \
+	git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR -z > "$$D/names"; \
+	tr '\000' '\n' < "$$D/names" | while IFS= read -r f; do \
+	  [ -n "$$f" ] || continue; \
+	  mkdir -p "$$D/t/$$(dirname "$$f")"; \
+	  git -c core.quotePath=false diff --cached --text --no-ext-diff --no-textconv -U0 -- "$$f" \
+	    > "$$D/p"; \
+	  grep -a '^+' "$$D/p" | tr -d '\000' > "$$D/t/$$f"; \
+	done; \
+	docker run --rm -v "$$D/t":/scan:ro -w /scan -v "$$D/none":/none:ro -v "$$C":/gl.toml:ro \
+	  $(GITLEAKS_IMAGE) dir . -c /gl.toml --redact -v --ignore-gitleaks-allow \
+	  --gitleaks-ignore-path /none
 
 # =============================================================================
 # Help
@@ -385,7 +431,7 @@ buildx-setup:
 # =============================================================================
 # Images, deploy tags and the release (emitted asset — never hand-edit)
 # =============================================================================
-# luxarch:image-block asset v11 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
+# luxarch:image-block asset v12 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
 # ── Images: ONE naming scheme, and the NAME declares what the image IS ──────────────────────────
 # Emitted by `luxarch --emit image-block`. Two axes, both readable from the name alone:
 #
@@ -410,7 +456,12 @@ buildx-setup:
 # Enforced by `repo.image_name_declares_provenance`.
 
 REGISTRY      ?=
-IMAGE_NAME    := luxardolabs/$(notdir $(CURDIR))
+# v12: the repo's NAME, from its git remote, not the checkout directory. v11 used `$(notdir $(CURDIR))`, so a
+# repo cloned into another directory (checked out under a shorter name on a build host) built and
+# pushed an image nothing pulls, and the deploy reported success. With no remote it falls back to the
+# directory. A repo whose image is named otherwise sets `IMAGE_NAME := luxardolabs/<name>` above the block.
+REPO_SLUG     := $(basename $(notdir $(shell git config --get remote.origin.url 2>/dev/null)))
+IMAGE_NAME    ?= luxardolabs/$(or $(REPO_SLUG),$(notdir $(CURDIR)))
 # BASE — no tag; every tag composes from it. The comment sits ABOVE the value, never after it:
 # GNU make keeps the whitespace between a value and an inline `#`, so `IMAGE := …/repo   # note`
 # defines IMAGE *with trailing spaces*, and every tag built from it — `…/repo   :0.1.0` — is an
@@ -595,6 +646,11 @@ TAG ?= sha-$(COMMIT)
 # A service with no `profiles:` starts either way.
 DEV_PROFILES ?=
 
+# v12: `dev-pin` waits for the stack: running, and healthy where a service has a healthcheck. v11 returned when the
+# containers STARTED, so `smoke` hit the proxy before the app listened: every first probe was a 502, and
+# the forged-Host probe "passed" because nothing answered at all. Seconds to wait before failing the deploy:
+DEV_WAIT_TIMEOUT ?= 120
+
 define pin_env_tag
 	f='$(1)'; t='$(2)'; \
 	[ -f "$$f" ] || { echo "$$f is missing — copy .env.example and fill it in first"; exit 1; }; \
@@ -626,7 +682,8 @@ dev-pin: ## Point the dev stack at an ALREADY-PUBLISHED tag and restart it (roll
 	@docker manifest inspect $(IMAGE):$(TAG) >/dev/null 2>&1 || \
 	  { echo "$(IMAGE):$(TAG) is not in the registry — publish it before pinning a stack to it"; exit 1; }
 	@$(call pin_env_tag,.env.dev,$(TAG))
-	docker compose --env-file .env.dev $(foreach p,$(DEV_PROFILES),--profile $(p)) up -d
+	docker compose --env-file .env.dev $(foreach p,$(DEV_PROFILES),--profile $(p)) up -d --wait \
+	  --wait-timeout $(DEV_WAIT_TIMEOUT)
 
 # ── Verify: build from source, locally, every run ───────────────────────────────────────────────
 # The test image must carry the SAME app layers production ships, plus the dev group. Two Dockerfile
@@ -653,7 +710,7 @@ version: ## Show the version and the image refs this commit builds
 SMOKE_URL ?= https://localhost:4000
 SMOKE_CURL_OPTS ?= -k
 SMOKE_HEALTH_PATH ?= /login
-# luxarch:smoke asset v3 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit smoke`.
+# luxarch:smoke asset v4 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit smoke`.
 # ── Smoke: probe the DEPLOYED stack from outside, after every dev deploy ──────────────────────────
 # Emitted by `luxarch --emit smoke`; paste below the image block. `make test` runs the app in-process
 # against its test stack, so it cannot see the proxy, the server, the production image or an entry
@@ -689,6 +746,9 @@ SMOKE_RUN_OPTS ?=
 # Setting: extra curl options (e.g. --cacert <file> for a private CA) -------------------------
 SMOKE_CURL_OPTS ?=
 
+# v4: a 502/503/504 on the forged-Host probe is the PROXY answering for an app that did not, not a refusal.
+# v3 printed "PASS  forged Host refused (502)" while the stack was still starting, beside two FAILs that
+# said the same thing; the probe can only pass on an answer from the app itself.
 smoke: ## Probe the deployed dev stack: build commit, static asset, forged Host refused, auth, standalone entry points
 	@set -u; fail=0; \
 	[ -n "$(SMOKE_URL)" ] || { echo "REFUSING: set SMOKE_URL to the dev stack's address (Makefile.local)"; exit 2; }; \
@@ -708,6 +768,7 @@ smoke: ## Probe the deployed dev stack: build commit, static asset, forged Host 
 	r=$$(probe -H "Host: smoke-forged.invalid" "$(SMOKE_URL)$(SMOKE_HEALTH_PATH)"); \
 	case "$${r%% *}" in 2??|3??) echo "FAIL  a forged Host header was answered ($$r): the trusted-host defence is not on in the real stack"; fail=1;; \
 	  000) echo "PASS  forged Host refused (connection rejected)";; \
+	  502|503|504) echo "FAIL  the forged-Host probe got $${r%% *} from the proxy: the app did not answer, so whether it refuses a forged Host is unknown"; fail=1;; \
 	  *) echo "PASS  forged Host refused ($${r%% *})";; esac; \
 	if [ -n "$(SMOKE_AUTH_PATH)" ]; then \
 	  r=$$(probe "$(SMOKE_URL)$(SMOKE_AUTH_PATH)"); \
