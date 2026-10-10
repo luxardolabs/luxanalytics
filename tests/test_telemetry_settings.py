@@ -19,7 +19,9 @@ def providers(monkeypatch: pytest.MonkeyPatch) -> list[TracerProvider]:
     monkeypatch.setattr(trace, "set_tracer_provider", installed.append)
     monkeypatch.setattr(metrics, "set_meter_provider", lambda _provider: None)
     monkeypatch.setattr(telemetry, "instrument_database", lambda _engine: None)
-    monkeypatch.setattr(telemetry, "OTLPSpanExporter", lambda **_kwargs: _NullExporter())
+    monkeypatch.setattr(
+        telemetry, "OTLPSpanExporter", lambda **_kwargs: _NullExporter()
+    )
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
     return installed
@@ -39,19 +41,31 @@ class _NullExporter:
 def test_the_endpoint_and_service_name_come_from_settings(
     monkeypatch: pytest.MonkeyPatch, providers: list[TracerProvider]
 ) -> None:
-    monkeypatch.setattr(settings, "OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317")
+    monkeypatch.setattr(
+        settings, "OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317"
+    )
     monkeypatch.setattr(settings, "OTEL_SERVICE_NAME", "from-settings")
     telemetry.setup_telemetry()
-    assert [p.resource.attributes["service.name"] for p in providers] == ["from-settings"]
+    assert [p.resource.attributes["service.name"] for p in providers] == [
+        "from-settings"
+    ]
 
 
 def test_the_default_service_name_is_the_settings_default(
     monkeypatch: pytest.MonkeyPatch, providers: list[TracerProvider]
 ) -> None:
-    monkeypatch.setattr(settings, "OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317")
-    monkeypatch.setattr(settings, "OTEL_SERVICE_NAME", Settings.model_fields["OTEL_SERVICE_NAME"].default)
+    monkeypatch.setattr(
+        settings, "OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317"
+    )
+    monkeypatch.setattr(
+        settings,
+        "OTEL_SERVICE_NAME",
+        Settings.model_fields["OTEL_SERVICE_NAME"].default,
+    )
     telemetry.setup_telemetry()
-    assert [p.resource.attributes["service.name"] for p in providers] == ["luxanalytics"]
+    assert [p.resource.attributes["service.name"] for p in providers] == [
+        "luxanalytics"
+    ]
 
 
 def test_no_endpoint_in_settings_means_tracing_stays_off(
