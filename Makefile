@@ -38,8 +38,8 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.276.0
-LUXLINT_VERSION  := 0.63.0
+LUXARCH_VERSION  := 0.277.0
+LUXLINT_VERSION  := 0.63.1
 LUXAUDIT_VERSION := 0.13.2
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
 LUXLINT  := $(REGISTRY)/luxardolabs/luxlint:$(LUXLINT_VERSION)
@@ -431,7 +431,7 @@ buildx-setup:
 # =============================================================================
 # Images, deploy tags and the release (emitted asset — never hand-edit)
 # =============================================================================
-# luxarch:image-block asset v12 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
+# luxarch:image-block asset v13 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit image-block`.
 # ── Images: ONE naming scheme, and the NAME declares what the image IS ──────────────────────────
 # Emitted by `luxarch --emit image-block`. Two axes, both readable from the name alone:
 #
@@ -456,6 +456,13 @@ buildx-setup:
 # Enforced by `repo.image_name_declares_provenance`.
 
 REGISTRY      ?=
+# v13: the registry the RELEASE goes to, the one prod pulls from. The fleet has more than one: dev
+# stacks pull from the local registry above, prod at a remote host pulls from a registry it can reach
+# (a public app: GHCR). v1-v12 pushed `:$(VERSION)` to REGISTRY, so a repo whose prod cannot reach it
+# had to override REGISTRY on the command line for every release, and a release cut without the
+# override landed where prod could not pull it. Set it above the block when prod pulls elsewhere,
+# e.g. `RELEASE_REGISTRY := registry.example.com`; one registry for both needs nothing.
+RELEASE_REGISTRY ?= $(REGISTRY)
 # v12: the repo's NAME, from its git remote, not the checkout directory. v11 used `$(notdir $(CURDIR))`, so a
 # repo cloned into another directory (checked out under a shorter name on a build host) built and
 # pushed an image nothing pulls, and the deploy reported success. With no remote it falls back to the
@@ -469,11 +476,13 @@ IMAGE_NAME    ?= luxardolabs/$(or $(REPO_SLUG),$(notdir $(CURDIR)))
 # run at all; no repo had executed it, so three green rules stood over a recipe that was broken on
 # its first line. Locked by test_emitted_makefiles_have_no_inline_comment_on_an_assignment.
 IMAGE         := $(REGISTRY)/$(IMAGE_NAME)
+RELEASE_IMAGE := $(RELEASE_REGISTRY)/$(IMAGE_NAME)
 COMMIT        := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 
 # IMMUTABLE deploy tags — the ONLY tags a stack may pin (`TAG=` in .env.<env>).
-#   VERSION_IMAGE = cut releases;  SHA_IMAGE = every other build, addressable, no ceremony.
-VERSION_IMAGE := $(IMAGE):$(VERSION)
+#   VERSION_IMAGE = cut releases, in the registry prod pulls from;  SHA_IMAGE = every other build,
+#   addressable, no ceremony, in the dev registry.
+VERSION_IMAGE := $(RELEASE_IMAGE):$(VERSION)
 SHA_IMAGE     := $(IMAGE):sha-$(COMMIT)
 
 # MOVING alias — for a human reading `docker images`. Never pinned by a stack, never a build input,
