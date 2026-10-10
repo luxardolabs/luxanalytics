@@ -165,7 +165,7 @@ Environment variables, one file per environment (`.env.dev`, `deploy/prod/.env.p
 | `EVENT_TIMESTAMP_FUTURE_TOLERANCE`                                                                  | Seconds an event may be in the future (default 60)                                           |
 | `MAX_REQUEST_SIZE`                                                                                  | Request body limit (default 10 MB)                                                           |
 | `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, `DASHBOARD_SESSION_SECRET`, `DASHBOARD_SESSION_TIMEOUT` | Dashboard login; the password is required                                                    |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                       | Turns tracing on; setup fails loudly if it is set and broken                                 |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`                                                  | The endpoint turns tracing on (fails loudly if set and broken); name default `luxanalytics`  |
 | `LOG_LEVEL`                                                                                         | Log level (JSON lines; caller fields under `attributes`)                                     |
 
 ## Self-hosting

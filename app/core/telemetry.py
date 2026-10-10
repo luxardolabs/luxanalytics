@@ -1,7 +1,6 @@
 """OpenTelemetry and Prometheus setup for observability."""
 
 import logging
-import os
 
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
@@ -31,15 +30,15 @@ POOL_OVERFLOW = Gauge("db_pool_overflow", "Connections open beyond the pool size
 def setup_telemetry(app: FastAPI | None = None) -> None:
     """Initialize OpenTelemetry tracing and metrics."""
 
-    # Skip if no OTEL endpoint configured
-    otel_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    # From Settings, like every other value: a .env file reaches it and the defaults live there.
+    otel_endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT
     if not otel_endpoint:
         logger.info("OpenTelemetry disabled - no endpoint configured")
         return
 
     # No try/except: the OTLP exporter connects lazily, so anything raised here is a config or
     # code error, and an operator who set the endpoint wants it to fail loudly, not trace nothing.
-    service_name = os.getenv("OTEL_SERVICE_NAME", "ll_analytics")
+    service_name = settings.OTEL_SERVICE_NAME
     resource = Resource.create(
         {
             "service.name": service_name,
