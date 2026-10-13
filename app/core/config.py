@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 from pydantic import Field, TypeAdapter, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.trusted_host import AllowedHosts
+
 _STR_DICT = TypeAdapter(dict[str, str])
 _STR_LIST = TypeAdapter(list[str])
 
@@ -70,7 +72,9 @@ class Settings(BaseSettings):
 
     # CORS + Hosts
     CORS_ORIGINS: str | None = None  # Comma-separated or JSON list
-    ALLOWED_HOSTS: str | None = None  # Comma-separated
+    # Required, no default: the Host headers this environment serves, comma-separated, set in
+    # .env.<env> (FLEET-BUILD-DEPLOY-STANDARD "Trusted hosts"). Unset, empty or `*` refuses to start.
+    ALLOWED_HOSTS: AllowedHosts
 
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
@@ -130,28 +134,11 @@ class Settings(BaseSettings):
             return _STR_LIST.validate_json(self.CORS_ORIGINS)
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
-    @property
-    def allowed_hosts_list(self) -> list[str]:
-        """Host headers the app answers: ALLOWED_HOSTS (comma list) when set.
-
-        Unset, it fails closed to EXTERNAL_URL's host plus localhost (the container health check)
-        instead of accepting any Host header.
-        """
-        if self.ALLOWED_HOSTS:
-            return [h.strip() for h in self.ALLOWED_HOSTS.split(",") if h.strip()]
-        hosts = ["localhost", "127.0.0.1"]
-        external_host = (
-            urlparse(self.EXTERNAL_URL).hostname if self.EXTERNAL_URL else None
-        )
-        if external_host:
-            hosts.insert(0, external_host)
-        return hosts
-
     @field_validator("EXTERNAL_URL")
     @classmethod
     def external_url_stripped(cls, v: str | None) -> str | None:
         """The value the app uses is the value the production check judged: a quoted trailing
-        space would otherwise reach the allowed host and every DSN."""
+        space would otherwise reach every DSN."""
         if v is None:
             return None
         return v.strip() or None
@@ -164,7 +151,7 @@ class Settings(BaseSettings):
     def production_is_safe(self) -> Settings:
         """Production refuses to start on a setting that is only safe in development
         (LUXANALYTI-22): a guessable dashboard password, DEBUG (it serves /docs and /openapi.json),
-        or no usable https EXTERNAL_URL (DSNs and the allowed host derive from it)."""
+        or no usable https EXTERNAL_URL (DSNs are built from it)."""
         if not self.is_production:
             return self
         if _guessable(self.DASHBOARD_PASSWORD, self.DASHBOARD_USERNAME):
@@ -174,7 +161,7 @@ class Settings(BaseSettings):
             )
         if self.DEBUG:
             raise ValueError("DEBUG must be false in production")
-        # DSNs are built as https://PUBLIC_ID@<netloc>/…, and the allowed host is the hostname.
+        # DSNs are built as https://PUBLIC_ID@<netloc>/….
         url = urlparse(self.EXTERNAL_URL or "")
         if (
             url.scheme != "https"

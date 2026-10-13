@@ -16,6 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import build_pagination, skip_limit
+from app.core.safe_redirect import safe_redirect_target
 from app.core.tracing import create_service_span
 from app.schemas.event_schema import EventInDB
 from app.services.core.analytics_core_service import AnalyticsCoreService
@@ -50,7 +51,9 @@ def switch_app_response(current_url: str, app_id: str) -> Response:
     current = urlsplit(current_url)
     path = current.path if current.path.startswith("/") else "/dashboard/overview"
     query = [(k, v) for k, v in parse_qsl(current.query) if k != "app_id"]
-    target = f"{path}?{urlencode(query)}" if query else path
+    target = safe_redirect_target(
+        f"{path}?{urlencode(query)}" if query else path, "/dashboard/overview"
+    )
     response = Response(status_code=204, headers={"HX-Redirect": target})
     if app_id:
         response.set_cookie(

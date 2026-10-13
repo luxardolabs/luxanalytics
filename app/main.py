@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from redis.exceptions import RedisError
 from slowapi.errors import RateLimitExceeded
@@ -29,7 +28,9 @@ from app.core.middleware import (
     SecurityHeadersMiddleware,
 )
 from app.core.redis_client import close_redis_client
+from app.core.same_origin import SameOriginMiddleware
 from app.core.telemetry import setup_telemetry
+from app.core.trusted_host import AllowedHostsMiddleware
 from app.db.database import async_engine
 
 # Every model registered on Base.metadata before anything migrates or queries.
@@ -136,6 +137,11 @@ def _publish_ingest_schemas(app: FastAPI) -> None:
     components.update(INGEST_BODY_COMPONENTS)
 
 
+# Exact paths (the guard matches no pattern): the DSN route `/api/v1/events/{project_id}` cannot be
+# listed, and is held to the guard until it can (LUXANALYTI-89, same-origin asset escalation).
+INGEST_PATHS = ("/api/v1/events/", "/api/v1/events/public")
+
+
 def create_application() -> FastAPI:
     """Create and configure FastAPI application."""
 
@@ -153,8 +159,9 @@ def create_application() -> FastAPI:
     setup_telemetry(app)
 
     # Middleware. Starlette's add_middleware PREPENDS, so the LAST one added is the OUTERMOST.
-    # Effective order, outer -> inner: TrustedHost, CORS, RateLimit, Logging, SecurityHeaders,
-    # Session. Host validation and CORS run before anything else touches the request.
+    # Effective order, outer -> inner: AllowedHosts, SameOrigin, CORS, RateLimit, Logging,
+    # SecurityHeaders, Session. Host validation and the cross-site refusal (login CSRF,
+    # FLEET-AUTH-SESSION-STANDARD §5) run before anything else touches the request.
     app.add_middleware(
         SessionMiddleware,
         secret_key=get_session_secret(),
@@ -174,9 +181,19 @@ def create_application() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
+    # The SDK ingest routes authenticate by HMAC or DSN, never by a cookie, so a cross-site POST
+    # there carries no victim's session: a WebView client (CORS_ORIGINS) posts with its own Origin.
     app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.allowed_hosts_list,
+        SameOriginMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS,
+        cross_site_paths=INGEST_PATHS,
+    )
+    app.add_middleware(
+        AllowedHostsMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS,
+        health_paths=(
+            "/health",
+        ),  # the container HEALTHCHECK (Dockerfile, compose.yml)
     )
 
     # The canonical exception handler renders its error page/partial through this instance.

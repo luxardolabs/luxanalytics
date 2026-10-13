@@ -153,20 +153,20 @@ curl -X GET "http://localhost:4000/api/v1/events/stats" \
 
 Environment variables, one file per environment (`.env.dev`, `deploy/prod/.env.prod`; the template is `.env.example`). The main ones:
 
-| Variable                                                                                            | Purpose                                                                                      |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                                                      | `postgresql+asyncpg://…`; keep `DB_POOL_PRE_PING=true` (it catches stale pooled connections) |
-| `DB_POOL_SIZE`, `DB_POOL_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`                        | Connection pool                                                                              |
-| `REDIS_URL`                                                                                         | Rate-limit state shared across workers (in-memory fallback when unset or down)               |
-| `HMAC_KEYS`                                                                                         | JSON `{"app_id": "secret"}` for signed ingest                                                |
-| `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW`, `LOGIN_RATE_LIMIT`                                      | Request limits                                                                               |
-| `TRUSTED_PROXIES`                                                                                   | Proxies whose `X-Forwarded-For` is believed                                                  |
-| `ALLOWED_HOSTS`, `CORS_ORIGINS`, `EXTERNAL_URL`                                                     | Host and origin allowlists; the public base URL used in DSNs                                 |
-| `EVENT_TIMESTAMP_FUTURE_TOLERANCE`                                                                  | Seconds an event may be in the future (default 60)                                           |
-| `MAX_REQUEST_SIZE`                                                                                  | Request body limit (default 10 MB)                                                           |
-| `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, `DASHBOARD_SESSION_SECRET`, `DASHBOARD_SESSION_TIMEOUT` | Dashboard login; the password is required                                                    |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`                                                  | The endpoint turns tracing on (fails loudly if set and broken); name default `luxanalytics`  |
-| `LOG_LEVEL`                                                                                         | Log level (JSON lines; caller fields under `attributes`)                                     |
+| Variable                                                                                            | Purpose                                                                                            |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                                                      | `postgresql+asyncpg://…`; keep `DB_POOL_PRE_PING=true` (it catches stale pooled connections)       |
+| `DB_POOL_SIZE`, `DB_POOL_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`                        | Connection pool                                                                                    |
+| `REDIS_URL`                                                                                         | Rate limits (in-memory fallback when down) and the logout stamp: no Redis, no dashboard sessions   |
+| `HMAC_KEYS`                                                                                         | JSON `{"app_id": "secret"}` for signed ingest                                                      |
+| `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW`, `LOGIN_RATE_LIMIT`                                      | Request limits                                                                                     |
+| `TRUSTED_PROXIES`                                                                                   | Proxies whose `X-Forwarded-For` is believed                                                        |
+| `ALLOWED_HOSTS`, `CORS_ORIGINS`, `EXTERNAL_URL`                                                     | `ALLOWED_HOSTS` is required (comma list, no ports); CORS origins; the public base URL used in DSNs |
+| `EVENT_TIMESTAMP_FUTURE_TOLERANCE`                                                                  | Seconds an event may be in the future (default 60)                                                 |
+| `MAX_REQUEST_SIZE`                                                                                  | Request body limit (default 10 MB)                                                                 |
+| `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, `DASHBOARD_SESSION_SECRET`, `DASHBOARD_SESSION_TIMEOUT` | Dashboard login; the password is required                                                          |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`                                                  | The endpoint turns tracing on (fails loudly if set and broken); name default `luxanalytics`        |
+| `LOG_LEVEL`                                                                                         | Log level (JSON lines; caller fields under `attributes`)                                           |
 
 ## Self-hosting
 
@@ -207,7 +207,7 @@ The `backup` compose profile (on in prod) runs `scripts/backup.sh`: a daily gzip
 - **"Invalid compressed data":** send `Content-Encoding: deflate` and sign the compressed body.
 - **HMAC failures:** the timestamp must be within the tolerance window; the signature is over `payload + timestamp`; the key id must be in `HMAC_KEYS`.
 - **"password authentication failed" from the pool:** usually a stale pooled connection, not a password. Keep `DB_POOL_PRE_PING=true` and set `DB_POOL_RECYCLE` below the network idle timeout.
-- **400 on every request after a deploy:** the proxy must forward `Host $host`; the app only answers hosts in `ALLOWED_HOSTS` (default: `EXTERNAL_URL`'s host and localhost).
+- **400 on every request after a deploy:** the proxy must forward `Host $host`; the app only answers hosts in `ALLOWED_HOSTS`, which is required (no default; the app does not start without it).
 
 ## License
 

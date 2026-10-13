@@ -48,7 +48,7 @@ async def test_root_redirects_to_the_dashboard(client: AsyncClient) -> None:
 @pytest.mark.db
 async def test_logout_clears_the_session(client: AsyncClient) -> None:
     await _sign_in(client, "198.51.100.101")
-    r = await client.get("/logout", follow_redirects=False)
+    r = await client.post("/logout", follow_redirects=False)
     assert r.status_code == 303
     after = await client.get("/dashboard/overview", follow_redirects=False)
     assert after.status_code == 303  # bounced: the session really is gone

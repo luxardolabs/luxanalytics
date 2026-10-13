@@ -168,7 +168,8 @@ status: guard-registry ## Regenerate committed guard-status files (.lux*-status.
 
 # db-verify settings (the emitted block below reads these; set ABOVE it, as it says).
 DBV_PG_IMAGE  := postgres:16-alpine
-DBV_EXTRA_ENV := -e ENVIRONMENT=test -e SECRET_KEY=db-verify-only -e DASHBOARD_PASSWORD=db-verify-only
+DBV_EXTRA_ENV := -e ENVIRONMENT=test -e SECRET_KEY=db-verify-only -e DASHBOARD_PASSWORD=db-verify-only \
+                 -e ALLOWED_HOSTS=db-verify.invalid
 
 # luxarch:db-verify asset v4 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
 # ── The migration-chain gate ────────────────────────────────────────────────────────────────────

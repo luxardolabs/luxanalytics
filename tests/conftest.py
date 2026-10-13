@@ -499,7 +499,6 @@ EXPECT_3XX: frozenset[str] = frozenset(
     {
         # "/logout",       # redirects to login by design; the POST path asserts the cookie is cleared
         # "/",             # permanent redirect to /dashboard
-        "/logout",  # always redirects to /login; test_logout_clears_the_session asserts the session is gone
         "/",  # always redirects to /dashboard/overview (test_root_redirects_to_the_dashboard)
     }
 )

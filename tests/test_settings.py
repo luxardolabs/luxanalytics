@@ -10,6 +10,7 @@ from app.core.config import Settings
 REQUIRED = {
     "DATABASE_URL": "postgresql+asyncpg://u:p@h/d",
     "SECRET_KEY": "s",
+    "ALLOWED_HOSTS": "analytics.example.com",
 }
 SAFE = {
     "ENVIRONMENT": "production",
@@ -120,11 +121,33 @@ def test_the_username_in_another_case_is_refused() -> None:
 
 
 def test_the_external_url_the_app_uses_is_the_one_checked() -> None:
-    settings = _settings(
-        EXTERNAL_URL="https://analytics.example.com ", ALLOWED_HOSTS=None
-    )
+    settings = _settings(EXTERNAL_URL="https://analytics.example.com ")
     assert settings.EXTERNAL_URL == "https://analytics.example.com"
-    assert settings.allowed_hosts_list[0] == "analytics.example.com"
+
+
+def test_allowed_hosts_is_required(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An environment that never sets ALLOWED_HOSTS does not start (FLEET-BUILD-DEPLOY-STANDARD
+    "Trusted hosts"): there is no derived fallback."""
+    monkeypatch.delenv("ALLOWED_HOSTS", raising=False)
+    monkeypatch.chdir(tmp_path)  # no `.env` file to read it from either
+    values = {k: v for k, v in {**REQUIRED, **SAFE}.items() if k != "ALLOWED_HOSTS"}
+    with pytest.raises(ValidationError, match="ALLOWED_HOSTS"):
+        Settings.model_validate(values)
+
+
+@pytest.mark.parametrize("hosts", ["", " , ", "*", "analytics.example.com,*"])
+def test_allowed_hosts_that_answer_every_host_or_none_are_refused(hosts: str) -> None:
+    with pytest.raises(ValidationError, match="ALLOWED_HOSTS"):
+        _settings(ALLOWED_HOSTS=hosts)
+
+
+def test_allowed_hosts_is_a_comma_list() -> None:
+    assert _settings(ALLOWED_HOSTS="a.example.com, B.example.com").ALLOWED_HOSTS == [
+        "a.example.com",
+        "b.example.com",
+    ]
 
 
 def test_no_unread_database_url_is_required() -> None:
