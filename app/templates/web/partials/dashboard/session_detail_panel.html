@@ -1,6 +1,6 @@
 {% from "macros/modals.html" import panel_wrapper, panel_header, panel_content, panel_footer_close %}
 {% from "macros/cards.html" import stat_card_compact, stat_grid %}
-{% from "macros/badges.html" import badge %}
+{% from "macros/badges.html" import badge, info_box %}
 {% from "macros/analytics.html" import detail_section, kv_pair, kv_grid %}
 {% from "macros/buttons.html" import button %}
 {% from "macros/tables.html" import th, td %}
@@ -23,6 +23,13 @@
                 {{ stat_card_compact("Screens", screen_flow | length, color="green") }}
                 {{ stat_card_compact("Errors", errors | length, color="red") }}
             {% endcall %}
+
+            {% if events | length < total_events %}
+            {% call info_box(variant='info') %}
+                Showing the first {{ events | length }} of {{ total_events }} events. Screens, taps,
+                performance and errors below are from those.
+            {% endcall %}
+            {% endif %}
 
             {# ── Session Info ── #}
             {% call detail_section("Session Info") %}
@@ -89,7 +96,7 @@
             {% endif %}
 
             {# ── Full Event Stream ── #}
-            {% call detail_section("Event Stream (" ~ total_events ~ " events)") %}
+            {% call detail_section("Event Stream (" ~ events | length ~ " of " ~ total_events ~ " events)" if events | length < total_events else "Event Stream (" ~ total_events ~ " events)") %}
                 <div class="space-y-1 max-h-[400px] overflow-y-auto">
                     {% for e in events %}
                     <div class="flex items-center justify-between text-xs py-1 {% if not loop.last %}border-b border-surface-20{% endif %}">

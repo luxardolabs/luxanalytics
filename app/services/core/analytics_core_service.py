@@ -20,6 +20,8 @@ from app.schemas.event_schema import EventInDB
 PROFILE_SESSIONS_SHOWN = 50
 PROFILE_ERRORS_SHOWN = 20
 PROFILE_SCREENS_SHOWN = 30
+# The session panel lists a session's first events; its count and span are the whole session's.
+SESSION_EVENTS_SHOWN = 200
 ERROR_EVENT_NAMES = ["error_occurred", "authentication_attempt"]
 # The errors table lists each error type's busiest screens and its commonest messages.
 ERROR_TOP_SCREENS = 3
@@ -920,13 +922,20 @@ class AnalyticsCoreService:
         with create_service_span(
             "AnalyticsCoreService", "get_session_detail", session_id=session_id
         ):
-            events = await event_crud.get_events_by_session(self.db, session_id)
+            events = await event_crud.get_events_by_session(
+                self.db, session_id, limit=SESSION_EVENTS_SHOWN
+            )
             if not events:
                 return {"session_id": session_id, "events": [], "duration_seconds": 0}
 
+            # The list is capped; the count and the span are the whole session's, from SQL
+            total_events, started, ended = await event_crud.get_session_span(
+                self.db, session_id
+            )
             first = events[0]
-            last = events[-1]
-            duration = (last.received_at - first.received_at).total_seconds()
+            first_event = started or first.received_at
+            last_event = ended or events[-1].received_at
+            duration = (last_event - first_event).total_seconds()
 
             # Extract flow
             screens = []
@@ -960,10 +969,10 @@ class AnalyticsCoreService:
                 "os_version": first.os_version,
                 "app_version": first.app_version,
                 "platform": first.platform,
-                "first_event": first.received_at,
-                "last_event": last.received_at,
+                "first_event": first_event,
+                "last_event": last_event,
                 "duration_seconds": int(duration),
-                "total_events": len(events),
+                "total_events": total_events,
                 "events": events,
                 "screen_flow": screens,
                 "button_taps": buttons,

@@ -318,6 +318,7 @@ class EventCRUD:
             .group_by(Event.app_id)
             .order_by(desc(func.count(Event.id)))
         )
+        # unbounded-reads: one row per app_id; ingest stores only an HMAC_KEYS key or a registered App's id
         result = await db.execute(query)
         return list(result.all())
 
@@ -328,6 +329,7 @@ class EventCRUD:
             .group_by(Event.app_id)
             .order_by(Event.app_id)
         )
+        # unbounded-reads: one row per app_id; ingest stores only an HMAC_KEYS key or a registered App's id
         result = await db.execute(query)
         return list(result.all())
 
@@ -377,6 +379,18 @@ class EventCRUD:
         )
         result = await db.execute(query)
         return list(result.scalars().all())
+
+    async def get_session_span(
+        self, db: AsyncSession, session_id: str
+    ) -> Row[int, datetime | None, datetime | None]:
+        """(event count, first received_at, last received_at) over the WHOLE session, which the
+        capped event list cannot give."""
+        query = select(
+            func.count(Event.id),
+            func.min(Event.received_at),
+            func.max(Event.received_at),
+        ).where(Event.session_id == session_id)
+        return (await db.execute(query)).one()
 
     async def get_user_sessions(
         self, db: AsyncSession, user_id: str, limit: int
