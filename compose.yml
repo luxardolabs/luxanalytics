@@ -80,7 +80,7 @@ services:
 
   # Dev only: TLS on https://localhost:4000. A pass-through proxy; the app serves /static.
   luxanalytics_nginx:
-    image: nginx:alpine
+    image: nginx:1.31-alpine
     container_name: luxanalytics_nginx
     profiles: ["dev"]
     restart: unless-stopped

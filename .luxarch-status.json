@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.277.0",
+  "guard_version": "0.289.3",
   "repo": "/repo",
   "targets": [
     {
@@ -1614,6 +1614,28 @@
           "example": ""
         },
         {
+          "rule": "fw.rate_limit_key_unspoofable",
+          "status": "PASS",
+          "since": "0.278.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.trusted_host_enforced",
+          "status": "FAIL",
+          "since": "0.280.0",
+          "violations": 3,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "Install the emitted middleware on the app the entry point serves, over a REQUIRED setting: `luxarch --emit trusted-host > app/core/trusted_host.py`, declare `ALLOWED_HOSTS: AllowedHosts` (no default) on the settings class, and `app.add_middleware(AllowedHostsMiddleware, allowed_hosts=settings.ALLOWED_HOSTS, health_paths=(...))` unconditionally. The hostnames go in each `.env.<env>` (`ALLOWED_HOSTS=dev.example.com` in `.env.dev`), with the key documented in `.env.example`: never hardcode them in code, and never ask for them. An nginx `default_server` returning 444 is recommended defence in depth, not a substitute. See `luxarch --doc FLEET-BUILD-DEPLOY-STANDARD` \"Trusted hosts\".",
+          "example": ""
+        },
+        {
           "rule": "fw.module_homes",
           "status": "PASS",
           "since": "0.233.0",
@@ -1699,6 +1721,72 @@
           "inert": false,
           "inert_reason": "",
           "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.admin_bootstrap_safe",
+          "status": "PASS",
+          "since": "0.280.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.redirect_target_safe",
+          "status": "FAIL",
+          "since": "0.285.0",
+          "violations": 2,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "send every redirect target the request supplies through ONE helper: `luxarch --emit safe-redirect > app/core/safe_redirect.py`, then `RedirectResponse(safe_redirect_target(next), \u2026)`. It keeps a same-origin path and falls back to `/` for anything else (`//x`, `https://x`, `/\\\\x`, encoded tricks). A fixed path built in front of the value (`f\"/items/{slug}\"`) is already safe. An OAuth `redirect_uri` is matched exactly against the registered list instead. See --doc FLEET-AUTH-SESSION-STANDARD \u00a76.",
+          "example": ""
+        },
+        {
+          "rule": "fw.sign_in_not_on_get",
+          "status": "PASS",
+          "since": "0.286.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.single_use_claim_atomic",
+          "status": "INERT",
+          "since": "0.287.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "no code claims a single-use record (no check-then-write on a row, no marker write) \u2014 nothing to judge",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.logout_revokes_server_side",
+          "status": "FAIL",
+          "since": "0.288.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "Revoke on the server, not only in the browser: give the user a `sessions_valid_after` timestamp, set it to now at logout, and have the auth dependency (which already loads the user) refuse a token issued before it. That signs out everywhere with no extra I/O. Use a per-token denylist only if signing out one device alone is a product need. See --doc FLEET-AUTH-SESSION-STANDARD \u00a72.1.",
+          "example": ""
+        },
+        {
+          "rule": "fw.auth_posts_refuse_cross_site",
+          "status": "FAIL",
+          "since": "0.289.0",
+          "violations": 1,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "Install the one cross-site guard: `luxarch --emit same-origin > app/core/same_origin.py`, then `app.add_middleware(SameOriginMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)`. It refuses an unsafe-method request whose `Sec-Fetch-Site` is `cross-site` or whose `Origin` the app does not serve; a webhook (no browser headers) passes. An OAuth `form_post` callback goes in `cross_site_paths` and checks its `state` cookie. See --doc FLEET-AUTH-SESSION-STANDARD \u00a75.",
           "example": ""
         },
         {
@@ -1846,11 +1934,11 @@
         }
       ],
       "summary": {
-        "PASS": 142,
-        "FAIL": 0,
+        "PASS": 145,
+        "FAIL": 4,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 25
+        "INERT": 26
       }
     }
   ],
@@ -2154,6 +2242,17 @@
         "example": ""
       },
       {
+        "rule": "repo.agent_instructions_resolve",
+        "status": "PASS",
+        "since": "0.280.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
         "rule": "repo.gitleaks_scans_identity",
         "status": "PASS",
         "since": "0.204.0",
@@ -2278,6 +2377,17 @@
         "rule": "repo.fleet_dep_floor",
         "status": "PASS",
         "since": "0.219.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
+        "rule": "repo.images_on_fleet_line",
+        "status": "PASS",
+        "since": "0.282.0",
         "violations": 0,
         "deferred": false,
         "inert": false,
@@ -2429,6 +2539,17 @@
         "example": ""
       },
       {
+        "rule": "repo.image_block_wired",
+        "status": "PASS",
+        "since": "0.280.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
         "rule": "repo.poetry_version_consistent",
         "status": "PASS",
         "since": "0.268.0",
@@ -2562,7 +2683,7 @@
       }
     ],
     "summary": {
-      "PASS": 63,
+      "PASS": 66,
       "FAIL": 0,
       "XFAIL": 0,
       "XPASS": 0,
@@ -2570,12 +2691,12 @@
     }
   },
   "summary": {
-    "PASS": 205,
-    "FAIL": 0,
+    "PASS": 211,
+    "FAIL": 4,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 26
+    "INERT": 27
   },
-  "commit": "137a002780a185d1bcb9508b0b469925d43c58f1",
-  "generated_at": "2026-10-10T20:04:54Z"
+  "commit": "43730858cd997bd5b57f5fec11ab7f27d715766f",
+  "generated_at": "2026-10-13T01:26:18Z"
 }

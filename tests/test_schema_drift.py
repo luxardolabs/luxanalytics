@@ -1,4 +1,4 @@
-# luxarch:schema-drift asserter v6 — DO NOT edit the marker line above.
+# luxarch:schema-drift asserter v7 — DO NOT edit the marker line above.
 #
 # WHY THIS FILE EXISTS
 # The guards are STATIC — luxarch/luxlint/luxaudit read files; none of them ever opens your database.
@@ -28,23 +28,35 @@
 # WHAT THIS DOES *NOT* DO (use `--emit migration-chain` for that)
 # This validates a LIVE schema against the models; it does NOT prove the migration CHAIN builds that
 # schema from empty. A baseline that omits three tables reports `add_table` — ADDITIVE — which this waves
-# through, so a chain broken on its first revision passes here. And do NOT point this at
-# the create_all-built test DB the suite uses: both sides then derive from the same metadata, so it is
-# near-vacuous. "Does the chain BUILD the models, from empty?" is a different question with a different
+# through, so a chain broken on its first revision passes here. And it does NOT run against the
+# create_all-built test DB the suite uses: both sides then derive from the same metadata, so it could
+# only agree with itself. v7 checks that premise: when its database is the one TEST_DATABASE_URL names,
+# it SKIPS with the reason (pytest prints it under -ra). v6 ran inside the emitted test block's gate,
+# whose suite collects all of tests/ with the app's database set to the suite's own, and PASSed there.
+# "Does the chain BUILD the models, from empty?" is a different question with a different
 # failure policy (fail on ANY structural diff) — that is `luxarch --emit migration-chain`, gated by
 # repo.migrations_build_schema.
 #
 # HOW TO WIRE IT (see: FLEET-ONBOARDING-STANDARD "the static/runtime boundary")
 #   1) Save as tests/test_schema_drift.py (or paste into an existing DB-backed test module).
-#   2) Point DB_URL_IMPORT at your test database URL, and METADATA_IMPORT at the package that imports
-#      EVERY model (so Base.metadata is complete — see the note on each below).
-#   3) Run it against a DB migrated to HEAD — a REAL migrated DB, not the create_all test DB (see above).
-#      Otherwise it reports the un-applied migrations themselves as drift (a real fact, but a different one).
-#   4) Keep it in the suite CI runs. luxarch can EMIT this file; it can never RUN it (it has no DB).
+#   2) Point DB_URL_IMPORT at the app's database URL (the one the deployed app uses, not TEST_DATABASE_URL),
+#      and METADATA_IMPORT at the package that imports EVERY model (so Base.metadata is complete — see
+#      the note on each below).
+#   3) Run it against a DB migrated to HEAD — a REAL migrated DB, not the create_all test DB (see above):
+#      a target of your own that runs pytest on this file in the test image, with the app's database URL
+#      set to the live dev database (on the dev stack's network). Against a DB that is behind, it reports
+#      the un-applied migrations themselves as drift (a real fact, but a different one).
+#   4) Under `make test` it SKIPS, saying so: the suite's database cannot answer its question, and the
+#      test block's stack cannot reach the dev database by design. luxarch can EMIT this file; it can
+#      never RUN it (it has no DB). Stated limit: two spellings of one host (`localhost`, `127.0.0.1`)
+#      are two databases to the premise check.
 from __future__ import annotations
 
 import importlib
+import os
 from typing import Any
+
+import pytest
 
 # --- EDIT THIS ---------------------------------------------------------------------------------------
 # The DB URL (a string, or a `module:attr` that resolves to one — dotted attrs work, e.g. a settings
@@ -83,6 +95,21 @@ def _url(obj: object) -> str:
     return (
         obj if isinstance(obj, str) else str(obj)
     )  # accept a URL string or a URL object
+
+
+def _same_database(a: str, b: str) -> bool:
+    # One database whatever the driver or the password: `postgresql+asyncpg://u:p@db:5432/x` and
+    # `postgresql://u@db/x` are the same one.
+    from sqlalchemy import make_url
+
+    default_port = {"postgresql": 5432, "mysql": 3306}
+
+    def key(url: str) -> tuple[str, str | None, int | None, str | None]:
+        u = make_url(url)
+        backend = u.get_backend_name()
+        return backend, u.host, u.port or default_port.get(backend), u.database
+
+    return key(a) == key(b)
 
 
 def _flatten(diffs: list[Any]) -> list[Any]:
@@ -132,8 +159,16 @@ def _diff(url: str, metadata: object) -> list[Any]:
 
 
 def test_no_destructive_schema_drift() -> None:
+    url = _url(_load(DB_URL_IMPORT))
+    suite = os.environ.get("TEST_DATABASE_URL", "")
+    if suite and _same_database(url, suite):
+        pytest.skip(
+            "NOT RUN: this database is the suite's own (TEST_DATABASE_URL), built from the same "
+            "metadata, so the diff could only agree with itself. Run this file against the live, "
+            "migrated database: its URL as the app's database, outside `make test`."
+        )
     metadata = _metadata(_load(METADATA_IMPORT))
-    ops = _flatten(_diff(_url(_load(DB_URL_IMPORT)), metadata))
+    ops = _flatten(_diff(url, metadata))
     destructive = [op for op in ops if str(op[0]).startswith(_DESTRUCTIVE_PREFIX)]
     additive = [op for op in ops if str(op[0]).startswith("add_")]
     modify = [

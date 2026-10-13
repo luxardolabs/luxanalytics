@@ -5,7 +5,7 @@
 #
 # REGISTRY is the private artifact registry: every build of this app (`make release`, `make
 # publish-sha`) AND the luxarch / luxlint / luxaudit guard images, so `make check` and every guard
-# target need it. Releases are also promoted to the public GHCR image (`make release-ghcr`), which
+# target need it. Releases are also promoted to the public GHCR image (`make release-public`), which
 # production pulls. PROD_JUMP / PROD_HOST are the ssh jump host and the prod node behind it.
 # Without this file `make up` / `make dev` still work; only the registry, guard and prod targets
 # need it.

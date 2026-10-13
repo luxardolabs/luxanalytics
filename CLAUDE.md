@@ -176,11 +176,11 @@ make guard-upgrade    # bump every guard pin to latest
 ```bash
 make publish-sha      # Build + scan + push this commit as :sha-<commit> (moves the :dev alias)
 make release          # Cut VERSION: build + scan + push :$(VERSION), then the GitHub Release (refuses a released VERSION, a dirty tree, an untagged HEAD)
-make release-ghcr     # Promote the released :$(VERSION) to ghcr.io/luxardolabs/luxanalytics unchanged (the public image; prod pulls it)
+make release-public   # Copy the released :$(VERSION) to ghcr.io/luxardolabs/luxanalytics by digest, rescanned (the public image; prod pulls it)
 make version          # Show the version and image refs
 ```
 
-The private fleet registry (`$(REGISTRY)` in `Makefile.local`) holds every build and the guards; as an open-source app, each release is also promoted unchanged to GHCR (`$(PUBLIC_IMAGE)`), which prod pulls. Deploy tags are immutable: `:$(VERSION)` for prod, `:sha-<commit>` for anything else; `:dev` is an alias nothing pins.
+The private fleet registry (`$(REGISTRY)` in `Makefile.local`) holds every build and the guards; as an open-source app, each release is also copied unchanged (same digest) to GHCR (`$(PUBLIC_REGISTRY)`, `make release-public`), which prod pulls. Deploy tags are immutable: `:$(VERSION)` for prod, `:sha-<commit>` for anything else; `:dev` is an alias nothing pins.
 
 ### Production (OVH via jump host)
 
@@ -188,7 +188,7 @@ The private fleet registry (`$(REGISTRY)` in `Makefile.local`) holds every build
 make prod-deploy      # prod-pin + prod-sync + pull + restart on production
 make prod-sync        # Sync deploy/prod (compose + .env.prod + nginx conf) to the prod node
 make prod-pin         # Pin TAG in .env.prod to a released version (PROD_TAG=… to roll back)
-make prod-release     # release + release-ghcr + prod-deploy (full release)
+make prod-release     # release + release-public + prod-deploy (full release)
 make prod-restart     # Restart app container only
 make prod-stop        # Stop all production containers
 make prod-logs        # Tail production logs
@@ -204,7 +204,7 @@ make prod-version     # Show running image version
 ### Typical deploy workflow
 
 ```bash
-make release && make release-ghcr && make prod-deploy
+make release && make release-public && make prod-deploy
 # or all-in-one:
 make prod-release
 ```
