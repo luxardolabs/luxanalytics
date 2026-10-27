@@ -22,14 +22,21 @@ async def get_redis_client() -> redis.Redis | None:
 
     if _redis_client is None:
         try:
-            _redis_client = redis.from_url(
+            # A blocking pool: a burst wider than the pool waits (up to `timeout`) for a free
+            # connection. A non-blocking one raised "Too many connections" past 50 in flight, which
+            # sent each rate-limit check to the in-memory window (a second, empty budget) and
+            # refused the dashboard's fail-closed session check.
+            pool = redis.BlockingConnectionPool.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",
                 decode_responses=True,
                 max_connections=50,
+                timeout=5,
                 health_check_interval=30,
                 socket_keepalive=True,
             )
+            # from_pool: the client owns the pool, so close_redis_client() closes its connections
+            _redis_client = redis.Redis.from_pool(pool)
             # Test connection
             await _redis_client.ping()
             logger.info("Redis client initialized successfully")

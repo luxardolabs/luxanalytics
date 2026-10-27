@@ -1,6 +1,7 @@
 """Redis-based distributed rate limiter with sliding window algorithm."""
 
 import logging
+import math
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -124,8 +125,10 @@ class RateLimiter:
                 "reset": int(now + self.window_seconds),
                 "retry_after": None,
             }
+        # Rounded up: the oldest entry leaves the window only once its full age has passed, so a
+        # client that waits exactly retry_after must find room.
         retry_after = (
-            max(1, int(float(oldest) + self.window_seconds - now))
+            max(1, math.ceil(float(oldest) + self.window_seconds - now))
             if oldest
             else self.window_seconds
         )

@@ -65,3 +65,36 @@ async def test_one_ips_concurrent_http_burst_is_limited(limited: None) -> None:
 
     assert codes.count(200) == LIMIT
     assert codes.count(429) == 20 - LIMIT
+
+
+async def test_a_burst_wider_than_the_connection_pool_is_still_limited(
+    limited: None,
+) -> None:
+    """More requests in flight than the pool has connections wait for one, rather than fail over
+    to the in-memory window: that is a second, empty budget of the same size."""
+    limiter = rate_limiter.IPRateLimiter()
+
+    results = await asyncio.gather(
+        *(limiter.check_ip_limit("192.0.2.12") for _ in range(300))
+    )
+
+    assert sum(allowed for allowed, _meta in results) == LIMIT
+
+
+async def test_waiting_retry_after_is_enough(
+    limited: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A client that waits exactly retry_after is admitted: it is rounded up, never down."""
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    limiter = rate_limiter.IPRateLimiter()
+    for _ in range(LIMIT):
+        assert (await limiter.check_ip_limit("192.0.2.13"))[0]
+    clock[0] += 0.5
+    allowed, refused = await limiter.check_ip_limit("192.0.2.13")
+    assert not allowed
+
+    clock[0] += refused["retry_after"]
+    allowed, _meta = await limiter.check_ip_limit("192.0.2.13")
+
+    assert allowed
