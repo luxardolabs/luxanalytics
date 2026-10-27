@@ -6,13 +6,16 @@ from typing import Any
 
 from sqlalchemy import (
     ColumnElement,
+    Float,
     Integer,
     Row,
     and_,
+    case,
     cast,
     desc,
     func,
     literal,
+    null,
     select,
     text,
     true,
@@ -261,11 +264,22 @@ class EventCRUD:
 
     # ── Performance ───────────────────────────────────────────────────────
 
+    @staticmethod
+    def _duration_ms() -> ColumnElement[float]:
+        """`properties.duration_ms` as a number when it is one (`150`, `12.5`), else NULL, which the
+        aggregates skip. A metadata value is whatever the SDK sent, so a straight CAST to INTEGER
+        turned one "12.5" or "abc" into a 500 for the whole page."""
+        raw = Event.properties["duration_ms"].astext
+        return case(
+            (raw.regexp_match(r"^[0-9]{1,12}(\.[0-9]+)?$"), cast(raw, Float)),
+            else_=null(),
+        )
+
     async def performance_by_operation(
         self, db: AsyncSession, conditions: Conditions
     ) -> list[Row[Any]]:
         """Aggregate performance stats per operation using percentile_cont."""
-        duration_col = cast(Event.properties["duration_ms"].astext, Integer)
+        duration_col = self._duration_ms()
         operation_col = Event.properties["operation"].astext
         success_col = Event.properties["success"].astext
 
@@ -296,7 +310,7 @@ class EventCRUD:
         self, db: AsyncSession, conditions: Conditions
     ) -> Row[Any]:
         """Global performance percentiles across all operations."""
-        duration_col = cast(Event.properties["duration_ms"].astext, Integer)
+        duration_col = self._duration_ms()
         query = select(
             func.count().label("total"),
             func.min(duration_col).label("min"),
