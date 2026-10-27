@@ -4,10 +4,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
-from app.core.config import settings
+from app.core.config import MAX_BATCH_EVENTS, settings
 
 CLIENT_EVENT_ID_MAX = 64  # the events.client_event_id column width
-MAX_BATCH_EVENTS = 1000
 # Before this, a timestamp is a device clock reset (often to 1970), not when the event happened.
 EARLIEST_TIMESTAMP = datetime(2000, 1, 1, tzinfo=UTC)
 

@@ -43,6 +43,8 @@ def _running_version() -> str:
 DEVELOPMENT_ENVIRONMENTS = {"dev", "development", "test"}
 WEAK_PASSWORDS = {"admin", "changeme", "password", "secret"}
 MIN_PRODUCTION_PASSWORD = 12
+# The most events one ingest batch carries (event_schema); the ingest limits must fit one.
+MAX_BATCH_EVENTS = 1000
 
 
 class Settings(BaseSettings):
@@ -80,9 +82,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW: int = 60
     # Ingest, in events per INGEST_RATE_LIMIT_WINDOW, after authentication (rate_limiter
-    # enforce_ingest_limits). Per device: at least MAX_BATCH_EVENTS (1000), or a full batch is
-    # refused for good. Per app: a ceiling far above normal traffic, against a flood spread over
-    # many device ids.
+    # enforce_ingest_limits). Per client address and per device: at least MAX_BATCH_EVENTS, or a
+    # full batch is refused for good. Per app: a ceiling above one address's worth (device ids
+    # are client-chosen, so one address could otherwise fill it), against a flood spread over many.
+    IP_RATE_LIMIT_EVENTS: int = 6000
     DEVICE_RATE_LIMIT_EVENTS: int = 1800
     APP_RATE_LIMIT_EVENTS: int = 60000
     INGEST_RATE_LIMIT_WINDOW: int = 60
@@ -153,6 +156,22 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.strip().lower() not in DEVELOPMENT_ENVIRONMENTS
+
+    @model_validator(mode="after")
+    def ingest_limits_fit(self) -> Settings:
+        """A budget smaller than one batch refuses that batch on every retry; a ceiling one
+        address can fill is a budget anyone holding the public DSN can spend."""
+        for name in ("IP_RATE_LIMIT_EVENTS", "DEVICE_RATE_LIMIT_EVENTS"):
+            if getattr(self, name) < MAX_BATCH_EVENTS:
+                raise ValueError(
+                    f"{name} must be at least MAX_BATCH_EVENTS ({MAX_BATCH_EVENTS})"
+                )
+        if self.APP_RATE_LIMIT_EVENTS <= self.IP_RATE_LIMIT_EVENTS:
+            raise ValueError(
+                "APP_RATE_LIMIT_EVENTS must be above IP_RATE_LIMIT_EVENTS: one client address "
+                "must not be able to fill the app's ceiling"
+            )
+        return self
 
     @model_validator(mode="after")
     def production_is_safe(self) -> Settings:

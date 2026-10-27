@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from pydantic import Field, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import MAX_BATCH_EVENTS
 from app.core.constants import DEVICE_CONTEXT_KEYS
 from app.core.rate_limiter import enforce_ingest_limits
 from app.core.tracing import create_service_span
@@ -16,7 +17,6 @@ from app.crud.device_crud import device_crud
 from app.crud.event_crud import EventWriteCRUD, event_crud
 from app.models.event_model import Event
 from app.schemas.event_schema import (
-    MAX_BATCH_EVENTS,
     BatchEventRequest,
     EventCreate,
     IngestResult,
@@ -52,6 +52,22 @@ def events_from_payload(payload: object) -> list[EventCreate]:
     )
 
 
+def _events_per_device(events: list[EventCreate]) -> Counter[str | None]:
+    """Each device's events in a batch, a repeated client_event_id counted once: the batch stores
+    it once (create_events dedupes on it), so a copy must not cost the device's budget. A copy
+    already stored by an earlier batch is still counted: knowing that takes the write the limit
+    is there to spare."""
+    seen: set[str] = set()
+    counts: Counter[str | None] = Counter()
+    for event in events:
+        if event.client_event_id is not None:
+            if event.client_event_id in seen:
+                continue
+            seen.add(event.client_event_id)
+        counts[event.metadata.get("device_id")] += 1
+    return counts
+
+
 def _latest_device_row(
     rows: list[tuple[datetime, dict[str, Any]]],
 ) -> dict[str, Any]:
@@ -69,15 +85,15 @@ class EventCoreService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def ingest(self, app_id: str, payload: object) -> IngestResult:
+    async def ingest(
+        self, app_id: str, payload: object, client_ip: str
+    ) -> IngestResult:
         """Validate a decoded ingest payload, hold it to the ingest limits and store its events
-        (see events_from_payload). AppRateLimitExceeded when a device or the app is over its
-        limit."""
+        (see events_from_payload). AppRateLimitExceeded when the client address, a device or the
+        app is over its limit."""
         with create_service_span("EventCoreService", "ingest", app_id=app_id):
             events = events_from_payload(payload)
-            await enforce_ingest_limits(
-                app_id, Counter(event.metadata.get("device_id") for event in events)
-            )
+            await enforce_ingest_limits(app_id, client_ip, _events_per_device(events))
             logger.debug(
                 "Analytics payload received",
                 extra={

@@ -6,7 +6,9 @@ import logging
 import math
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -19,23 +21,37 @@ from app.core.redis_client import get_redis_client
 logger = logging.getLogger(__name__)
 
 
-# The sliding window as one Redis script: drop what left the window, count, and add `cost` members
-# (each unique) only when they fit. One round trip, atomic. Returns {allowed, count after, oldest
-# score when refused}.
+# The sliding window for one or more budgets as one Redis script: for every key, drop what left
+# its window and count; only when every key has room for its cost are `cost` members (each
+# unique) added to each. All or nothing, one round trip, atomic. ARGV: now, member, then per key
+# window, limit, cost. Returns {allowed, refused key index (1-based, 0 when allowed), count of the
+# refused key (the first key's count after adding when allowed), score of the entry whose leaving
+# makes room (empty when none will)}.
 _SLIDING_WINDOW = """
-local key, now, window = KEYS[1], tonumber(ARGV[1]), tonumber(ARGV[2])
-local limit, cost, member = tonumber(ARGV[3]), tonumber(ARGV[4]), ARGV[5]
-redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
-local count = redis.call('ZCARD', key)
-if count + cost <= limit then
-    for i = 1, cost do
-        redis.call('ZADD', key, now, member .. ':' .. i)
+local now, member = tonumber(ARGV[1]), ARGV[2]
+for i, key in ipairs(KEYS) do
+    local window = tonumber(ARGV[3 * i])
+    local limit, cost = tonumber(ARGV[3 * i + 1]), tonumber(ARGV[3 * i + 2])
+    redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+    local count = redis.call('ZCARD', key)
+    if count + cost > limit then
+        local rank = count + cost - limit - 1
+        local freeing = redis.call('ZRANGE', key, rank, rank, 'WITHSCORES')
+        return {0, i, count, freeing[2] or ''}
+    end
+end
+local first = 0
+for i, key in ipairs(KEYS) do
+    local window, cost = tonumber(ARGV[3 * i]), tonumber(ARGV[3 * i + 2])
+    for j = 1, cost do
+        redis.call('ZADD', key, now, member .. ':' .. j)
     end
     redis.call('EXPIRE', key, window + 1)
-    return {1, count + cost, ''}
+    if i == 1 then
+        first = redis.call('ZCARD', key)
+    end
 end
-local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-return {0, count, oldest[2] or ''}
+return {1, 0, first, ''}
 """
 
 
@@ -69,13 +85,15 @@ class RateLimiter:
         self._default_requests = default_requests
         self._default_window = default_window
         self.key_prefix = key_prefix
-        # Past this many identifiers, the in-memory fallback drops the ones with nothing left in
-        # their window: an identifier can be client-chosen (a device id), so the fallback must not
-        # grow without bound while Redis is down.
+        # The in-memory fallback holds at most this many identifiers, evicting the least recently
+        # used: an identifier can be client-chosen (a device id), so it must not grow without
+        # bound while Redis is down. An evicted identifier starts again with a full budget.
         self.memory_identifiers_max = memory_identifiers_max
         # Fallback in-memory storage
-        # identifier -> [(request time, cost)] within the window
-        self._memory_storage: dict[str, list[tuple[datetime, int]]] = {}
+        # identifier -> [(request time, cost)] within the window, least recently used first
+        self._memory_storage: OrderedDict[str, list[tuple[datetime, int]]] = (
+            OrderedDict()
+        )
 
     @property
     def requests_per_window(self) -> int:
@@ -107,117 +125,122 @@ class RateLimiter:
             Tuple of (is_allowed, metadata)
             metadata contains: remaining, reset_time, retry_after
         """
-        redis_client = await get_redis_client()
+        refused, metadata = await admit([Budget(self, identifier, cost)])
+        return refused is None, metadata
 
-        if redis_client:
-            return await self._check_redis(redis_client, identifier, cost)
-        else:
-            return self._check_memory(identifier, cost)
+    def _memory_entries(
+        self, identifier: str, window_start: datetime
+    ) -> list[tuple[datetime, int]]:
+        """The identifier's requests still in the window, marked most recently used."""
+        entries = [
+            entry
+            for entry in self._memory_storage.pop(identifier, [])
+            if entry[0] > window_start
+        ]
+        while len(self._memory_storage) >= self.memory_identifiers_max:
+            self._memory_storage.popitem(last=False)
+        self._memory_storage[identifier] = entries
+        return entries
 
-    async def _check_redis(
-        self, redis_client: redis.Redis, identifier: str, cost: int
-    ) -> tuple[bool, dict[str, Any]]:
-        """Check rate limit using Redis with sliding window: one atomic script, so a concurrent
-        burst cannot read the same count and all be admitted."""
-        key = f"{self.key_prefix}:{identifier}"
-        now = time.time()
+
+@dataclass(frozen=True)
+class Budget:
+    """One budget a request spends: `cost` against `identifier` in `limiter`'s window."""
+
+    limiter: RateLimiter
+    identifier: str
+    cost: int
+
+
+def _allowed(count: int, budget: Budget, now: float) -> dict[str, Any]:
+    return {
+        "allowed": True,
+        "remaining": max(0, budget.limiter.requests_per_window - count),
+        "reset": int(now + budget.limiter.window_seconds),
+        "retry_after": None,
+    }
+
+
+def _refused(freeing_at: float | None, budget: Budget, now: float) -> dict[str, Any]:
+    # Rounded up: an entry leaves the window only once its full age has passed, so a client that
+    # waits exactly retry_after must find room. No entry to wait for (the cost exceeds the limit
+    # itself): a whole window.
+    window = budget.limiter.window_seconds
+    retry_after = (
+        max(1, math.ceil(freeing_at + window - now))
+        if freeing_at is not None
+        else window
+    )
+    return {
+        "allowed": False,
+        "remaining": 0,
+        "reset": int(now + retry_after),
+        "retry_after": retry_after,
+    }
+
+
+async def admit(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
+    """Spend every budget, or none: (None, the first budget's metadata) when each has room, else
+    (the index of a budget without room, its metadata) and nothing is spent. Redis being
+    unreachable falls back to each limiter's in-memory window."""
+    redis_client = await get_redis_client()
+    if redis_client:
         try:
-            allowed, count, oldest = await redis_client.eval(
-                _SLIDING_WINDOW,
-                1,
-                key,
-                repr(now),
-                self.window_seconds,
-                self.requests_per_window,
-                cost,
-                uuid.uuid4().hex,
-            )
+            return await _admit_redis(redis_client, budgets)
         except RedisError, OSError:
             # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
-            # the in-memory window, so requests stay limited. Anything else is a bug and raises.
+            # the in-memory windows, so requests stay limited. Anything else is a bug and raises.
             logger.exception("Redis rate limit check failed")
-            return self._check_memory(identifier, cost)
+    return _admit_memory(budgets)
 
-        if int(allowed):
-            return True, {
-                "allowed": True,
-                "remaining": max(0, self.requests_per_window - int(count)),
-                "reset": int(now + self.window_seconds),
-                "retry_after": None,
-            }
-        # Rounded up: the oldest entry leaves the window only once its full age has passed, so a
-        # client that waits exactly retry_after must find room.
-        retry_after = (
-            max(1, math.ceil(float(oldest) + self.window_seconds - now))
-            if oldest
-            else self.window_seconds
-        )
-        return False, {
-            "allowed": False,
-            "remaining": 0,
-            "reset": int(now + retry_after),
-            "retry_after": retry_after,
-        }
 
-    def _check_memory(self, identifier: str, cost: int) -> tuple[bool, dict[str, Any]]:
-        """Fallback in-memory rate limiting."""
-        now = datetime.now(UTC)
-        window_start = now - timedelta(seconds=self.window_seconds)
+async def _admit_redis(
+    redis_client: redis.Redis, budgets: Sequence[Budget]
+) -> tuple[int | None, dict[str, Any]]:
+    now = time.time()
+    args: list[Any] = [repr(now), uuid.uuid4().hex]
+    for budget in budgets:
+        args += [
+            budget.limiter.window_seconds,
+            budget.limiter.requests_per_window,
+            budget.cost,
+        ]
+    allowed, refused_key, count, freeing = await redis_client.eval(
+        _SLIDING_WINDOW,
+        len(budgets),
+        *(f"{b.limiter.key_prefix}:{b.identifier}" for b in budgets),
+        *args,
+    )
+    if int(allowed):
+        return None, _allowed(int(count), budgets[0], now)
+    index = int(refused_key) - 1
+    return index, _refused(float(freeing) if freeing else None, budgets[index], now)
 
-        # Clean old requests
-        if identifier in self._memory_storage:
-            self._memory_storage[identifier] = [
-                (req_time, req_cost)
-                for req_time, req_cost in self._memory_storage[identifier]
-                if req_time > window_start
-            ]
-        else:
-            if len(self._memory_storage) >= self.memory_identifiers_max:
-                self._prune_memory(window_start)
-            self._memory_storage[identifier] = []
 
-        # Count current requests
-        current_requests = sum(
-            req_cost for _, req_cost in self._memory_storage[identifier]
-        )
-
-        if current_requests + cost <= self.requests_per_window:
-            self._memory_storage[identifier].append((now, cost))
-            remaining = self.requests_per_window - current_requests - cost
-            reset_time = int((now + timedelta(seconds=self.window_seconds)).timestamp())
-
-            return True, {
-                "allowed": True,
-                "remaining": max(0, remaining),
-                "reset": reset_time,
-                "retry_after": None,
-            }
-        else:
-            # Calculate retry_after
-            if self._memory_storage[identifier]:
-                oldest_time = self._memory_storage[identifier][0][0]
-                retry_after = int(
-                    (
-                        oldest_time + timedelta(seconds=self.window_seconds) - now
-                    ).total_seconds()
-                )
-            else:
-                retry_after = self.window_seconds
-
-            return False, {
-                "allowed": False,
-                "remaining": 0,
-                "reset": int((now + timedelta(seconds=retry_after)).timestamp()),
-                "retry_after": retry_after,
-            }
-
-    def _prune_memory(self, window_start: datetime) -> None:
-        """Drop every identifier with no request left in the window."""
-        self._memory_storage = {
-            identifier: requests
-            for identifier, requests in self._memory_storage.items()
-            if requests and requests[-1][0] > window_start
-        }
+def _admit_memory(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
+    now = datetime.now(UTC)
+    held = []
+    for index, budget in enumerate(budgets):
+        limiter = budget.limiter
+        window_start = now - timedelta(seconds=limiter.window_seconds)
+        entries = limiter._memory_entries(budget.identifier, window_start)
+        count = sum(cost for _, cost in entries)
+        excess = count + budget.cost - limiter.requests_per_window
+        if excess > 0:
+            # The entry whose leaving frees `excess` units, oldest first.
+            freeing_at = None
+            freed = 0
+            for when, cost in entries:
+                freed += cost
+                if freed >= excess:
+                    freeing_at = when.timestamp()
+                    break
+            return index, _refused(freeing_at, budget, now.timestamp())
+        held.append((entries, count))
+    for budget, (entries, _count) in zip(budgets, held, strict=True):
+        entries.append((now, budget.cost))
+    first_count = held[0][1] + budgets[0].cost
+    return None, _allowed(first_count, budgets[0], now.timestamp())
 
 
 # Per-app budgets that differ from RATE_LIMIT_*: app_id -> (requests, window seconds). Empty:
@@ -265,7 +288,7 @@ class IPRateLimiter(RateLimiter):
 
 
 class AppRateLimitExceeded(Exception):
-    """An authenticated app, or one of its devices, is over its budget;
+    """An authenticated app, one of its devices, or the client's address is over its budget;
     app_rate_limit_exceeded_handler (beside the IP limit, in request_middleware) answers it with
     the same 429, carrying `error`."""
 
@@ -300,6 +323,10 @@ async def enforce_app_rate_limit(app_id: str) -> None:
     raise AppRateLimitExceeded(metadata, _app_limiter.requests_per_window)
 
 
+def _ip_rate_limit_events() -> int:
+    return settings.IP_RATE_LIMIT_EVENTS
+
+
 def _device_rate_limit_events() -> int:
     return settings.DEVICE_RATE_LIMIT_EVENTS
 
@@ -312,7 +339,13 @@ def _ingest_rate_limit_window() -> int:
     return settings.INGEST_RATE_LIMIT_WINDOW
 
 
-# Ingest is limited in events, per device and per app. One of each per process, like _app_limiter.
+# Ingest is limited in events, per client address, per device and per app. One of each per
+# process, like _app_limiter.
+_ip_event_limiter = RateLimiter(
+    key_prefix="ip_event_limit",
+    default_requests=_ip_rate_limit_events,
+    default_window=_ingest_rate_limit_window,
+)
 _device_limiter = RateLimiter(
     key_prefix="device_event_limit",
     default_requests=_device_rate_limit_events,
@@ -331,36 +364,38 @@ def _device_identifier(app_id: str, device_id: str | None) -> str:
 
 
 async def enforce_ingest_limits(
-    app_id: str, events_per_device: Mapping[str | None, int]
+    app_id: str, client_ip: str, events_per_device: Mapping[str | None, int]
 ) -> None:
     """The ingest limits, for a batch that authenticated (HMAC or DSN) and parsed, counted in
-    events: each device's events against its own budget, then the batch against the app's ceiling.
+    events and spent all or nothing: the batch against its client address's budget, each device's
+    events against that device's, and the batch against the app's ceiling.
 
     An ingest credential (the DSN's public_id, an HMAC key id) ships in the app binary, so a budget
     keyed on the app alone is one anyone can spend. The device limit is the tight one: a runaway
-    or flooding device is refused without costing the app's other devices. The app ceiling sits
-    far above normal traffic and bounds a flood spread over many device ids. Events with no
-    device_id share one budget per app."""
-    for device_id in sorted(events_per_device, key=lambda d: (d is None, d or "")):
-        allowed, metadata = await _device_limiter.is_allowed(
-            _device_identifier(app_id, device_id), events_per_device[device_id]
-        )
-        if not allowed:
-            logger.warning(
-                "Device rate limit exceeded",
-                extra={"app_id": app_id, "retry_after": metadata.get("retry_after")},
-            )
-            raise AppRateLimitExceeded(
-                metadata,
-                _device_limiter.requests_per_window,
-                "Device rate limit exceeded",
-            )
-    allowed, metadata = await _app_event_ceiling.is_allowed(
-        app_id, sum(events_per_device.values())
+    device is refused without costing the app's other devices. Device ids are client-chosen, so
+    the address limit bounds what one client can send under any number of them, and the app
+    ceiling, set above several addresses' worth, bounds a flood spread over many. Events with no
+    device_id share one budget per app. A refused batch spends nothing."""
+    total = sum(events_per_device.values())
+    budgets = [
+        Budget(_ip_event_limiter, client_ip, total),
+        *(
+            Budget(_device_limiter, _device_identifier(app_id, device_id), count)
+            for device_id, count in events_per_device.items()
+        ),
+        Budget(_app_event_ceiling, app_id, total),
+    ]
+    refused, metadata = await admit(budgets)
+    if refused is None:
+        return
+    limiter = budgets[refused].limiter
+    if limiter is _ip_event_limiter:
+        error = "Rate limit exceeded"
+    elif limiter is _device_limiter:
+        error = "Device rate limit exceeded"
+    else:
+        error = "App rate limit exceeded"
+    logger.warning(
+        error, extra={"app_id": app_id, "retry_after": metadata.get("retry_after")}
     )
-    if not allowed:
-        logger.warning(
-            "App rate limit exceeded",
-            extra={"app_id": app_id, "retry_after": metadata.get("retry_after")},
-        )
-        raise AppRateLimitExceeded(metadata, _app_event_ceiling.requests_per_window)
+    raise AppRateLimitExceeded(metadata, limiter.requests_per_window, error)

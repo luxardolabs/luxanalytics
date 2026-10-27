@@ -1,10 +1,13 @@
-"""Ingest is limited in events, per device and per app, after authentication, on HMAC and DSN alike.
+"""Ingest is limited in events, per client address, per device and per app, after authentication,
+on HMAC and DSN alike, spent all or nothing.
 
 An ingest credential (the DSN's public_id, an HMAC key id) ships in the app binary, so a budget
 keyed on the app alone is one anyone holding it can spend. The device limit is the tight one: a
-flooding device is refused without costing the app's other devices. The app ceiling sits far above
-normal traffic and bounds a flood spread over many device ids. Nothing that fails authentication or
-does not parse spends either budget. The signed stats read keeps a per-app request limit.
+flooding device is refused without costing the app's other devices. Device ids are client-chosen,
+so the address limit bounds one client under any number of them, and the app ceiling, above one
+address's worth, bounds a flood spread over many. Nothing that fails authentication or does not
+parse spends a budget, and neither does a refused batch. The signed stats read keeps a per-app
+request limit.
 """
 
 import hashlib
@@ -19,14 +22,16 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 import app.core.rate_limiter as rate_limiter
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.main import create_application
 from app.models.app_model import App
 from tests.test_ingest_http import PUBLIC_ID
+from tests.test_settings import REQUIRED, SAFE
 
 pytestmark = pytest.mark.db
 
 LIMIT = 5
+IP = "192.0.2.40"
 
 
 @pytest.fixture
@@ -268,11 +273,11 @@ async def test_device_budgets_are_per_app(device_limit: None) -> None:
     """The same device id under two apps is two budgets: the SDK's device id is shared by every
     app of one vendor on a phone."""
     for _ in range(LIMIT):
-        await rate_limiter.enforce_ingest_limits("app_one", {"shared": 1})
+        await rate_limiter.enforce_ingest_limits("app_one", IP, {"shared": 1})
     with pytest.raises(rate_limiter.AppRateLimitExceeded):
-        await rate_limiter.enforce_ingest_limits("app_one", {"shared": 1})
+        await rate_limiter.enforce_ingest_limits("app_one", IP, {"shared": 1})
 
-    await rate_limiter.enforce_ingest_limits("app_two", {"shared": 1})
+    await rate_limiter.enforce_ingest_limits("app_two", IP, {"shared": 1})
 
 
 async def _no_redis() -> None:
@@ -296,7 +301,7 @@ async def test_the_ingest_limits_hold_without_redis(
     assert codes[LIMIT:] == [429, 429], codes
 
 
-async def test_the_in_memory_fallback_drops_identifiers_past_their_window(
+async def test_the_in_memory_fallback_stays_bounded_under_new_identifiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Device ids are client-chosen: with Redis down, a flood of new ones, each seen once, must
@@ -419,3 +424,175 @@ async def test_a_per_app_limit_does_not_change_other_apps_limits(
         allowed, _meta = await limiter.check_app_limit("other_app")
         assert allowed
     assert limiter.requests_per_window == settings.RATE_LIMIT_REQUESTS
+
+
+def _batch_of(devices: dict[str | None, int], ids: list[str] | None = None) -> bytes:
+    """A batch with `devices[d]` events from each device; `ids` gives the events' wire ids."""
+    events = [_one(device) for device, count in devices.items() for _ in range(count)]
+    for event, event_id in zip(events, ids or [], strict=False):
+        event["id"] = event_id
+    return json.dumps({"events": events}).encode()
+
+
+async def test_one_address_cannot_fill_the_app_ceiling(
+    monkeypatch: pytest.MonkeyPatch, sample_app: App
+) -> None:
+    """Device ids are client-chosen: one address sending each event under a new one is held by
+    its address budget, below the app's ceiling, and an honest device elsewhere still sends."""
+    monkeypatch.setattr(settings, "IP_RATE_LIMIT_EVENTS", 20)
+    monkeypatch.setattr(settings, "APP_RATE_LIMIT_EVENTS", 50)
+    async with _client() as ac:
+        flood = []
+        for r in range(5):
+            r_batch = _batch_of({f"fake-{r}-{i}": 1 for i in range(10)})
+            flood.append(
+                await _post_dsn(ac, r_batch, sample_app.project_id, "203.0.113.66")
+            )
+        honest = await _post_dsn(
+            ac, _event("honest-phone"), sample_app.project_id, "198.51.100.7"
+        )
+
+    assert flood == [200, 200, 429, 429, 429]
+    assert honest == 200
+
+
+async def test_a_refused_batch_spends_no_device_budget(
+    device_limit: None, sample_app: App
+) -> None:
+    async with _client() as ac:
+        refused = await _post_dsn(
+            ac, _batch_of({"A": 3, "Z": 6}), sample_app.project_id, "203.0.113.1"
+        )
+        a_again = await _post_dsn(
+            ac, _batch_of({"A": LIMIT}), sample_app.project_id, "203.0.113.2"
+        )
+
+    assert (refused, a_again) == (429, 200)
+
+
+async def test_a_ceiling_refusal_spends_no_device_budget(
+    app_ceiling: None, device_limit: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    await rate_limiter.enforce_ingest_limits("app_x", IP, {"B": LIMIT})
+    clock[0] += 30
+    with pytest.raises(rate_limiter.AppRateLimitExceeded) as refused:
+        await rate_limiter.enforce_ingest_limits("app_x", "192.0.2.41", {"A": LIMIT})
+    assert refused.value.error == "App rate limit exceeded"
+
+    clock[0] += 31  # B's events have left the window; A stored nothing
+    await rate_limiter.enforce_ingest_limits("app_x", "192.0.2.41", {"A": LIMIT})
+
+
+@pytest.mark.parametrize("redis_up", [True, False])
+async def test_waiting_retry_after_admits_a_whole_batch(
+    device_limit: None, monkeypatch: pytest.MonkeyPatch, redis_up: bool
+) -> None:
+    """Retry-After is when enough events have left for the refused batch, not just one."""
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    if not redis_up:
+        monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+        monkeypatch.setattr(
+            rate_limiter,
+            "datetime",
+            type(
+                "Clock",
+                (),
+                {"now": staticmethod(lambda tz: datetime.fromtimestamp(clock[0], tz))},
+            ),
+        )
+    app_id = f"app_retry_{redis_up}"
+    await rate_limiter.enforce_ingest_limits(app_id, IP, {"A": 1})
+    clock[0] += 20
+    await rate_limiter.enforce_ingest_limits(app_id, IP, {"A": LIMIT - 1})
+    clock[0] += 0.5
+    with pytest.raises(rate_limiter.AppRateLimitExceeded) as refused:
+        await rate_limiter.enforce_ingest_limits(app_id, IP, {"A": 3})
+
+    clock[0] += refused.value.metadata["retry_after"]
+    await rate_limiter.enforce_ingest_limits(app_id, IP, {"A": 3})
+
+
+async def test_the_in_memory_retry_after_is_at_least_a_second(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Truncated to 0, the 429 would fall back to a whole minute."""
+    monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+    limiter = rate_limiter.RateLimiter(1, 1)
+    assert (await limiter.is_allowed("x"))[0]
+
+    allowed, metadata = await limiter.is_allowed("x")
+
+    assert not allowed
+    assert metadata["retry_after"] >= 1
+
+
+async def test_the_in_memory_fallback_bounds_live_identifiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """New device ids all still in their window: the fallback keeps at most its bound, and the
+    cost of each new one stays flat past it (no scan per insert)."""
+    monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+    limiter = rate_limiter.RateLimiter(10, 60, memory_identifiers_max=1000)
+
+    async def held_after(count: int, prefix: str) -> tuple[int, float]:
+        tracemalloc.start()
+        try:
+            before = tracemalloc.take_snapshot()
+            started = time.perf_counter()
+            for i in range(count):
+                assert (await limiter.is_allowed(f"{prefix}-{i}"))[0]
+            elapsed = time.perf_counter() - started
+            after = tracemalloc.take_snapshot()
+        finally:
+            tracemalloc.stop()
+        held = sum(
+            stat.size_diff
+            for stat in after.compare_to(before, "filename")
+            if stat.traceback[0].filename == rate_limiter.__file__
+        )
+        return held, elapsed
+
+    held_below, below = await held_after(1000, "below")
+    held_above, above = await held_after(5000, "above")
+
+    assert held_above < held_below * 2, (held_below, held_above)
+    assert above < below * 5 * 10, (below, above)
+
+
+async def test_a_repeated_event_id_in_a_batch_is_counted_once(
+    device_limit: None, sample_app: App
+) -> None:
+    """The batch stores each id once, so its copies do not cost the device's budget."""
+    ids = ["e1", "e1", "e1", "e2", "e2", "e2"]
+    async with _client() as ac:
+        r = await ac.post(
+            f"/api/v1/events/{sample_app.project_id}",
+            content=_batch_of({"A": len(ids)}, ids),
+            headers={**_dsn(PUBLIC_ID), "X-Forwarded-For": "203.0.113.1"},
+        )
+
+    assert r.status_code == 200, r.text
+    assert r.json()["duplicates"] == 4
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"DEVICE_RATE_LIMIT_EVENTS": 999}, "DEVICE_RATE_LIMIT_EVENTS"),
+        ({"IP_RATE_LIMIT_EVENTS": 999}, "IP_RATE_LIMIT_EVENTS"),
+        (
+            {"IP_RATE_LIMIT_EVENTS": 6000, "APP_RATE_LIMIT_EVENTS": 6000},
+            "APP_RATE_LIMIT_EVENTS",
+        ),
+    ],
+)
+def test_ingest_limits_that_cannot_work_refuse_to_start(
+    overrides: dict[str, int], message: str
+) -> None:
+    """A budget below one batch refuses it on every retry; a ceiling one address can fill is a
+    budget anyone holding the DSN can spend."""
+    with pytest.raises(ValueError, match=message):
+        Settings.model_validate({**REQUIRED, **SAFE, **overrides})

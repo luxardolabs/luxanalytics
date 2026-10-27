@@ -9,7 +9,7 @@ The client is the Swift SDK, [luxardolabs/luxanalytics-swift](https://github.com
 - **Ingest:** single or batched events (bulk insert, up to 1000 per request), zlib/deflate request compression, two authentication modes: HMAC-SHA256 signatures with replay protection, and Sentry-style DSNs.
 - **Event model:** each event keeps its device context in columns (`device_id`, `device_model`, `os_version`, `app_version`, `platform`, `device_type`, `build_number`, `screen_resolution`, `locale`, `timezone`, `is_testflight`); everything else is `properties` JSONB. A `devices` table is upserted on ingest with each app install's latest values (one row per app and device). Events are never deleted.
 - **Dashboard:** overview, events, devices, errors, performance, features, journeys (Sankey and transition heatmap), feedback, a properties explorer with per-key deep dives, user profiles, sessions, and app management with DSNs. Session login; slider panels for detail views.
-- **Operations:** rate limits per IP, and on ingest per device and per app in events (Redis, with an in-memory fallback), JSON logs on stdout, OpenTelemetry traces (a span per service method), a Prometheus scrape, and a health check that names the running build.
+- **Operations:** rate limits per IP, and on ingest per client address, per device and per app in events (Redis, with an in-memory fallback), JSON logs on stdout, OpenTelemetry traces (a span per service method), a Prometheus scrape, and a health check that names the running build.
 
 ## Quick start (development)
 
@@ -153,21 +153,21 @@ curl -X GET "http://localhost:4000/api/v1/events/stats" \
 
 Environment variables, one file per environment (`.env.dev`, `deploy/prod/.env.prod`; the template is `.env.example`). The main ones:
 
-| Variable                                                                                            | Purpose                                                                                            |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                                                      | `postgresql+asyncpg://…`; keep `DB_POOL_PRE_PING=true` (it catches stale pooled connections)       |
-| `DB_POOL_SIZE`, `DB_POOL_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`                        | Connection pool                                                                                    |
-| `REDIS_URL`                                                                                         | Rate limits (in-memory fallback when down) and the logout stamp: no Redis, no dashboard sessions   |
-| `HMAC_KEYS`                                                                                         | JSON `{"app_id": "secret"}` for signed ingest                                                      |
-| `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW`, `LOGIN_RATE_LIMIT`                                      | Request limits                                                                                     |
-| `DEVICE_RATE_LIMIT_EVENTS`, `APP_RATE_LIMIT_EVENTS`, `INGEST_RATE_LIMIT_WINDOW`                     | Ingest limits in events, per device (at least 1000, the batch cap) and per app                     |
-| `TRUSTED_PROXIES`                                                                                   | Proxies whose `X-Forwarded-For` is believed                                                        |
-| `ALLOWED_HOSTS`, `CORS_ORIGINS`, `EXTERNAL_URL`                                                     | `ALLOWED_HOSTS` is required (comma list, no ports); CORS origins; the public base URL used in DSNs |
-| `EVENT_TIMESTAMP_FUTURE_TOLERANCE`                                                                  | Seconds an event may be in the future (default 60)                                                 |
-| `MAX_REQUEST_SIZE`                                                                                  | Request body limit (default 10 MB)                                                                 |
-| `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, `DASHBOARD_SESSION_SECRET`, `DASHBOARD_SESSION_TIMEOUT` | Dashboard login; the password is required                                                          |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`                                                  | The endpoint turns tracing on (fails loudly if set and broken); name default `luxanalytics`        |
-| `LOG_LEVEL`                                                                                         | Log level (JSON lines; caller fields under `attributes`)                                           |
+| Variable                                                                                                | Purpose                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                                                                                          | `postgresql+asyncpg://…`; keep `DB_POOL_PRE_PING=true` (it catches stale pooled connections)                                         |
+| `DB_POOL_SIZE`, `DB_POOL_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`                            | Connection pool                                                                                                                      |
+| `REDIS_URL`                                                                                             | Rate limits (in-memory fallback when down) and the logout stamp: no Redis, no dashboard sessions                                     |
+| `HMAC_KEYS`                                                                                             | JSON `{"app_id": "secret"}` for signed ingest                                                                                        |
+| `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW`, `LOGIN_RATE_LIMIT`                                          | Request limits                                                                                                                       |
+| `IP_RATE_LIMIT_EVENTS`, `DEVICE_RATE_LIMIT_EVENTS`, `APP_RATE_LIMIT_EVENTS`, `INGEST_RATE_LIMIT_WINDOW` | Ingest limits in events, per client address and per device (each at least 1000, the batch cap) and per app (above the address limit) |
+| `TRUSTED_PROXIES`                                                                                       | Proxies whose `X-Forwarded-For` is believed                                                                                          |
+| `ALLOWED_HOSTS`, `CORS_ORIGINS`, `EXTERNAL_URL`                                                         | `ALLOWED_HOSTS` is required (comma list, no ports); CORS origins; the public base URL used in DSNs                                   |
+| `EVENT_TIMESTAMP_FUTURE_TOLERANCE`                                                                      | Seconds an event may be in the future (default 60)                                                                                   |
+| `MAX_REQUEST_SIZE`                                                                                      | Request body limit (default 10 MB)                                                                                                   |
+| `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, `DASHBOARD_SESSION_SECRET`, `DASHBOARD_SESSION_TIMEOUT`     | Dashboard login; the password is required                                                                                            |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`                                                      | The endpoint turns tracing on (fails loudly if set and broken); name default `luxanalytics`                                          |
+| `LOG_LEVEL`                                                                                             | Log level (JSON lines; caller fields under `attributes`)                                                                             |
 
 ## Self-hosting
 

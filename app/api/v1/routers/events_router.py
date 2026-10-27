@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.client_ip import client_ip_from_request
 from app.core.dsn_auth import extract_app_from_dsn, verify_project_dsn
 from app.core.security import verify_hmac_app, verify_hmac_ingest
 from app.db.database import get_db
@@ -28,7 +29,9 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
         raise HTTPException(status_code=400, detail="Invalid JSON") from e
 
     try:
-        result = await EventCoreService(db).ingest(app_id, payload)
+        result = await EventCoreService(db).ingest(
+            app_id, payload, client_ip_from_request(request)
+        )
     except InvalidEventPayload as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except ValidationError as e:
