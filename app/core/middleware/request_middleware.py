@@ -16,6 +16,7 @@ from starlette.types import ASGIApp, Message
 from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
 from app.core.rate_limiter import AppRateLimitExceeded, IPRateLimiter
+from app.core.request_route import route_template
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 "Request completed",
                 extra={
                     "method": request.method,
-                    "url": str(request.url),
+                    # The route's template, never the URL: it holds end-user ids and searches
+                    "route": route_template(request),
                     "process_time": round(process_time, 4),
                     "status": response.status_code,
                 },

@@ -47,6 +47,9 @@ configure_logging(
     service="luxanalytics",
     version=settings.APP_VERSION,
     environment=settings.ENVIRONMENT,
+    # uvicorn's access line logs every path and query string (end-user ids, searches); the
+    # LoggingMiddleware line, by route template, replaces it.
+    levels={"uvicorn.access": "WARNING"},
 )
 logger = logging.getLogger(__name__)
 

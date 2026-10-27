@@ -53,7 +53,8 @@ async def login(
     """Process login form."""
     # Verify credentials
     if not verify_credentials(username, password):
-        logger.warning("Failed login attempt", extra={"username": username})
+        # Never what was typed: a password typed into the username field would land in the logs
+        logger.warning("Failed login attempt")
         return RedirectResponse(
             url=AuthViewService(request).login_page(
                 next=next, error="Invalid username or password"
