@@ -47,8 +47,14 @@ class SessionStoreError(Exception):
     """The logout stamp cannot be read or written: no session is accepted, no logout is complete."""
 
 
-async def _sessions_valid_after() -> datetime | None:
-    """The last logout's time, or None when no logout ever happened.
+async def _sessions_valid_after() -> datetime:
+    """The time before which every session is refused: the last logout's.
+
+    A missing stamp is not "never logged out": prod Redis keeps no AOF, so a crash can bring it back
+    from a snapshot older than the last logout, and reading the gap as no logout revived every
+    copied cookie still in date. The first reader writes the stamp as now (SET NX) instead, so a
+    lost stamp signs everyone out once. Login asks this before it creates its session
+    (session_store_available), so its own login time lands after the stamp.
 
     Raises SessionStoreError when Redis is unreachable or the stamp is not an aware ISO time, so
     the caller fails closed: a session that cannot be checked against the last logout is refused.
@@ -58,10 +64,16 @@ async def _sessions_valid_after() -> datetime | None:
         raise SessionStoreError("Redis is unavailable; logouts cannot be checked")
     try:
         stamp = await redis_client.get(SESSIONS_VALID_AFTER_KEY)
+        if stamp is None:
+            await redis_client.set(
+                SESSIONS_VALID_AFTER_KEY, datetime.now(UTC).isoformat(), nx=True
+            )
+            # NX: a concurrent reader may have written first; every reader uses the one stored
+            stamp = await redis_client.get(SESSIONS_VALID_AFTER_KEY)
     except RedisError as exc:
         raise SessionStoreError("the logout stamp cannot be read") from exc
     if stamp is None:
-        return None
+        raise SessionStoreError("the logout stamp could not be written")
     # The client decodes responses (redis_client.py); bytes would mean it was built without that
     text = stamp.decode() if isinstance(stamp, bytes) else stamp
     try:
@@ -111,8 +123,7 @@ async def _authenticated_user(
         return username
 
     # Revoked by a logout after this session signed in
-    valid_after = await _sessions_valid_after()
-    if valid_after is not None and login_dt <= valid_after:
+    if login_dt <= await _sessions_valid_after():
         return None
 
     return username

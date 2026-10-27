@@ -242,7 +242,7 @@ make prod-release
 ## Authentication
 
 - **Dashboard**: Session-based (cookie), configured via `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`
-- **Logout is `POST /logout` and revokes on the server**: it stamps Redis `dashboard:sessions_valid_after`, and `get_current_user` refuses any session that signed in before it (every session: one account). An unreadable Redis refuses sessions (fail closed). FLEET-AUTH-SESSION-STANDARD §2.1
+- **Logout is `POST /logout` and revokes on the server**: it stamps Redis `dashboard:sessions_valid_after`, and `get_current_user` refuses any session that signed in before it (every session: one account). An unreadable Redis refuses sessions (fail closed), and a missing stamp (Redis restored from a snapshot older than the last logout) is written as now, so it signs everyone out once instead of reviving logged-out cookies. FLEET-AUTH-SESSION-STANDARD §2.1
 - **Every unsafe-method request passes `SameOriginMiddleware`** (`app/core/same_origin.py`, emitted): a cross-site POST is a 403 (login CSRF, §5). Requests without browser headers (the iOS SDK) pass
 - **`ALLOWED_HOSTS` is required** (`app/core/trusted_host.py`, emitted): set per `.env.<env>`, no ports, never `*`; the in-container `/health` probe needs no entry
 - **Every request-supplied redirect target** goes through `safe_redirect_target` (`app/core/safe_redirect.py`, emitted), §6

@@ -148,6 +148,38 @@ async def test_a_copied_session_cookie_is_refused_after_logout(
 
 
 @pytest.mark.db
+async def test_a_logged_out_cookie_stays_refused_when_redis_loses_the_stamp(
+    client: AsyncClient,
+) -> None:
+    """Redis (no AOF in prod) can come back from a snapshot older than the last logout. A missing
+    stamp must not read as "never logged out": that revived every copied cookie still in date
+    (adversarial audit 2026-10-27, LUXANALYTI-99)."""
+    await _login(client, "198.51.100.234")
+    copied = client.cookies["analytics_session"]
+    await client.post("/logout", follow_redirects=False)
+    redis_client = await get_redis_client()
+    assert redis_client is not None
+    await redis_client.delete(SESSIONS_VALID_AFTER_KEY)
+
+    client.cookies.set("analytics_session", copied)
+    after = await client.get("/dashboard/overview", follow_redirects=False)
+
+    assert after.status_code == 303
+
+
+@pytest.mark.db
+async def test_signing_in_works_with_no_stamp_yet_control(client: AsyncClient) -> None:
+    """A fresh store has no stamp; the first sign-in still works (and so does every later page)."""
+    redis_client = await get_redis_client()
+    assert redis_client is not None
+    await redis_client.delete(SESSIONS_VALID_AFTER_KEY)
+
+    await _login(client, "198.51.100.235")
+
+    assert (await client.get("/dashboard/overview")).status_code == 200
+
+
+@pytest.mark.db
 async def test_a_new_login_after_logout_works_control(client: AsyncClient) -> None:
     await _login(client, "198.51.100.206")
     await client.post("/logout", follow_redirects=False)
