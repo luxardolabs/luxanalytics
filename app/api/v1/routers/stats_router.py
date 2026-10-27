@@ -14,9 +14,13 @@ from app.services.core.analytics_core_service import AnalyticsCoreService
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
-@router.get("/api/v1/stats/overview", response_model=StatsOverviewResponse)
+@router.get(
+    "/api/v1/stats/overview",
+    response_model=StatsOverviewResponse,
+    name="api.stats.overview",
+)
 async def get_overview_stats(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> StatsOverviewResponse:
     overview = await AnalyticsCoreService(db).get_stats_overview(hours=24)
     return StatsOverviewResponse.model_validate(overview)

@@ -10,7 +10,7 @@ window.addEventListener('unhandledrejection', function(e) {
 // Handle HTMX errors - redirect on 401
 document.body.addEventListener('htmx:responseError', function(event) {
     if (event.detail.xhr.status === 401) {
-        window.location.href = '/login';
+        window.location.href = document.body.dataset.loginUrl;
         return;
     }
     console.error('HTMX Error:', event.detail);

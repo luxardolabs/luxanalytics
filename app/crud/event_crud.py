@@ -12,7 +12,7 @@ from sqlalchemy import (
     cast,
     desc,
     func,
-    literal_column,
+    literal,
     select,
     text,
     true,
@@ -209,31 +209,39 @@ class EventCRUD:
 
     # ── Timeline ──────────────────────────────────────────────────────────
 
-    # Pre-approved bucket SQL expressions — prevents injection via literal_column
-    BUCKET_EXPRESSIONS = {
-        "5min": "date_trunc('hour', received_at) + INTERVAL '5 min' * floor(date_part('minute', received_at) / 5)",
-        "30min": "date_trunc('hour', received_at) + INTERVAL '30 min' * floor(date_part('minute', received_at) / 30)",
-        "1hour": "date_trunc('hour', received_at)",
-        "6hour": "date_trunc('hour', received_at) + INTERVAL '6 hours' * floor(date_part('hour', received_at) / 6)",
-        "1day": "date_trunc('day', received_at)",
-        "1week": "date_trunc('week', received_at)",
-        "1month": "date_trunc('month', received_at)",
+    # Fixed-width buckets are binned from midnight UTC, so a 6-hour bucket is 00/06/12/18.
+    _BIN_ORIGIN = datetime(2000, 1, 1, tzinfo=UTC)
+    _BIN_STRIDES = {
+        "5min": timedelta(minutes=5),
+        "30min": timedelta(minutes=30),
+        "6hour": timedelta(hours=6),
     }
+    _TRUNC_UNITS = {"1hour": "hour", "1day": "day", "1week": "week", "1month": "month"}
+
+    @classmethod
+    def _bucket_expression(cls, bucket_key: str) -> ColumnElement[datetime]:
+        """The start of the timeline bucket each event falls in, built from SQLAlchemy constructs
+        with every unit and stride a bound value, so no SQL is text (fw.no_dynamic_column_sort)."""
+        if bucket_key in cls._BIN_STRIDES:
+            return func.date_bin(
+                literal(cls._BIN_STRIDES[bucket_key]),
+                Event.received_at,
+                literal(cls._BIN_ORIGIN),
+            )
+        if bucket_key in cls._TRUNC_UNITS:
+            return func.date_trunc(cls._TRUNC_UNITS[bucket_key], Event.received_at)
+        raise ValueError(f"Invalid bucket key: {bucket_key}")
 
     async def timeline_buckets(
         self, db: AsyncSession, bucket_key: str, conditions: Conditions
-    ) -> list[Row[Any]]:
-        bucket_sql = self.BUCKET_EXPRESSIONS.get(bucket_key)
-        if not bucket_sql:
-            raise ValueError(f"Invalid bucket key: {bucket_key}")
-        query: Any = (
-            select(
-                literal_column(bucket_sql).label("bucket"),
-                func.count(Event.id).label("count"),
-            )
+    ) -> list[Row[datetime, int]]:
+        """(bucket start, event count) per bucket, oldest first."""
+        bucket = self._bucket_expression(bucket_key).label("bucket")
+        query = (
+            select(bucket, func.count(Event.id).label("count"))
             .where(and_(true(), *conditions))
-            .group_by(literal_column(bucket_sql))
-            .order_by(literal_column(bucket_sql))
+            .group_by(bucket)
+            .order_by(bucket)
         )
         result = await db.execute(query)
         return list(result.all())

@@ -169,11 +169,10 @@ class AnalyticsCoreService:
 
             # Fill gaps
             data_lookup = {}
-            for row in raw:
-                bt = row.bucket
+            for bt, count in raw:
                 if bt.tzinfo is None:
                     bt = bt.replace(tzinfo=UTC)
-                data_lookup[bt] = row.count
+                data_lookup[bt] = count
 
             current = since.replace(second=0, microsecond=0)
             if hours <= 1:

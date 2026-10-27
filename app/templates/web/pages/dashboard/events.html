@@ -9,10 +9,10 @@
 
 {% block content %}
 {% call page_header(title="Events", description=app_id) %}
-    {{ time_pills(hours, '#page-content', '/dashboard/events/content', '&app_id=' ~ (app_id or '') ~ '&event_name=' ~ (event_name or '')) }}
+    {{ time_pills(hours, '#page-content', content_url, '&app_id=' ~ (app_id or '') ~ '&event_name=' ~ (event_name or '')) }}
 {% endcall %}
 
-<form hx-get="/dashboard/events/content"
+<form hx-get="{{ content_url }}"
       hx-target="#page-content"
       hx-swap="innerHTML"
       hx-trigger="keyup changed delay:400ms from:find input">

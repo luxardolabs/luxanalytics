@@ -15,25 +15,27 @@ async def test_create_single_event_promotes_columns(db: AsyncSession) -> None:
     """Event creation should populate promoted columns from metadata."""
     svc = EventCoreService(db)
 
-    event_data = EventCreate(
-        name="screen_view",
-        timestamp=datetime.now(UTC).isoformat(),
-        user_id="user_1",
-        session_id="session_1",
-        metadata={
-            "device_id": "dev_abc123",
-            "device_model": "iPhone17,1",
-            "device_type": "iPhone",
-            "system_version": "18.3",
-            "app_version": "1.0.23",
-            "build_number": "3",
-            "screen_resolution": "402x874",
-            "locale": "en_US",
-            "timezone": "America/Chicago",
-            "is_testflight": "true",
-            "screen": "home",
-            "feature": "main",
-        },
+    event_data = EventCreate.model_validate(
+        {
+            "name": "screen_view",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "user_id": "user_1",
+            "session_id": "session_1",
+            "metadata": {
+                "device_id": "dev_abc123",
+                "device_model": "iPhone17,1",
+                "device_type": "iPhone",
+                "system_version": "18.3",
+                "app_version": "1.0.23",
+                "build_number": "3",
+                "screen_resolution": "402x874",
+                "locale": "en_US",
+                "timezone": "America/Chicago",
+                "is_testflight": "true",
+                "screen": "home",
+                "feature": "main",
+            },
+        }
     )
 
     created = await svc.create_events("test_app", [event_data])
@@ -71,12 +73,22 @@ async def test_create_batch_events(db: AsyncSession) -> None:
     now = datetime.now(UTC).isoformat()
 
     events = [
-        EventCreate(name="screen_view", timestamp=now, metadata={"screen": "home"}),
-        EventCreate(
-            name="button_tapped", timestamp=now, metadata={"button_name": "save"}
+        EventCreate.model_validate(
+            {"name": "screen_view", "timestamp": now, "metadata": {"screen": "home"}}
         ),
-        EventCreate(
-            name="app_launched", timestamp=now, metadata={"launch_type": "cold"}
+        EventCreate.model_validate(
+            {
+                "name": "button_tapped",
+                "timestamp": now,
+                "metadata": {"button_name": "save"},
+            }
+        ),
+        EventCreate.model_validate(
+            {
+                "name": "app_launched",
+                "timestamp": now,
+                "metadata": {"launch_type": "cold"},
+            }
         ),
     ]
 
@@ -93,18 +105,20 @@ async def test_device_upsert_on_ingest(db: AsyncSession) -> None:
     svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
 
-    event1 = EventCreate(
-        name="screen_view",
-        timestamp=now,
-        metadata={
-            "device_id": "upsert_test_device",
-            "device_model": "iPhone16,1",
-            "system_version": "17.0",
-            "app_version": "1.0.0",
-            "is_testflight": "true",
-            "locale": "en_US",
-            "timezone": "America/Chicago",
-        },
+    event1 = EventCreate.model_validate(
+        {
+            "name": "screen_view",
+            "timestamp": now,
+            "metadata": {
+                "device_id": "upsert_test_device",
+                "device_model": "iPhone16,1",
+                "system_version": "17.0",
+                "app_version": "1.0.0",
+                "is_testflight": "true",
+                "locale": "en_US",
+                "timezone": "America/Chicago",
+            },
+        }
     )
     await svc.create_events("test_app", [event1])
     await db.flush()
@@ -118,18 +132,20 @@ async def test_device_upsert_on_ingest(db: AsyncSession) -> None:
     assert device.is_testflight is True
 
     # Second event — newer version
-    event2 = EventCreate(
-        name="screen_view",
-        timestamp=now,
-        metadata={
-            "device_id": "upsert_test_device",
-            "device_model": "iPhone16,1",
-            "system_version": "17.1",
-            "app_version": "1.0.1",
-            "is_testflight": "false",
-            "locale": "en_US",
-            "timezone": "America/Chicago",
-        },
+    event2 = EventCreate.model_validate(
+        {
+            "name": "screen_view",
+            "timestamp": now,
+            "metadata": {
+                "device_id": "upsert_test_device",
+                "device_model": "iPhone16,1",
+                "system_version": "17.1",
+                "app_version": "1.0.1",
+                "is_testflight": "false",
+                "locale": "en_US",
+                "timezone": "America/Chicago",
+            },
+        }
     )
     await svc.create_events("test_app", [event2])
     await db.flush()
@@ -144,7 +160,9 @@ async def test_device_upsert_on_ingest(db: AsyncSession) -> None:
 async def test_platform_defaults_to_ios(db: AsyncSession) -> None:
     svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
-    event = EventCreate(name="screen_view", timestamp=now, metadata={"screen": "home"})
+    event = EventCreate.model_validate(
+        {"name": "screen_view", "timestamp": now, "metadata": {"screen": "home"}}
+    )
     created = await svc.create_events("test_app", [event])
     assert created[0].platform == "ios"
 
@@ -153,8 +171,8 @@ async def test_platform_defaults_to_ios(db: AsyncSession) -> None:
 async def test_platform_from_metadata(db: AsyncSession) -> None:
     svc = EventCoreService(db)
     now = datetime.now(UTC).isoformat()
-    event = EventCreate(
-        name="screen_view", timestamp=now, metadata={"platform": "android"}
+    event = EventCreate.model_validate(
+        {"name": "screen_view", "timestamp": now, "metadata": {"platform": "android"}}
     )
     created = await svc.create_events("test_app", [event])
     assert created[0].platform == "android"
@@ -170,7 +188,9 @@ async def test_event_without_device_id(db: AsyncSession) -> None:
 
     before = (await db.execute(select(func.count(Device.device_id)))).scalar()
 
-    event = EventCreate(name="screen_view", timestamp=now, metadata={"screen": "home"})
+    event = EventCreate.model_validate(
+        {"name": "screen_view", "timestamp": now, "metadata": {"screen": "home"}}
+    )
     await svc.create_events("test_app", [event])
     await db.flush()
 

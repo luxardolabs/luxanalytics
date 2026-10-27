@@ -27,7 +27,7 @@
         {{ alert_banner(error, variant='danger') }}
         {% endif %}
 
-        <form method="POST" action="/login" class="space-y-4">
+        <form method="POST" action="{{ login_url }}" class="space-y-4">
             {{ input("username", label="Username", required=true, placeholder="admin") }}
             {{ input("password", label="Password", type="password", required=true) }}
             {% if next %}

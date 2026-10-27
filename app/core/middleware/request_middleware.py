@@ -3,6 +3,7 @@ import logging
 import time
 import zlib
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -176,8 +177,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Redis-based distributed rate limiting with in-memory fallback."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, exempt_paths: Sequence[str] = ()) -> None:
         super().__init__(app)
+        # System endpoints (health, metrics, docs) the app resolves by route name and passes in
+        self.exempt_paths = frozenset(exempt_paths)
         self.ip_limiter = IPRateLimiter()
         self.app_limiter = AppRateLimiter()
         # Fallback in-memory storage for backwards compatibility
@@ -188,7 +191,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         # Skip rate limiting for health check and other system endpoints
-        if request.url.path in ["/health", "/metrics", "/docs", "/openapi.json"]:
+        if request.url.path in self.exempt_paths:
             return await call_next(request)
 
         # The real client behind the proxy; request.client is nginx for every caller.

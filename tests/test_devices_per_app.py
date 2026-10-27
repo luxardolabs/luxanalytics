@@ -28,7 +28,10 @@ async def _send(
 ) -> None:
     now = datetime.now(UTC).isoformat()
     md = {"device_id": PHONE, "app_version": version, "is_testflight": testflight}
-    events = [EventCreate(name=f"e{i}", timestamp=now, metadata=md) for i in range(n)]
+    events = [
+        EventCreate.model_validate({"name": f"e{i}", "timestamp": now, "metadata": md})
+        for i in range(n)
+    ]
     await EventCoreService(db).create_events(app_id, events)
     await db.flush()
 

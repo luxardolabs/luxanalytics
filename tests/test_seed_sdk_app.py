@@ -44,6 +44,6 @@ async def test_the_dsn_points_at_the_project_ingest_route(db: AsyncSession) -> N
     app = await seed_sdk_app.ensure_sdk_app(db)
     dsn = seed_sdk_app.dsn_for(app, "https://dev.example.com:4000")
     route = create_application().url_path_for(
-        "create_events_by_project_id", project_id=app.project_id
+        "api.events.create_for_project", project_id=app.project_id
     )
     assert dsn == f"https://{app.public_id}@dev.example.com:4000{route}"

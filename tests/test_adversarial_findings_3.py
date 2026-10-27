@@ -96,11 +96,17 @@ async def test_device_context_survives_an_event_that_omits_it(db: AsyncSession) 
         "locale": "en_US",
     }
     await svc.create_events(
-        "test_app", [EventCreate(name="a", timestamp=now, metadata=full)]
+        "test_app",
+        [EventCreate.model_validate({"name": "a", "timestamp": now, "metadata": full})],
     )
     sparse = {"device_id": "keep-ctx", "screen": "home"}
     await svc.create_events(
-        "test_app", [EventCreate(name="b", timestamp=now, metadata=sparse)]
+        "test_app",
+        [
+            EventCreate.model_validate(
+                {"name": "b", "timestamp": now, "metadata": sparse}
+            )
+        ],
     )
     await db.flush()
     device = (

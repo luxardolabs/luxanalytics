@@ -11,13 +11,13 @@ from app.services.core.health_core_service import HealthCoreService
 router = APIRouter()
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get("/health", response_model=HealthResponse, name="system.health")
 async def health_check() -> HealthResponse:
     """Health check endpoint with database pool stats."""
     return await HealthCoreService().report()
 
 
-@router.get("/metrics")
+@router.get("/metrics", name="system.metrics")
 async def metrics() -> Response:
     """Prometheus metrics endpoint."""
     return Response(content=get_prometheus_metrics(), media_type=CONTENT_TYPE_LATEST)

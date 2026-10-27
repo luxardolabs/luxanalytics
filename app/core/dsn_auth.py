@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 async def extract_app_from_dsn(
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     """
@@ -75,7 +75,7 @@ def extract_app_from_path(path: str) -> str | None:
 
 async def verify_project_dsn(
     project_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     """The app_id for POST /api/v1/events/{project_id}: the project names the app, and the

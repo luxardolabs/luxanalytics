@@ -3,14 +3,14 @@
 from sqlalchemy import literal, select
 from sqlalchemy.pool import QueuePool
 
-from app.db.database import AsyncSessionLocal, async_engine
+from app.db.database import async_engine, get_db_context
 
 
 async def ping_database() -> None:
-    """SELECT 1 through the app's own sessionmaker; raises SQLAlchemyError/OSError when the DB is
-    unreachable. A session, not a bare engine connection: every connection the app opens comes from the
-    one factory (fw.test_sessions_isolated)."""
-    async with AsyncSessionLocal() as session:
+    """SELECT 1 on a session from the non-request owner; raises SQLAlchemyError/OSError when the DB
+    is unreachable. A session, not a bare engine connection: every connection the app opens comes
+    from the one factory (fw.test_sessions_isolated, fw.session_minted_in_owner)."""
+    async with get_db_context() as session:
         await session.execute(select(literal(1)))
 
 

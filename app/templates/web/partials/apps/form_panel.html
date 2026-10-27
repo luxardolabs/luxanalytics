@@ -11,7 +11,7 @@
               {% if app %}
               hx-put="{{ app.urls.update }}"
               {% else %}
-              hx-post="/apps/"
+              hx-post="{{ create_url }}"
               {% endif %}
               hx-target="#apps-list"
               hx-swap="innerHTML">

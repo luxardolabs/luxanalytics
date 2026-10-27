@@ -4,7 +4,7 @@ Module-level (not defined inside create_application) so every app instance share
 objects, like every other router.
 """
 
-from fastapi import APIRouter, Depends, Form, Header
+from fastapi import APIRouter, Depends, Form, Header, Request
 from fastapi.responses import RedirectResponse, Response
 
 from app.core.auth import require_auth
@@ -13,17 +13,24 @@ from app.services.views.dashboard_view_service import switch_app_response
 router = APIRouter()
 
 
-@router.get("/")
-async def root() -> RedirectResponse:
+@router.get("/", name="system.root")
+async def root(request: Request) -> RedirectResponse:
     """Redirect to dashboard."""
-    return RedirectResponse(url="/dashboard/overview", status_code=302)
+    return RedirectResponse(
+        url=request.app.url_path_for("dashboard.overview.page"), status_code=302
+    )
 
 
 # Only the dashboard nav (apps_dropdown.html) posts here, from an authenticated page.
-@router.post("/set-app-context", dependencies=[Depends(require_auth)])
+@router.post(
+    "/set-app-context",
+    dependencies=[Depends(require_auth)],
+    name="system.set_app_context",
+)
 async def set_app_context(
+    request: Request,
     app_id: str = Form(""),
     hx_current_url: str = Header("", alias="HX-Current-URL"),
 ) -> Response:
     """Set the current app context via cookie (used by nav app selector)."""
-    return switch_app_response(hx_current_url, app_id)
+    return switch_app_response(request, hx_current_url, app_id)

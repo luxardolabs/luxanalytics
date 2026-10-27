@@ -137,8 +137,9 @@ def _publish_ingest_schemas(app: FastAPI) -> None:
     components.update(INGEST_BODY_COMPONENTS)
 
 
-# Exact paths (the guard matches no pattern): the DSN route `/api/v1/events/{project_id}` cannot be
-# listed, and is held to the guard until it can (LUXANALYTI-89, same-origin asset escalation).
+# Exact paths (the guard matches no pattern): the DSN route `/api/v1/events/{project_id}` is not
+# listed and stays held to the guard. A literal, because fw.auth_posts_refuse_cross_site must read
+# the exemptions; fw.urls_from_route_names reds it as a literal path (escalated: the two conflict).
 INGEST_PATHS = ("/api/v1/events/", "/api/v1/events/public")
 
 
@@ -158,6 +159,14 @@ def create_application() -> FastAPI:
     # Setup OpenTelemetry
     setup_telemetry(app)
 
+    # Static files (for CSS, JS, images)
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+    # Include routers — web (HTMX/HTML) and API (JSON) separated. First, so the middleware below
+    # can name the paths it treats specially by route name.
+    app.include_router(web_router)
+    app.include_router(api_router)
+
     # Middleware. Starlette's add_middleware PREPENDS, so the LAST one added is the OUTERMOST.
     # Effective order, outer -> inner: AllowedHosts, SameOrigin, CORS, RateLimit, Logging,
     # SecurityHeaders, Session. Host validation and the cross-site refusal (login CSRF,
@@ -173,7 +182,14 @@ def create_application() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware, environment=settings.ENVIRONMENT)
     app.add_middleware(LoggingMiddleware)
     # RequestSizeLimitMiddleware disabled — nginx handles body size via client_max_body_size
-    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(
+        RateLimitMiddleware,
+        exempt_paths=(
+            app.url_path_for("system.health"),
+            app.url_path_for("system.metrics"),
+            *(p for p in (app.docs_url, app.openapi_url) if p),
+        ),
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
@@ -191,9 +207,8 @@ def create_application() -> FastAPI:
     app.add_middleware(
         AllowedHostsMiddleware,
         allowed_hosts=settings.ALLOWED_HOSTS,
-        health_paths=(
-            "/health",
-        ),  # the container HEALTHCHECK (Dockerfile, compose.yml)
+        # the container HEALTHCHECK (Dockerfile, compose.yml)
+        health_paths=(app.url_path_for("system.health"),),
     )
 
     # The canonical exception handler renders its error page/partial through this instance.
@@ -203,12 +218,6 @@ def create_application() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-    # Static files (for CSS, JS, images)
-    app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-    # Include routers — web (HTMX/HTML) and API (JSON) separated
-    app.include_router(web_router)
-    app.include_router(api_router)
     _publish_ingest_schemas(app)
 
     return app

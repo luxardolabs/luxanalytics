@@ -7,7 +7,7 @@
         <div class="flex items-center justify-between h-14">
 
             {# Logo #}
-            <a href="/dashboard/overview" class="flex items-center gap-2 text-fg font-semibold text-lg shrink-0">
+            <a href="{{ nav.home }}" class="flex items-center gap-2 text-fg font-semibold text-lg shrink-0">
                 <svg class="w-6 h-6 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -17,46 +17,34 @@
 
             {# App Selector — loads via HTMX, reads app_id from cookie #}
             <div class="flex items-center gap-2 mx-4"
-                 hx-get="/dashboard/apps-dropdown"
+                 hx-get="{{ nav.apps_dropdown }}"
                  hx-trigger="load"
                  hx-swap="innerHTML">
                 <span class="text-xs text-slate-500">Loading apps...</span>
             </div>
 
             {# Page Nav #}
-            {% set current_path = request.url.path if request else '/' %}
-            {% set nav_pages = [
-                ('/dashboard/overview', 'Overview'),
-                ('/dashboard/events', 'Events'),
-                ('/dashboard/devices', 'Devices'),
-                ('/dashboard/features', 'Features'),
-                ('/dashboard/journey', 'Journey'),
-                ('/dashboard/errors', 'Errors'),
-                ('/dashboard/performance', 'Performance'),
-                ('/dashboard/feedback', 'Feedback'),
-                ('/dashboard/explorer', 'Explorer'),
-            ] %}
             <div class="hidden md:flex items-center gap-1 flex-1 justify-center">
-                {% for href, label in nav_pages %}
-                <a href="{{ href }}"
+                {% for page in nav.pages %}
+                <a href="{{ page.url }}"
                    class="px-3 py-1.5 rounded-md text-sm transition-colors
-                          {% if current_path.startswith(href) %}
+                          {% if page.active %}
                           bg-brand-500/15 text-brand-400 font-medium
                           {% else %}
                           text-slate-500 hover:text-fg hover:bg-surface-10
                           {% endif %}">
-                    {{ label }}
+                    {{ page.label }}
                 </a>
                 {% endfor %}
             </div>
 
             {# Right side #}
             <div class="flex items-center gap-3 shrink-0">
-                <a href="/apps/" class="text-xs text-slate-500 hover:text-slate-300 transition-colors hidden sm:inline">Manage Apps</a>
+                <a href="{{ nav.apps }}" class="text-xs text-slate-500 hover:text-slate-300 transition-colors hidden sm:inline">Manage Apps</a>
                 <span class="text-xs text-surface-20 hidden sm:inline">|</span>
-                <a href="/health" class="text-xs text-slate-500 hover:text-slate-300 transition-colors">Health</a>
+                <a href="{{ nav.health }}" class="text-xs text-slate-500 hover:text-slate-300 transition-colors">Health</a>
                 <span class="text-xs text-surface-20">v{{ version }}</span>
-                <form method="POST" action="/logout">
+                <form method="POST" action="{{ nav.logout }}">
                     {{ button('Logout', variant='ghost', size='xs', type='submit') }}
                 </form>
             </div>
@@ -64,15 +52,15 @@
 
         {# Mobile nav (shown on small screens) #}
         <div class="flex md:hidden items-center gap-1 pb-2 overflow-x-auto -mx-4 px-4">
-            {% for href, label in nav_pages %}
-            <a href="{{ href }}"
+            {% for page in nav.pages %}
+            <a href="{{ page.url }}"
                class="px-3 py-1 rounded-md text-xs whitespace-nowrap transition-colors
-                      {% if current_path.startswith(href) %}
+                      {% if page.active %}
                       bg-brand-500/15 text-brand-400 font-medium
                       {% else %}
                       text-slate-500 hover:text-fg
                       {% endif %}">
-                {{ label }}
+                {{ page.label }}
             </a>
             {% endfor %}
         </div>

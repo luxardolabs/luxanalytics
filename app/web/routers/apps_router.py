@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
 from app.db.database import get_db
-from app.services.views.apps_view_service import AppsViewService, DuplicateAppIdError
+from app.services.views.apps_view_service import (
+    AppsViewService,
+    DuplicateAppIdError,
+    new_panel_context,
+    page_context,
+)
 from app.web.templates import templates
 
 router = APIRouter(dependencies=[Depends(require_auth)])
@@ -17,18 +22,20 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 # ── Full Pages ────────────────────────────────────────────────────────────────
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse, name="apps.page")
 async def apps_page(request: Request) -> Response:
     """Full apps management page."""
-    return templates.TemplateResponse(request, "pages/apps/index.html")
+    return templates.TemplateResponse(
+        request, "pages/apps/index.html", page_context(request)
+    )
 
 
 # ── HTMX Partials ────────────────────────────────────────────────────────────
 
 
-@router.get("/list", response_class=HTMLResponse)
+@router.get("/list", response_class=HTMLResponse, name="apps.list")
 async def apps_list(
-    request: Request, q: str = "", db: AsyncSession = Depends(get_db)
+    request: Request, q: str = "", db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
     """Apps list partial — loaded by HTMX on page load and search."""
     context = await AppsViewService(db, request).list_context(q)
@@ -38,26 +45,26 @@ async def apps_list(
 # ── Slider Panels ────────────────────────────────────────────────────────────
 
 
-@router.get("/new", response_class=HTMLResponse)
+@router.get("/new", response_class=HTMLResponse, name="apps.new_panel")
 async def new_app_panel(request: Request) -> Response:
     """New app form — slider panel."""
     return templates.TemplateResponse(
-        request, "partials/apps/form_panel.html", {"app": None}
+        request, "partials/apps/form_panel.html", new_panel_context(request)
     )
 
 
-@router.get("/{app_id}/edit", response_class=HTMLResponse)
+@router.get("/{app_id}/edit", response_class=HTMLResponse, name="apps.edit_panel")
 async def edit_app_panel(
-    request: Request, app_id: str, db: AsyncSession = Depends(get_db)
+    request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
     """Edit app form — slider panel."""
     context = await AppsViewService(db, request).edit_panel_context(app_id)
     return templates.TemplateResponse(request, "partials/apps/form_panel.html", context)
 
 
-@router.get("/{app_id}/detail", response_class=HTMLResponse)
+@router.get("/{app_id}/detail", response_class=HTMLResponse, name="apps.detail_panel")
 async def app_detail_panel(
-    request: Request, app_id: str, db: AsyncSession = Depends(get_db)
+    request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
     """App detail — slider panel with DSN, stats."""
     context = await AppsViewService(db, request).detail_panel_context(app_id)
@@ -69,14 +76,14 @@ async def app_detail_panel(
 # ── Actions ───────────────────────────────────────────────────────────────────
 
 
-@router.post("/", response_class=HTMLResponse)
+@router.post("/", response_class=HTMLResponse, name="apps.create")
 async def create_app(
     request: Request,
     name: str = Form(...),
     app_id: str = Form(...),
     organization: str | None = Form(None),
     description: str | None = Form(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Create a new app, then refresh the list."""
     view = AppsViewService(db, request)
@@ -96,7 +103,7 @@ async def create_app(
     return await view.list_with_toast(message)
 
 
-@router.put("/{app_id}", response_class=HTMLResponse)
+@router.put("/{app_id}", response_class=HTMLResponse, name="apps.update")
 async def update_app(
     request: Request,
     app_id: str,
@@ -104,7 +111,7 @@ async def update_app(
     organization: str | None = Form(None),
     description: str | None = Form(None),
     is_active: bool = Form(False),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Update an app."""
     view = AppsViewService(db, request)
@@ -112,9 +119,9 @@ async def update_app(
     return await view.list_with_toast(message)
 
 
-@router.delete("/{app_id}", response_class=HTMLResponse)
+@router.delete("/{app_id}", response_class=HTMLResponse, name="apps.delete")
 async def delete_app(
-    request: Request, app_id: str, db: AsyncSession = Depends(get_db)
+    request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
     """Delete an app."""
     view = AppsViewService(db, request)
@@ -125,9 +132,9 @@ async def delete_app(
 # ── Export ────────────────────────────────────────────────────────────────────
 
 
-@router.get("/export/json")
+@router.get("/export/json", name="apps.export_json")
 async def export_apps_json(
-    request: Request, db: AsyncSession = Depends(get_db)
+    request: Request, db: AsyncSession = Depends(get_db, scope="function")
 ) -> StreamingResponse:
     body, filename = await AppsViewService(db, request).export_json()
     return StreamingResponse(

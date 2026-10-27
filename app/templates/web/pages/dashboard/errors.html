@@ -8,7 +8,7 @@
 
 {% block content %}
 {% call page_header(title="Errors", description=app_id) %}
-    {{ time_pills(hours, '#page-content', '/dashboard/errors/content', '&app_id=' ~ (app_id or '')) }}
+    {{ time_pills(hours, '#page-content', content_url, '&app_id=' ~ (app_id or '')) }}
 {% endcall %}
 
 <div id="page-content">

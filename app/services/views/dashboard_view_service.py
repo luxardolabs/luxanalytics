@@ -44,15 +44,16 @@ def selected_app_id(request: Request, app_id: str | None = Query(None)) -> str |
     return request.cookies.get(APP_CONTEXT_COOKIE) or None
 
 
-def switch_app_response(current_url: str, app_id: str) -> Response:
+def switch_app_response(request: Request, current_url: str, app_id: str) -> Response:
     """The nav app selector's answer: set (or clear) the app cookie, and send htmx back to the page
     it was on (HX-Current-URL) minus any ?app_id=, which would override the new cookie.
     Server-driven; no reload in the client (luxarch --playbook hypermedia)."""
+    overview = request.app.url_path_for("dashboard.overview.page")
     current = urlsplit(current_url)
-    path = current.path if current.path.startswith("/") else "/dashboard/overview"
+    path = current.path if current.path.startswith("/") else overview
     query = [(k, v) for k, v in parse_qsl(current.query) if k != "app_id"]
     target = safe_redirect_target(
-        f"{path}?{urlencode(query)}" if query else path, "/dashboard/overview"
+        f"{path}?{urlencode(query)}" if query else path, overview
     )
     response = Response(status_code=204, headers={"HX-Redirect": target})
     if app_id:
@@ -100,26 +101,37 @@ class DashboardViewService:
         """One event as a list row: the event plus its panel links, resolved here."""
         return {
             "event": event,
-            "user_url": self._path("user_profile_panel", user_id=event.user_id)
+            "user_url": self._path(
+                "dashboard.users.profile_panel", user_id=event.user_id
+            )
             if event.user_id
             else None,
             "session_url": self._path(
-                "session_detail_panel", session_id=event.session_id
+                "dashboard.sessions.detail_panel", session_id=event.session_id
             )
             if event.session_id
             else None,
-            "detail_url": self._path("event_detail_panel", event_id=str(event.id)),
+            "detail_url": self._path(
+                "dashboard.events.detail_panel", event_id=str(event.id)
+            ),
         }
 
     def _detail_urls(self, ids: Iterable[object]) -> dict[str, str]:
-        return {str(i): self._path("event_detail_panel", event_id=str(i)) for i in ids}
+        return {
+            str(i): self._path("dashboard.events.detail_panel", event_id=str(i))
+            for i in ids
+        }
 
     def _user_urls(self, user_ids: Iterable[str | None]) -> dict[str, str]:
-        return {u: self._path("user_profile_panel", user_id=u) for u in user_ids if u}
+        return {
+            u: self._path("dashboard.users.profile_panel", user_id=u)
+            for u in user_ids
+            if u
+        }
 
     def _session_urls(self, session_ids: Iterable[str | None]) -> dict[str, str]:
         return {
-            s: self._path("session_detail_panel", session_id=s)
+            s: self._path("dashboard.sessions.detail_panel", session_id=s)
             for s in session_ids
             if s
         }
@@ -128,6 +140,16 @@ class DashboardViewService:
     def _filtered(app_id: str | None, hours: int, data: Context) -> Context:
         """A page's data plus the filters it echoes back into its time pills and app scope."""
         return {"app_id": app_id, "hours": hours, **data}
+
+    def _page(
+        self, area: str, app_id: str | None, hours: int, data: Context
+    ) -> Context:
+        """A dashboard page's context: its filtered data plus `content_url`, the fragment its time
+        pills reload (the page's own `dashboard.<area>.content` route)."""
+        return {
+            **self._filtered(app_id, hours, data),
+            "content_url": self._path(f"dashboard.{area}.content"),
+        }
 
     # ── Nav ──────────────────────────────────────────────────────────────
 
@@ -138,7 +160,7 @@ class DashboardViewService:
                 "options": [{"value": "", "label": "All Apps"}]
                 + [{"value": a["app_id"], "label": a["app_id"]} for a in apps],
                 "current_app_id": request.cookies.get(APP_CONTEXT_COOKIE, ""),
-                "set_context_url": self._path("set_app_context"),
+                "set_context_url": self._path("system.set_app_context"),
             }
 
     # ── Overview ─────────────────────────────────────────────────────────
@@ -150,10 +172,10 @@ class DashboardViewService:
             stats = await self._core.get_stats_overview(app_id=app_id, hours=hours)
             scope = {"hours": hours, "app_id": app_id}
             urls = {
-                "timeline": self._path("overview_timeline", scope),
-                "event_types": self._path("overview_event_types", scope),
-                "top_screens": self._path("overview_top_screens", scope),
-                "recent_events": self._path("events_content", scope),
+                "timeline": self._path("dashboard.overview.timeline", scope),
+                "event_types": self._path("dashboard.overview.event_types", scope),
+                "top_screens": self._path("dashboard.overview.top_screens", scope),
+                "recent_events": self._path("dashboard.events.content", scope),
             }
             total = stats["total_events"]
             top_events = [
@@ -161,13 +183,14 @@ class DashboardViewService:
                     "name": e["name"],
                     "count": e["count"],
                     "url": self._path(
-                        "events_page", {"event_name": e["name"], **scope}
+                        "dashboard.events.page", {"event_name": e["name"], **scope}
                     ),
                     "pct": round(e["count"] / total * 100, 1) if total else 0,
                 }
                 for e in stats["top_events"]
             ]
-            return self._filtered(
+            return self._page(
+                "overview",
                 app_id,
                 hours,
                 {
@@ -262,7 +285,9 @@ class DashboardViewService:
                 "event_name": event_name,
                 # Page links go to the full events PAGE (it takes ?page= and the same filters); the
                 # content route is an HTMX fragment and must not be navigated to.
-                "pagination_base_url": self._path("events_page"),
+                "pagination_base_url": self._path("dashboard.events.page"),
+                # The fragment the filter form and the time pills reload the list from.
+                "content_url": self._path("dashboard.events.content"),
                 "query_params": {
                     k: str(v)
                     for k, v in {
@@ -297,7 +322,8 @@ class DashboardViewService:
             devices, events = data["unique_devices"], data["total_events"]
             testflight = data["testflight_vs_appstore"]
             installs = testflight["testflight"] + testflight["appstore"]
-            return self._filtered(
+            return self._page(
+                "devices",
                 app_id,
                 hours,
                 {
@@ -317,7 +343,8 @@ class DashboardViewService:
         ):
             data = await self._core.get_error_analytics(app_id=app_id, hours=hours)
             points = data["error_timeline"]
-            return self._filtered(
+            return self._page(
+                "errors",
                 app_id,
                 hours,
                 {
@@ -334,14 +361,14 @@ class DashboardViewService:
             data = await self._core.get_performance_analytics(
                 app_id=app_id, hours=hours
             )
-            return self._filtered(app_id, hours, data)
+            return self._page("performance", app_id, hours, data)
 
     async def features_context(self, app_id: str | None, hours: int) -> Context:
         with create_service_span(
             "DashboardViewService", "features_context", app_id=app_id
         ):
             data = await self._core.get_feature_analytics(app_id=app_id, hours=hours)
-            return self._filtered(app_id, hours, data)
+            return self._page("features", app_id, hours, data)
 
     async def feedback_context(self, app_id: str | None, hours: int) -> Context:
         with create_service_span(
@@ -351,11 +378,15 @@ class DashboardViewService:
             rows = [
                 {
                     "event": fb,
-                    "detail_url": self._path("event_detail_panel", event_id=str(fb.id)),
+                    "detail_url": self._path(
+                        "dashboard.events.detail_panel", event_id=str(fb.id)
+                    ),
                 }
                 for fb in data["recent_feedback"]
             ]
-            return self._filtered(app_id, hours, {**data, "feedback_rows": rows})
+            return self._page(
+                "feedback", app_id, hours, {**data, "feedback_rows": rows}
+            )
 
     async def journey_context(self, app_id: str | None, hours: int) -> Context:
         """Journeys need one app: a cross-app Sankey flow is meaningless."""
@@ -363,7 +394,7 @@ class DashboardViewService:
             "DashboardViewService", "journey_context", app_id=app_id
         ):
             if not app_id:
-                return self._filtered(app_id, hours, {"requires_app": True})
+                return self._page("journey", app_id, hours, {"requires_app": True})
             data = await self._core.get_user_journey_analytics(
                 app_id=app_id, hours=hours
             )
@@ -390,7 +421,8 @@ class DashboardViewService:
                 for screen, visits in data["popular_screens"]
             ]
             total = data["total_interactions"]
-            return self._filtered(
+            return self._page(
+                "journey",
                 app_id,
                 hours,
                 {
@@ -420,7 +452,7 @@ class DashboardViewService:
             )
             scope = {"hours": hours, "app_id": app_id}
             key_urls = {
-                k: self._path("key_deep_dive_panel", scope, key_name=k)
+                k: self._path("dashboard.explorer.key_panel", scope, key_name=k)
                 for k in data["all_keys"]
             }
             total = data["total_events"]
@@ -448,7 +480,7 @@ class DashboardViewService:
             ]
             occurrences = sum(count for _, count in data["most_common_keys"])
             return {
-                **self._filtered(app_id, hours, data),
+                **self._page("explorer", app_id, hours, data),
                 "event_name": event_name,
                 "key_rows": key_rows,
                 "patterns": patterns,
@@ -486,7 +518,7 @@ class DashboardViewService:
                 {
                     **s,
                     "url": self._path(
-                        "session_detail_panel", session_id=s["session_id"]
+                        "dashboard.sessions.detail_panel", session_id=s["session_id"]
                     ),
                     "types_shown": s["event_types"][:SESSION_TYPES_SHOWN],
                     "types_more": max(0, len(s["event_types"]) - SESSION_TYPES_SHOWN),
@@ -504,6 +536,8 @@ class DashboardViewService:
             detail = await self._core.get_session_detail(session_id)
             user_id = detail.get("user_id")
             user_url = (
-                self._path("user_profile_panel", user_id=user_id) if user_id else None
+                self._path("dashboard.users.profile_panel", user_id=user_id)
+                if user_id
+                else None
             )
             return {**detail, "has_data": bool(detail["events"]), "user_url": user_url}

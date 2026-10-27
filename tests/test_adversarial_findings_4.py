@@ -33,8 +33,12 @@ async def test_a_batch_leaves_the_device_at_its_latest_values(db: AsyncSession) 
     svc = EventCoreService(db)
 
     def event(name: str, ts: str, **md: str) -> EventCreate:
-        return EventCreate(
-            name=name, timestamp=ts, metadata={"device_id": "batch-dev", **md}
+        return EventCreate.model_validate(
+            {
+                "name": name,
+                "timestamp": ts,
+                "metadata": {"device_id": "batch-dev", **md},
+            }
         )
 
     await svc.create_events(

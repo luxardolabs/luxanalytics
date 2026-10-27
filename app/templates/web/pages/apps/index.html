@@ -10,7 +10,7 @@
 {% block content %}
 {% call page_header(title="Applications", description="Manage registered apps and DSN keys") %}
     {{ button("New App", variant='primary', size='sm', icon_left='plus',
-              hx_get='/apps/new', hx_target='#panel-container', hx_swap='innerHTML') }}
+              hx_get=urls.new, hx_target='#panel-container', hx_swap='innerHTML') }}
 {% endcall %}
 
 <div class="mb-4">
@@ -18,7 +18,7 @@
 </div>
 
 <div id="apps-list"
-     hx-get="/apps/list"
+     hx-get="{{ urls.list }}"
      hx-trigger="load"
      hx-swap="innerHTML">
     {{ loading("Loading apps...") }}

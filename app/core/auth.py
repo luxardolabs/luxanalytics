@@ -8,6 +8,7 @@ from redis.exceptions import RedisError
 
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
+from app.core.safe_redirect import safe_redirect_target
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,12 @@ async def require_auth(request: Request) -> str:
         logger.info("Unauthenticated access attempt", extra={"path": request.url.path})
         raise HTTPException(
             status_code=status.HTTP_303_SEE_OTHER,
-            headers={"Location": f"/login?next={quote(next_url, safe='/')}"},
+            headers={
+                "Location": safe_redirect_target(
+                    f"{request.app.url_path_for('auth.login_page')}"
+                    f"?next={quote(next_url, safe='/')}"
+                )
+            },
         )
 
     return user

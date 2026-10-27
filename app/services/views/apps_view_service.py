@@ -29,7 +29,18 @@ from app.services.core.app_core_service import AppCoreService
 from app.web.templates import templates
 
 # The ingest route a DSN points at (app/api/v1/routers/events_router.py).
-_DSN_ROUTE = "create_events_by_project_id"
+_DSN_ROUTE = "api.events.create_for_project"
+
+
+def page_context(request: Request) -> dict[str, Any]:
+    """The apps page: where its list and its New App panel load from."""
+    path_for = request.app.url_path_for
+    return {"urls": {"list": path_for("apps.list"), "new": path_for("apps.new_panel")}}
+
+
+def new_panel_context(request: Request) -> dict[str, Any]:
+    """The New App form: no app yet, and the route it posts to."""
+    return {"app": None, "create_url": request.app.url_path_for("apps.create")}
 
 
 class DuplicateAppIdError(ValueError):
@@ -52,11 +63,11 @@ class AppsViewService:
         behind the proxy the request's scheme can read http, and an http:// link in an https page
         is blocked as mixed content."""
         path_for = self._request.app.url_path_for
-        dashboard = path_for("overview_page")
+        dashboard = path_for("dashboard.overview.page")
         return AppUrls(
-            detail=path_for("app_detail_panel", app_id=app_id),
-            edit=path_for("edit_app_panel", app_id=app_id),
-            update=path_for("update_app", app_id=app_id),
+            detail=path_for("apps.detail_panel", app_id=app_id),
+            edit=path_for("apps.edit_panel", app_id=app_id),
+            update=path_for("apps.update", app_id=app_id),
             dashboard=f"{dashboard}?{urlencode({'app_id': app_id})}",
         )
 

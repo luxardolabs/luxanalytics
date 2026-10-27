@@ -49,11 +49,16 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
     )
 
 
-@router.post("/", response_model=EventResponse, openapi_extra=INGEST_OPENAPI)
+@router.post(
+    "/",
+    response_model=EventResponse,
+    openapi_extra=INGEST_OPENAPI,
+    name="api.events.create",
+)
 async def create_events(
     request: Request,
     app_id: str = Depends(verify_hmac_signature),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> EventResponse:
     """
     Create analytics events with HMAC signature authentication.
@@ -62,11 +67,16 @@ async def create_events(
     return await _ingest(request, app_id, db)
 
 
-@router.post("/public", response_model=EventResponse, openapi_extra=INGEST_OPENAPI)
+@router.post(
+    "/public",
+    response_model=EventResponse,
+    openapi_extra=INGEST_OPENAPI,
+    name="api.events.create_public",
+)
 async def create_events_public(
     request: Request,
     app_id: str = Depends(extract_app_from_dsn),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> EventResponse:
     """
     Create analytics events with DSN-based authentication.
@@ -76,12 +86,15 @@ async def create_events_public(
 
 
 @router.post(
-    "/{project_id}", response_model=EventResponse, openapi_extra=INGEST_OPENAPI
+    "/{project_id}",
+    response_model=EventResponse,
+    openapi_extra=INGEST_OPENAPI,
+    name="api.events.create_for_project",
 )
 async def create_events_by_project_id(
     request: Request,
     app_id: str = Depends(verify_project_dsn),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> EventResponse:
     """
     Create analytics events using project ID in the URL path (Sentry's DSN pattern):
@@ -90,10 +103,10 @@ async def create_events_by_project_id(
     return await _ingest(request, app_id, db)
 
 
-@router.get("/stats", response_model=AppStatsResponse)
+@router.get("/stats", response_model=AppStatsResponse, name="api.events.stats")
 async def get_app_stats(
     app_id: str = Depends(verify_hmac_signature),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> AppStatsResponse:
     """Get basic analytics stats for the app."""
     total_events = await EventCoreService(db).count_events(app_id)

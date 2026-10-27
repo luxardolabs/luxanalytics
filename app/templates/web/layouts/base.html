@@ -25,7 +25,7 @@
 
     {% block head %}{% endblock %}
 </head>
-<body class="bg-surface-0 text-slate-300 min-h-screen flex flex-col">
+<body class="bg-surface-0 text-slate-300 min-h-screen flex flex-col" data-login-url="{{ nav.login }}">
 
     {# ===== TOP NAV ===== #}
     {% include "partials/layout/nav.html" %}

@@ -15,9 +15,11 @@ from app.web.templates import templates
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
-@router.get("/apps-dropdown", response_class=HTMLResponse)
+@router.get(
+    "/apps-dropdown", response_class=HTMLResponse, name="dashboard.apps_dropdown"
+)
 async def apps_dropdown(
-    request: Request, db: AsyncSession = Depends(get_db)
+    request: Request, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
     """Apps dropdown for nav — loaded via HTMX on every page."""
     context = await DashboardViewService(db, request).apps_dropdown_context(request)
@@ -26,10 +28,10 @@ async def apps_dropdown(
     )
 
 
-@router.get("/overview", response_class=HTMLResponse)
+@router.get("/overview", response_class=HTMLResponse, name="dashboard.overview.page")
 async def overview_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -37,10 +39,12 @@ async def overview_page(
     return templates.TemplateResponse(request, "pages/dashboard/overview.html", context)
 
 
-@router.get("/overview/content", response_class=HTMLResponse)
+@router.get(
+    "/overview/content", response_class=HTMLResponse, name="dashboard.overview.content"
+)
 async def overview_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -50,10 +54,14 @@ async def overview_content(
     )
 
 
-@router.get("/overview/timeline", response_class=HTMLResponse)
+@router.get(
+    "/overview/timeline",
+    response_class=HTMLResponse,
+    name="dashboard.overview.timeline",
+)
 async def overview_timeline(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -63,10 +71,14 @@ async def overview_timeline(
     )
 
 
-@router.get("/overview/event-types", response_class=HTMLResponse)
+@router.get(
+    "/overview/event-types",
+    response_class=HTMLResponse,
+    name="dashboard.overview.event_types",
+)
 async def overview_event_types(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -76,10 +88,14 @@ async def overview_event_types(
     )
 
 
-@router.get("/overview/top-screens", response_class=HTMLResponse)
+@router.get(
+    "/overview/top-screens",
+    response_class=HTMLResponse,
+    name="dashboard.overview.top_screens",
+)
 async def overview_top_screens(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -89,10 +105,10 @@ async def overview_top_screens(
     )
 
 
-@router.get("/events", response_class=HTMLResponse)
+@router.get("/events", response_class=HTMLResponse, name="dashboard.events.page")
 async def events_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     event_name: str | None = Query(None),
     hours: int = Query(24),
@@ -104,10 +120,12 @@ async def events_page(
     return templates.TemplateResponse(request, "pages/dashboard/events.html", context)
 
 
-@router.get("/events/content", response_class=HTMLResponse)
+@router.get(
+    "/events/content", response_class=HTMLResponse, name="dashboard.events.content"
+)
 async def events_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     event_name: str | None = Query(None),
     search_q: str | None = Query(None),
@@ -122,10 +140,10 @@ async def events_content(
     )
 
 
-@router.get("/devices", response_class=HTMLResponse)
+@router.get("/devices", response_class=HTMLResponse, name="dashboard.devices.page")
 async def devices_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -133,10 +151,12 @@ async def devices_page(
     return templates.TemplateResponse(request, "pages/dashboard/devices.html", context)
 
 
-@router.get("/devices/content", response_class=HTMLResponse)
+@router.get(
+    "/devices/content", response_class=HTMLResponse, name="dashboard.devices.content"
+)
 async def devices_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -146,10 +166,10 @@ async def devices_content(
     )
 
 
-@router.get("/errors", response_class=HTMLResponse)
+@router.get("/errors", response_class=HTMLResponse, name="dashboard.errors.page")
 async def errors_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -157,10 +177,12 @@ async def errors_page(
     return templates.TemplateResponse(request, "pages/dashboard/errors.html", context)
 
 
-@router.get("/errors/content", response_class=HTMLResponse)
+@router.get(
+    "/errors/content", response_class=HTMLResponse, name="dashboard.errors.content"
+)
 async def errors_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -170,10 +192,12 @@ async def errors_content(
     )
 
 
-@router.get("/performance", response_class=HTMLResponse)
+@router.get(
+    "/performance", response_class=HTMLResponse, name="dashboard.performance.page"
+)
 async def performance_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -183,10 +207,14 @@ async def performance_page(
     )
 
 
-@router.get("/performance/content", response_class=HTMLResponse)
+@router.get(
+    "/performance/content",
+    response_class=HTMLResponse,
+    name="dashboard.performance.content",
+)
 async def performance_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -196,10 +224,10 @@ async def performance_content(
     )
 
 
-@router.get("/features", response_class=HTMLResponse)
+@router.get("/features", response_class=HTMLResponse, name="dashboard.features.page")
 async def features_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -207,10 +235,12 @@ async def features_page(
     return templates.TemplateResponse(request, "pages/dashboard/features.html", context)
 
 
-@router.get("/features/content", response_class=HTMLResponse)
+@router.get(
+    "/features/content", response_class=HTMLResponse, name="dashboard.features.content"
+)
 async def features_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -220,10 +250,10 @@ async def features_content(
     )
 
 
-@router.get("/journey", response_class=HTMLResponse)
+@router.get("/journey", response_class=HTMLResponse, name="dashboard.journey.page")
 async def journey_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -231,10 +261,12 @@ async def journey_page(
     return templates.TemplateResponse(request, "pages/dashboard/journey.html", context)
 
 
-@router.get("/journey/content", response_class=HTMLResponse)
+@router.get(
+    "/journey/content", response_class=HTMLResponse, name="dashboard.journey.content"
+)
 async def journey_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -244,10 +276,10 @@ async def journey_content(
     )
 
 
-@router.get("/feedback", response_class=HTMLResponse)
+@router.get("/feedback", response_class=HTMLResponse, name="dashboard.feedback.page")
 async def feedback_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -255,10 +287,12 @@ async def feedback_page(
     return templates.TemplateResponse(request, "pages/dashboard/feedback.html", context)
 
 
-@router.get("/feedback/content", response_class=HTMLResponse)
+@router.get(
+    "/feedback/content", response_class=HTMLResponse, name="dashboard.feedback.content"
+)
 async def feedback_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -268,10 +302,10 @@ async def feedback_content(
     )
 
 
-@router.get("/explorer", response_class=HTMLResponse)
+@router.get("/explorer", response_class=HTMLResponse, name="dashboard.explorer.page")
 async def explorer_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
     event_name: str | None = Query(None),
@@ -282,10 +316,12 @@ async def explorer_page(
     return templates.TemplateResponse(request, "pages/dashboard/explorer.html", context)
 
 
-@router.get("/explorer/content", response_class=HTMLResponse)
+@router.get(
+    "/explorer/content", response_class=HTMLResponse, name="dashboard.explorer.content"
+)
 async def explorer_content(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
     event_name: str | None = Query(None),
@@ -298,9 +334,15 @@ async def explorer_content(
     )
 
 
-@router.get("/events/detail/{event_id}", response_class=HTMLResponse)
+@router.get(
+    "/events/detail/{event_id}",
+    response_class=HTMLResponse,
+    name="dashboard.events.detail_panel",
+)
 async def event_detail_panel(
-    request: Request, event_id: str, db: AsyncSession = Depends(get_db)
+    request: Request,
+    event_id: str,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Event detail slider panel."""
     context = await DashboardViewService(db, request).event_detail_context(event_id)
@@ -309,11 +351,15 @@ async def event_detail_panel(
     )
 
 
-@router.get("/explorer/key/{key_name:path}", response_class=HTMLResponse)
+@router.get(
+    "/explorer/key/{key_name:path}",
+    response_class=HTMLResponse,
+    name="dashboard.explorer.key_panel",
+)
 async def key_deep_dive_panel(
     request: Request,
     key_name: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: int = Query(24),
 ) -> Response:
@@ -325,9 +371,13 @@ async def key_deep_dive_panel(
     )
 
 
-@router.get("/user/{user_id:path}", response_class=HTMLResponse)
+@router.get(
+    "/user/{user_id:path}",
+    response_class=HTMLResponse,
+    name="dashboard.users.profile_panel",
+)
 async def user_profile_panel(
-    request: Request, user_id: str, db: AsyncSession = Depends(get_db)
+    request: Request, user_id: str, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
     """User profile slider panel."""
     context = await DashboardViewService(db, request).user_profile_context(user_id)
@@ -336,9 +386,15 @@ async def user_profile_panel(
     )
 
 
-@router.get("/session/{session_id:path}", response_class=HTMLResponse)
+@router.get(
+    "/session/{session_id:path}",
+    response_class=HTMLResponse,
+    name="dashboard.sessions.detail_panel",
+)
 async def session_detail_panel(
-    request: Request, session_id: str, db: AsyncSession = Depends(get_db)
+    request: Request,
+    session_id: str,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Session detail slider panel."""
     context = await DashboardViewService(db, request).session_detail_context(session_id)

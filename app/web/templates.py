@@ -8,11 +8,15 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import StrictUndefined
 
 from app.core.config import settings
+from app.services.views.nav_view_service import nav_context
 from app.web.template_filters import register_filters
 
 # The fleet-canonical web template root (fw.web_templates_at_fleet_path); a sibling medium
-# (email, llm) would get its own peer under app/templates/.
-templates = Jinja2Templates(directory="app/templates/web")
+# (email, llm) would get its own peer under app/templates/. Every render gets the nav's view model
+# (`nav`): each page extends the layout that includes it.
+templates = Jinja2Templates(
+    directory="app/templates/web", context_processors=[nav_context]
+)
 
 # A missing variable fails the render loudly, never renders as "" (fw.jinja_strict_undefined;
 # luxarch --playbook jinja-strict-undefined). route-smoke renders every route under it.

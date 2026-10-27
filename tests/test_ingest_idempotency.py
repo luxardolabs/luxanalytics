@@ -62,7 +62,7 @@ async def test_the_same_id_under_two_apps_is_two_events(
     shared = str(uuid.uuid4())
     await _post(client, [_event(shared)])
     await EventCoreService(db).create_events(
-        "other_app", [EventCreate(**_event(shared))]
+        "other_app", [EventCreate.model_validate(_event(shared))]
     )
     assert await _stored(db) == 1
     assert await _stored(db, "other_app") == 1
