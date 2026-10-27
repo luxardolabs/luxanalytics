@@ -9,9 +9,12 @@ from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.app_model import App
+from app.models.event_model import Event
 
 
 @pytest.mark.asyncio
@@ -242,3 +245,51 @@ async def test_switching_app_redirects_to_the_same_page_without_its_app_id(
     # Same page and filters, but no app_id to override the cookie that now names other_app.
     assert response.headers["hx-redirect"] == "/dashboard/events?hours=24&page=2"
     assert "analytics_app_id=other_app" in response.headers["set-cookie"]
+
+
+def _signed_hmac_post(key_id: str) -> tuple[bytes, dict[str, str]]:
+    """A correctly signed single-event body for `key_id` (from the suite's HMAC_KEYS)."""
+    body = json.dumps(
+        {"name": "app_opened", "timestamp": "2026-10-06T12:00:00Z", "metadata": {}}
+    ).encode()
+    timestamp = str(int(time.time()))
+    secret = settings.hmac_keys_dict[key_id]
+    signature = hmac.new(
+        secret.encode(), body + timestamp.encode(), hashlib.sha256
+    ).hexdigest()
+    return body, {
+        "Content-Type": "application/json",
+        "X-HMAC-Signature": signature,
+        "X-Key-ID": key_id,
+        "X-Timestamp": timestamp,
+    }
+
+
+@pytest.mark.db
+async def test_hmac_ingest_is_refused_for_an_app_marked_inactive(
+    client: AsyncClient, db: AsyncSession, sample_app: App
+) -> None:
+    """Inactive stops an app's HMAC ingest, as it stops its DSN ingest (owner ruling, 2026-10-27).
+    sample_app is the suite's HMAC key `test_app`."""
+    sample_app.is_active = False
+    await db.flush()
+    body, headers = _signed_hmac_post(sample_app.app_id)
+
+    response = await client.post("/api/v1/events/", content=body, headers=headers)
+
+    assert response.status_code == 403, response.text
+    stored = await db.execute(
+        select(func.count()).select_from(Event).where(Event.app_id == sample_app.app_id)
+    )
+    assert stored.scalar_one() == 0
+
+
+@pytest.mark.db
+async def test_hmac_ingest_for_an_active_app_is_accepted(
+    client: AsyncClient, sample_app: App
+) -> None:
+    body, headers = _signed_hmac_post(sample_app.app_id)
+
+    response = await client.post("/api/v1/events/", content=body, headers=headers)
+
+    assert response.status_code == 200, response.text

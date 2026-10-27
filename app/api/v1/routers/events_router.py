@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dsn_auth import extract_app_from_dsn, verify_project_dsn
-from app.core.security import verify_hmac_signature
+from app.core.security import verify_hmac_ingest, verify_hmac_signature
 from app.db.database import get_db
 from app.schemas.event_schema import INGEST_OPENAPI, AppStatsResponse, EventResponse
 from app.services.core.event_core_service import EventCoreService, InvalidEventPayload
@@ -57,7 +57,7 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
 )
 async def create_events(
     request: Request,
-    app_id: str = Depends(verify_hmac_signature),
+    app_id: str = Depends(verify_hmac_ingest),
     db: AsyncSession = Depends(get_db, scope="function"),
 ) -> EventResponse:
     """

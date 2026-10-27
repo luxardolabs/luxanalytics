@@ -205,7 +205,7 @@ The `backup` compose profile (on in prod) runs `scripts/backup.sh`: a daily gzip
 ## Troubleshooting
 
 - **"Invalid compressed data":** send `Content-Encoding: deflate` and sign the compressed body.
-- **HMAC failures:** the timestamp must be within the tolerance window; the signature is over `payload + timestamp`; the key id must be in `HMAC_KEYS`.
+- **HMAC failures:** the timestamp must be within the tolerance window; the signature is over `payload + timestamp`; the key id must be in `HMAC_KEYS`; a 403 is a wrong signature or an app marked Inactive (Inactive stops both HMAC and DSN ingest).
 - **"password authentication failed" from the pool:** usually a stale pooled connection, not a password. Keep `DB_POOL_PRE_PING=true` and set `DB_POOL_RECYCLE` below the network idle timeout.
 - **400 on every request after a deploy:** the proxy must forward `Host $host`; the app only answers hosts in `ALLOWED_HOSTS`, which is required (no default; the app does not start without it).
 

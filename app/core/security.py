@@ -3,10 +3,14 @@ import hmac
 import logging
 import time
 from collections.abc import Mapping
+from typing import Annotated
 
-from fastapi import Header, HTTPException, Request
+from fastapi import Depends, Header, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.database import get_db
+from app.services.core.app_core_service import AppCoreService
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +60,22 @@ def verify_hmac_signature(
 
     logger.info("HMAC signature verified", extra={"app_id": x_key_id})
     return x_key_id
+
+
+async def verify_hmac_ingest(
+    app_id: Annotated[str, Depends(verify_hmac_signature)],
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
+) -> str:
+    """A verified HMAC key may ingest unless its app is marked Inactive (owner ruling, 2026-10-27):
+    Inactive stops HMAC ingest as it stops DSN ingest. A key with no app row is still accepted:
+    HMAC_KEYS is the authority for HMAC-only clients."""
+    app = await AppCoreService(db).get_app_by_app_id(app_id)
+    if app is not None and not app.is_active:
+        logger.warning(
+            "HMAC ingest for an inactive app refused", extra={"app_id": app_id}
+        )
+        raise HTTPException(status_code=403, detail="App is inactive")
+    return app_id
 
 
 def get_app_id_from_headers(headers: Mapping[str, str]) -> str:
