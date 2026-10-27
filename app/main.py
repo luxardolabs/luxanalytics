@@ -222,7 +222,7 @@ def create_application() -> FastAPI:
     # Per-route limits (slowapi): the limiter is found on app.state; a refusal is a 429 + Retry-After.
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
-    # The per-app ingest limit (HMAC callers), answered like the IP limit's 429.
+    # The per-device and per-app limits (after authentication), answered like the IP limit's 429.
     app.add_exception_handler(AppRateLimitExceeded, app_rate_limit_exceeded_handler)
 
     _publish_ingest_schemas(app)

@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -9,6 +10,7 @@ from pydantic import Field, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEVICE_CONTEXT_KEYS
+from app.core.rate_limiter import enforce_ingest_limits
 from app.core.tracing import create_service_span
 from app.crud.device_crud import device_crud
 from app.crud.event_crud import EventWriteCRUD, event_crud
@@ -68,9 +70,14 @@ class EventCoreService:
         self.db = db
 
     async def ingest(self, app_id: str, payload: object) -> IngestResult:
-        """Validate a decoded ingest payload and store its events (see events_from_payload)."""
+        """Validate a decoded ingest payload, hold it to the ingest limits and store its events
+        (see events_from_payload). AppRateLimitExceeded when a device or the app is over its
+        limit."""
         with create_service_span("EventCoreService", "ingest", app_id=app_id):
             events = events_from_payload(payload)
+            await enforce_ingest_limits(
+                app_id, Counter(event.metadata.get("device_id") for event in events)
+            )
             logger.debug(
                 "Analytics payload received",
                 extra={

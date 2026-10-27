@@ -9,7 +9,7 @@ The client is the Swift SDK, [luxardolabs/luxanalytics-swift](https://github.com
 - **Ingest:** single or batched events (bulk insert, up to 1000 per request), zlib/deflate request compression, two authentication modes: HMAC-SHA256 signatures with replay protection, and Sentry-style DSNs.
 - **Event model:** each event keeps its device context in columns (`device_id`, `device_model`, `os_version`, `app_version`, `platform`, `device_type`, `build_number`, `screen_resolution`, `locale`, `timezone`, `is_testflight`); everything else is `properties` JSONB. A `devices` table is upserted on ingest with each app install's latest values (one row per app and device). Events are never deleted.
 - **Dashboard:** overview, events, devices, errors, performance, features, journeys (Sankey and transition heatmap), feedback, a properties explorer with per-key deep dives, user profiles, sessions, and app management with DSNs. Session login; slider panels for detail views.
-- **Operations:** per-app and per-IP rate limits (Redis, with an in-memory fallback), JSON logs on stdout, OpenTelemetry traces (a span per service method), a Prometheus scrape, and a health check that names the running build.
+- **Operations:** rate limits per IP, and on ingest per device and per app in events (Redis, with an in-memory fallback), JSON logs on stdout, OpenTelemetry traces (a span per service method), a Prometheus scrape, and a health check that names the running build.
 
 ## Quick start (development)
 
@@ -160,6 +160,7 @@ Environment variables, one file per environment (`.env.dev`, `deploy/prod/.env.p
 | `REDIS_URL`                                                                                         | Rate limits (in-memory fallback when down) and the logout stamp: no Redis, no dashboard sessions   |
 | `HMAC_KEYS`                                                                                         | JSON `{"app_id": "secret"}` for signed ingest                                                      |
 | `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW`, `LOGIN_RATE_LIMIT`                                      | Request limits                                                                                     |
+| `DEVICE_RATE_LIMIT_EVENTS`, `APP_RATE_LIMIT_EVENTS`, `INGEST_RATE_LIMIT_WINDOW`                     | Ingest limits in events, per device (at least 1000, the batch cap) and per app                     |
 | `TRUSTED_PROXIES`                                                                                   | Proxies whose `X-Forwarded-For` is believed                                                        |
 | `ALLOWED_HOSTS`, `CORS_ORIGINS`, `EXTERNAL_URL`                                                     | `ALLOWED_HOSTS` is required (comma list, no ports); CORS origins; the public base URL used in DSNs |
 | `EVENT_TIMESTAMP_FUTURE_TOLERANCE`                                                                  | Seconds an event may be in the future (default 60)                                                 |

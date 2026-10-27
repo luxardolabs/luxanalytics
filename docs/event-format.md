@@ -55,17 +55,17 @@ A body that decompresses past the request size limit (10 MB) is refused with 413
 
 ## Responses
 
-| Status | Meaning                                                                                                                                                                                 | A client should                                     |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| 200    | `{"status": "success", "events_received": N, "duplicates": D, "message": "…"}`. `events_received` counts every event in the request; `duplicates` how many of them were already stored. | mark the batch sent                                 |
-| 400    | Malformed JSON, the wrong body shape, or an undecodable compressed body.                                                                                                                | drop the batch                                      |
-| 401    | Missing or wrong credentials (public id, HMAC signature or timestamp).                                                                                                                  | drop it; fix the configuration                      |
-| 403    | HMAC signature does not match, or the key's app is marked Inactive.                                                                                                                     | drop it                                             |
-| 404    | Unknown `project_id` ("Invalid project").                                                                                                                                               | drop it; fix the DSN                                |
-| 413    | Body too large, before or after decompression.                                                                                                                                          | split the batch                                     |
-| 422    | An event failed validation; the whole request is rejected.                                                                                                                              | drop the batch (or fix and resend the valid events) |
-| 429    | Rate limited (per IP; an HMAC client also per app, counted after its signature verifies), with `X-RateLimit-*` and `Retry-After` headers.                                               | retry after the reset                               |
-| 5xx    | Server error.                                                                                                                                                                           | retry with backoff                                  |
+| Status | Meaning                                                                                                                                                                                       | A client should                                     |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 200    | `{"status": "success", "events_received": N, "duplicates": D, "message": "…"}`. `events_received` counts every event in the request; `duplicates` how many of them were already stored.       | mark the batch sent                                 |
+| 400    | Malformed JSON, the wrong body shape, or an undecodable compressed body.                                                                                                                      | drop the batch                                      |
+| 401    | Missing or wrong credentials (public id, HMAC signature or timestamp).                                                                                                                        | drop it; fix the configuration                      |
+| 403    | HMAC signature does not match, or the key's app is marked Inactive.                                                                                                                           | drop it                                             |
+| 404    | Unknown `project_id` ("Invalid project").                                                                                                                                                     | drop it; fix the DSN                                |
+| 413    | Body too large, before or after decompression.                                                                                                                                                | split the batch                                     |
+| 422    | An event failed validation; the whole request is rejected.                                                                                                                                    | drop the batch (or fix and resend the valid events) |
+| 429    | Rate limited, with `X-RateLimit-*` and `Retry-After` headers: per IP, and an authenticated batch per device and per app, counted in events. Keep the batch and resend it after `Retry-After`. | retry after the reset                               |
+| 5xx    | Server error.                                                                                                                                                                                 | retry with backoff                                  |
 
 ## Event names and keys the dashboard reads
 

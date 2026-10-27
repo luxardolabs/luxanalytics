@@ -1,9 +1,12 @@
 """Redis-based distributed rate limiter with sliding window algorithm."""
 
+import hashlib
+import json
 import logging
 import math
 import time
 import uuid
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -36,6 +39,14 @@ return {0, count, oldest[2] or ''}
 """
 
 
+def _rate_limit_requests() -> int:
+    return settings.RATE_LIMIT_REQUESTS
+
+
+def _rate_limit_window() -> int:
+    return settings.RATE_LIMIT_WINDOW
+
+
 class RateLimiter:
     """
     Distributed rate limiter using Redis with sliding window algorithm.
@@ -47,12 +58,21 @@ class RateLimiter:
         requests_per_window: int | None = None,
         window_seconds: int | None = None,
         key_prefix: str = "rate_limit",
+        default_requests: Callable[[], int] = _rate_limit_requests,
+        default_window: Callable[[], int] = _rate_limit_window,
+        memory_identifiers_max: int = 10_000,
     ) -> None:
         # Unset, a limit is read from settings when it is used, so one long-lived limiter (whose
         # in-memory fallback window must outlive a request) follows the configured value.
         self._requests_per_window = requests_per_window
         self._window_seconds = window_seconds
+        self._default_requests = default_requests
+        self._default_window = default_window
         self.key_prefix = key_prefix
+        # Past this many identifiers, the in-memory fallback drops the ones with nothing left in
+        # their window: an identifier can be client-chosen (a device id), so the fallback must not
+        # grow without bound while Redis is down.
+        self.memory_identifiers_max = memory_identifiers_max
         # Fallback in-memory storage
         # identifier -> [(request time, cost)] within the window
         self._memory_storage: dict[str, list[tuple[datetime, int]]] = {}
@@ -60,7 +80,7 @@ class RateLimiter:
     @property
     def requests_per_window(self) -> int:
         if self._requests_per_window is None:
-            return settings.RATE_LIMIT_REQUESTS
+            return self._default_requests()
         return self._requests_per_window
 
     @requests_per_window.setter
@@ -70,7 +90,7 @@ class RateLimiter:
     @property
     def window_seconds(self) -> int:
         if self._window_seconds is None:
-            return settings.RATE_LIMIT_WINDOW
+            return self._default_window()
         return self._window_seconds
 
     @window_seconds.setter
@@ -152,6 +172,8 @@ class RateLimiter:
                 if req_time > window_start
             ]
         else:
+            if len(self._memory_storage) >= self.memory_identifiers_max:
+                self._prune_memory(window_start)
             self._memory_storage[identifier] = []
 
         # Count current requests
@@ -188,6 +210,14 @@ class RateLimiter:
                 "reset": int((now + timedelta(seconds=retry_after)).timestamp()),
                 "retry_after": retry_after,
             }
+
+    def _prune_memory(self, window_start: datetime) -> None:
+        """Drop every identifier with no request left in the window."""
+        self._memory_storage = {
+            identifier: requests
+            for identifier, requests in self._memory_storage.items()
+            if requests and requests[-1][0] > window_start
+        }
 
 
 # Per-app budgets that differ from RATE_LIMIT_*: app_id -> (requests, window seconds). Empty:
@@ -235,13 +265,20 @@ class IPRateLimiter(RateLimiter):
 
 
 class AppRateLimitExceeded(Exception):
-    """An authenticated app is over its budget; app_rate_limit_exceeded_handler (beside the IP
-    limit, in request_middleware) answers it with the same 429."""
+    """An authenticated app, or one of its devices, is over its budget;
+    app_rate_limit_exceeded_handler (beside the IP limit, in request_middleware) answers it with
+    the same 429, carrying `error`."""
 
-    def __init__(self, metadata: dict[str, Any], limit: int) -> None:
-        super().__init__("App rate limit exceeded")
+    def __init__(
+        self,
+        metadata: dict[str, Any],
+        limit: int,
+        error: str = "App rate limit exceeded",
+    ) -> None:
+        super().__init__(error)
         self.metadata = metadata
         self.limit = limit
+        self.error = error
 
 
 # One per process: its in-memory fallback window (Redis down) has to outlive a request.
@@ -249,12 +286,10 @@ _app_limiter = AppRateLimiter()
 
 
 async def enforce_app_rate_limit(app_id: str) -> None:
-    """The per-app limit, for a request that has already proved it holds the app's secret.
-
-    HMAC callers only (verify_hmac_ingest, verify_hmac_app): counted after the signature verifies,
-    so no one without the secret spends the app's budget. Not on DSN ingest: the DSN's public_id
-    ships in every app binary, so a DSN budget is one anyone can spend, and the SDK drops a batch
-    on a 429. A Redis failure falls back to the process's in-memory window, as the IP limit does."""
+    """The per-app request limit on the signed stats read (verify_hmac_app), counted after the
+    signature verifies, so no one without the secret spends the app's budget. Ingest is held to
+    enforce_ingest_limits instead. A Redis failure falls back to the process's in-memory window, as
+    the IP limit does."""
     allowed, metadata = await _app_limiter.check_app_limit(app_id)
     if allowed:
         return
@@ -263,3 +298,69 @@ async def enforce_app_rate_limit(app_id: str) -> None:
         extra={"app_id": app_id, "retry_after": metadata.get("retry_after")},
     )
     raise AppRateLimitExceeded(metadata, _app_limiter.requests_per_window)
+
+
+def _device_rate_limit_events() -> int:
+    return settings.DEVICE_RATE_LIMIT_EVENTS
+
+
+def _app_rate_limit_events() -> int:
+    return settings.APP_RATE_LIMIT_EVENTS
+
+
+def _ingest_rate_limit_window() -> int:
+    return settings.INGEST_RATE_LIMIT_WINDOW
+
+
+# Ingest is limited in events, per device and per app. One of each per process, like _app_limiter.
+_device_limiter = RateLimiter(
+    key_prefix="device_event_limit",
+    default_requests=_device_rate_limit_events,
+    default_window=_ingest_rate_limit_window,
+)
+_app_event_ceiling = RateLimiter(
+    key_prefix="app_event_ceiling",
+    default_requests=_app_rate_limit_events,
+    default_window=_ingest_rate_limit_window,
+)
+
+
+def _device_identifier(app_id: str, device_id: str | None) -> str:
+    """One fixed-length key per (app, device): a device id is client-chosen, of any content."""
+    return hashlib.sha256(json.dumps([app_id, device_id]).encode()).hexdigest()
+
+
+async def enforce_ingest_limits(
+    app_id: str, events_per_device: Mapping[str | None, int]
+) -> None:
+    """The ingest limits, for a batch that authenticated (HMAC or DSN) and parsed, counted in
+    events: each device's events against its own budget, then the batch against the app's ceiling.
+
+    An ingest credential (the DSN's public_id, an HMAC key id) ships in the app binary, so a budget
+    keyed on the app alone is one anyone can spend. The device limit is the tight one: a runaway
+    or flooding device is refused without costing the app's other devices. The app ceiling sits
+    far above normal traffic and bounds a flood spread over many device ids. Events with no
+    device_id share one budget per app."""
+    for device_id in sorted(events_per_device, key=lambda d: (d is None, d or "")):
+        allowed, metadata = await _device_limiter.is_allowed(
+            _device_identifier(app_id, device_id), events_per_device[device_id]
+        )
+        if not allowed:
+            logger.warning(
+                "Device rate limit exceeded",
+                extra={"app_id": app_id, "retry_after": metadata.get("retry_after")},
+            )
+            raise AppRateLimitExceeded(
+                metadata,
+                _device_limiter.requests_per_window,
+                "Device rate limit exceeded",
+            )
+    allowed, metadata = await _app_event_ceiling.is_allowed(
+        app_id, sum(events_per_device.values())
+    )
+    if not allowed:
+        logger.warning(
+            "App rate limit exceeded",
+            extra={"app_id": app_id, "retry_after": metadata.get("retry_after")},
+        )
+        raise AppRateLimitExceeded(metadata, _app_event_ceiling.requests_per_window)

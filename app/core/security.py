@@ -84,7 +84,6 @@ async def verify_hmac_ingest(
             "HMAC ingest for an inactive app refused", extra={"app_id": app_id}
         )
         raise HTTPException(status_code=403, detail="App is inactive")
-    await enforce_app_rate_limit(app_id)
     return app_id
 
 

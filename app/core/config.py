@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW: int = 60
+    # Ingest, in events per INGEST_RATE_LIMIT_WINDOW, after authentication (rate_limiter
+    # enforce_ingest_limits). Per device: at least MAX_BATCH_EVENTS (1000), or a full batch is
+    # refused for good. Per app: a ceiling far above normal traffic, against a flood spread over
+    # many device ids.
+    DEVICE_RATE_LIMIT_EVENTS: int = 1800
+    APP_RATE_LIMIT_EVENTS: int = 60000
+    INGEST_RATE_LIMIT_WINDOW: int = 60
     # POST /login, per client address (slowapi syntax). A login cannot key on identity: the
     # credential is what is being verified (FLEET-RATE-LIMIT-STANDARD §1.3).
     LOGIN_RATE_LIMIT: str = "5/minute"

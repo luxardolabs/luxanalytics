@@ -175,8 +175,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
 
 def too_many_requests(error: str, metadata: dict[str, Any], limit: int) -> JSONResponse:
-    """The one 429 both limits answer: the IP limit (RateLimitMiddleware) and the per-app limit
-    (app_rate_limit_exceeded_handler)."""
+    """The one 429 every limit answers: the IP limit (RateLimitMiddleware) and the per-device and
+    per-app limits (app_rate_limit_exceeded_handler)."""
     retry_after = metadata.get("retry_after") or 60
     return JSONResponse(
         status_code=429,
@@ -193,10 +193,10 @@ def too_many_requests(error: str, metadata: dict[str, Any], limit: int) -> JSONR
 async def app_rate_limit_exceeded_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
-    """The per-app limit's refusal (enforce_app_rate_limit raises it after HMAC auth)."""
+    """The per-app and per-device limits' refusal (rate_limiter raises it after authentication)."""
     if not isinstance(exc, AppRateLimitExceeded):
         raise exc
-    return too_many_requests("App rate limit exceeded", exc.metadata, exc.limit)
+    return too_many_requests(exc.error, exc.metadata, exc.limit)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -245,7 +245,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
             return Response(status_code=499)
 
-        # A 429 the app limit answered carries its own window; never overwrite it with the IP's.
+        # A 429 another limit answered carries its own window; never overwrite it with the IP's.
         if ip_metadata.get("allowed") and response.status_code != 429:
             response.headers["X-RateLimit-Limit"] = str(
                 self.ip_limiter.requests_per_window
@@ -277,8 +277,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 limit=self.ip_limiter.requests_per_window,
             ), ip_metadata
 
-        # The per-app limit is not decided here: it needs the verified app, so the ingest auth
-        # dependencies apply it after authentication (app.core.rate_limiter.enforce_app_rate_limit).
+        # The per-device and per-app limits are not decided here: they need the authenticated app
+        # and the parsed batch (app.core.rate_limiter.enforce_ingest_limits, enforce_app_rate_limit).
         return None, ip_metadata
 
     async def _memory_decision(self, client_ip: str) -> Response | None:
