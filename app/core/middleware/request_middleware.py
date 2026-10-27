@@ -9,15 +9,13 @@ from typing import Any
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
-from redis.exceptions import RedisError
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import ClientDisconnect
 from starlette.types import ASGIApp, Message
 
 from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
-from app.core.rate_limiter import AppRateLimiter, IPRateLimiter
-from app.core.security import get_app_id_from_headers
+from app.core.rate_limiter import IPRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +180,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # System endpoints (health, metrics, docs) the app resolves by route name and passes in
         self.exempt_paths = frozenset(exempt_paths)
         self.ip_limiter = IPRateLimiter()
-        self.app_limiter = AppRateLimiter()
         # Fallback in-memory storage for backwards compatibility
         self.requests: defaultdict[str, list[datetime]] = defaultdict(list)
         self.lock = asyncio.Lock()
@@ -235,7 +232,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def _redis_decision(
         self, request: Request, client_ip: str
     ) -> tuple[Response | None, dict[str, Any]]:
-        """The IP limit, then (for API routes) the app limit: a 429 response, or None to proceed."""
+        """The IP limit: a 429 response, or None to proceed."""
         ip_allowed, ip_metadata = await self.ip_limiter.check_ip_limit(client_ip)
 
         if not ip_allowed:
@@ -252,37 +249,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 limit=self.ip_limiter.requests_per_window,
             ), ip_metadata
 
-        # For API endpoints, also check app_id rate limit
-        if request.url.path.startswith("/api/"):
-            app_id = get_app_id_from_headers(dict(request.headers))
-            if app_id:
-                try:
-                    app_allowed, app_metadata = await self.app_limiter.check_app_limit(
-                        app_id
-                    )
-                except RedisError, OSError:
-                    # The per-app limit is a second line behind the IP limit that already
-                    # passed: fail open, but never silently.
-                    logger.warning(
-                        "App rate limit check failed; request allowed",
-                        extra={"app_id": app_id},
-                        exc_info=True,
-                    )
-                    return None, ip_metadata
-                if not app_allowed:
-                    logger.warning(
-                        "App rate limit exceeded",
-                        extra={
-                            "app_id": app_id,
-                            "retry_after": app_metadata.get("retry_after"),
-                        },
-                    )
-                    return _too_many_requests(
-                        "App rate limit exceeded",
-                        app_metadata,
-                        limit=self.app_limiter.requests_per_window,
-                    ), ip_metadata
-
+        # The per-app limit is not decided here: it needs the verified app, so the ingest auth
+        # dependencies apply it after authentication (app.core.rate_limiter.enforce_app_rate_limit).
         return None, ip_metadata
 
     async def _memory_decision(self, client_ip: str) -> Response | None:

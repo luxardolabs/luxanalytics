@@ -9,6 +9,7 @@ from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.rate_limiter import enforce_app_rate_limit
 from app.db.database import get_db
 from app.services.core.app_core_service import AppCoreService
 
@@ -75,6 +76,7 @@ async def verify_hmac_ingest(
             "HMAC ingest for an inactive app refused", extra={"app_id": app_id}
         )
         raise HTTPException(status_code=403, detail="App is inactive")
+    await enforce_app_rate_limit(app_id)
     return app_id
 
 

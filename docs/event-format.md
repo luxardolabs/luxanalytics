@@ -64,7 +64,7 @@ A body that decompresses past the request size limit (10 MB) is refused with 413
 | 404    | Unknown `project_id` ("Invalid project").                                                                                                                                               | drop it; fix the DSN                                |
 | 413    | Body too large, before or after decompression.                                                                                                                                          | split the batch                                     |
 | 422    | An event failed validation; the whole request is rejected.                                                                                                                              | drop the batch (or fix and resend the valid events) |
-| 429    | Rate limited, with `X-RateLimit-*` headers.                                                                                                                                             | retry after the reset                               |
+| 429    | Rate limited (per IP, or per app once the request authenticates), with `X-RateLimit-*` and `Retry-After` headers.                                                                       | retry after the reset                               |
 | 5xx    | Server error.                                                                                                                                                                           | retry with backoff                                  |
 
 ## Event names and keys the dashboard reads

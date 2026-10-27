@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limiter import enforce_app_rate_limit
 from app.db.database import get_db
 from app.services.core.app_core_service import AppCoreService
 
@@ -53,6 +54,7 @@ async def extract_app_from_dsn(
         "DSN authentication successful",
         extra={"app_id": app.app_id, "public_id": public_id},
     )
+    await enforce_app_rate_limit(app.app_id)
     return app.app_id
 
 
@@ -115,4 +117,5 @@ async def verify_project_dsn(
         "Processing events via project endpoint",
         extra={"app_id": app.app_id, "project_id": project_id},
     )
+    await enforce_app_rate_limit(app.app_id)
     return app.app_id

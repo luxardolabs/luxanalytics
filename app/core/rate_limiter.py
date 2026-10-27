@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import redis.asyncio as redis
+from fastapi import HTTPException
 from redis.exceptions import RedisError
 
 from app.core.config import settings
@@ -194,3 +195,39 @@ class IPRateLimiter(RateLimiter):
     ) -> tuple[bool, dict[str, Any]]:
         """Check rate limit for specific IP address."""
         return await self.is_allowed(ip_address, cost)
+
+
+async def enforce_app_rate_limit(app_id: str) -> None:
+    """The per-app ingest limit, for a request that has already proved it is `app_id`.
+
+    The ingest auth dependencies call it after the credential verifies, so only the app's own
+    requests spend its budget. Keyed on the unverified X-Key-ID before auth, anyone could exhaust
+    an app's budget with junk carrying its public key id, and DSN ingest was never limited per app.
+    It is a second line behind the IP limit the middleware already applied: on a Redis failure it
+    fails open, but never silently."""
+    limiter = AppRateLimiter()
+    try:
+        allowed, metadata = await limiter.check_app_limit(app_id)
+    except RedisError, OSError:
+        logger.warning(
+            "App rate limit check failed; request allowed",
+            extra={"app_id": app_id},
+            exc_info=True,
+        )
+        return
+    if allowed:
+        return
+    retry_after = metadata.get("retry_after") or 60
+    logger.warning(
+        "App rate limit exceeded", extra={"app_id": app_id, "retry_after": retry_after}
+    )
+    raise HTTPException(
+        status_code=429,
+        detail="App rate limit exceeded",
+        headers={
+            "X-RateLimit-Limit": str(limiter.requests_per_window),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": str(metadata.get("reset", 0)),
+            "Retry-After": str(retry_after),
+        },
+    )
