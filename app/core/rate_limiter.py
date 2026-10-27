@@ -10,6 +10,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from ipaddress import IPv6Address, ip_address, ip_network
 from typing import Any
 
 import redis.asyncio as redis
@@ -25,10 +26,12 @@ logger = logging.getLogger(__name__)
 # its window and count; only when every key has room for its cost are `cost` members (each
 # unique) added to each. All or nothing, one round trip, atomic. ARGV: now, member, then per key
 # window, limit, cost. Returns {allowed, refused key index (1-based, 0 when allowed), count of the
-# refused key (the first key's count after adding when allowed), score of the entry whose leaving
-# makes room (empty when none will)}.
+# refused key (the first key's count after adding when allowed), when every refused key has room
+# again (empty when one never will)}. With several keys refused, the one with the latest such time
+# is reported, so waiting it admits the batch.
 _SLIDING_WINDOW = """
 local now, member = tonumber(ARGV[1]), ARGV[2]
+local refused, refused_count, ready = 0, 0, -1
 for i, key in ipairs(KEYS) do
     local window = tonumber(ARGV[3 * i])
     local limit, cost = tonumber(ARGV[3 * i + 1]), tonumber(ARGV[3 * i + 2])
@@ -37,8 +40,20 @@ for i, key in ipairs(KEYS) do
     if count + cost > limit then
         local rank = count + cost - limit - 1
         local freeing = redis.call('ZRANGE', key, rank, rank, 'WITHSCORES')
-        return {0, i, count, freeing[2] or ''}
+        local at = math.huge
+        if freeing[2] then
+            at = tonumber(freeing[2]) + window
+        end
+        if at > ready then
+            refused, refused_count, ready = i, count, at
+        end
     end
+end
+if refused > 0 then
+    if ready == math.huge then
+        return {0, refused, refused_count, ''}
+    end
+    return {0, refused, refused_count, string.format('%.6f', ready)}
 end
 local first = 0
 for i, key in ipairs(KEYS) do
@@ -161,15 +176,14 @@ def _allowed(count: int, budget: Budget, now: float) -> dict[str, Any]:
     }
 
 
-def _refused(freeing_at: float | None, budget: Budget, now: float) -> dict[str, Any]:
+def _refused(ready_at: float | None, budget: Budget, now: float) -> dict[str, Any]:
     # Rounded up: an entry leaves the window only once its full age has passed, so a client that
-    # waits exactly retry_after must find room. No entry to wait for (the cost exceeds the limit
+    # waits exactly retry_after must find room. Nothing to wait for (the cost exceeds the limit
     # itself): a whole window.
-    window = budget.limiter.window_seconds
     retry_after = (
-        max(1, math.ceil(freeing_at + window - now))
-        if freeing_at is not None
-        else window
+        max(1, math.ceil(ready_at - now))
+        if ready_at is not None
+        else budget.limiter.window_seconds
     )
     return {
         "allowed": False,
@@ -181,8 +195,8 @@ def _refused(freeing_at: float | None, budget: Budget, now: float) -> dict[str, 
 
 async def admit(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
     """Spend every budget, or none: (None, the first budget's metadata) when each has room, else
-    (the index of a budget without room, its metadata) and nothing is spent. Redis being
-    unreachable falls back to each limiter's in-memory window."""
+    (the index of the budget without room that is last to have it again, its metadata) and
+    nothing is spent. Redis being unreachable falls back to each limiter's in-memory window."""
     redis_client = await get_redis_client()
     if redis_client:
         try:
@@ -205,7 +219,7 @@ async def _admit_redis(
             budget.limiter.requests_per_window,
             budget.cost,
         ]
-    allowed, refused_key, count, freeing = await redis_client.eval(
+    allowed, refused_key, count, ready = await redis_client.eval(
         _SLIDING_WINDOW,
         len(budgets),
         *(f"{b.limiter.key_prefix}:{b.identifier}" for b in budgets),
@@ -214,12 +228,14 @@ async def _admit_redis(
     if int(allowed):
         return None, _allowed(int(count), budgets[0], now)
     index = int(refused_key) - 1
-    return index, _refused(float(freeing) if freeing else None, budgets[index], now)
+    return index, _refused(float(ready) if ready else None, budgets[index], now)
 
 
 def _admit_memory(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
     now = datetime.now(UTC)
     held = []
+    # The refused budget last to have room again: (index, when; None for never)
+    refused: tuple[int, float | None] | None = None
     for index, budget in enumerate(budgets):
         limiter = budget.limiter
         window_start = now - timedelta(seconds=limiter.window_seconds)
@@ -227,16 +243,22 @@ def _admit_memory(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]
         count = sum(cost for _, cost in entries)
         excess = count + budget.cost - limiter.requests_per_window
         if excess > 0:
-            # The entry whose leaving frees `excess` units, oldest first.
-            freeing_at = None
+            # Room once the entry that frees `excess` units, oldest first, leaves the window.
+            ready_at = None
             freed = 0
             for when, cost in entries:
                 freed += cost
                 if freed >= excess:
-                    freeing_at = when.timestamp()
+                    ready_at = when.timestamp() + limiter.window_seconds
                     break
-            return index, _refused(freeing_at, budget, now.timestamp())
+            if refused is None or (
+                refused[1] is not None and (ready_at is None or ready_at > refused[1])
+            ):
+                refused = (index, ready_at)
         held.append((entries, count))
+    if refused is not None:
+        index, ready_at = refused
+        return index, _refused(ready_at, budgets[index], now.timestamp())
     for budget, (entries, _count) in zip(budgets, held, strict=True):
         entries.append((now, budget.cost))
     first_count = held[0][1] + budgets[0].cost
@@ -358,6 +380,21 @@ _app_event_ceiling = RateLimiter(
 )
 
 
+def _address_identifier(client_ip: str) -> str:
+    """One budget per client: an IPv4 address (an IPv4-mapped IPv6 one included), or an IPv6
+    address's /64, which one host or subscriber holds whole and could otherwise spread a flood
+    over."""
+    try:
+        address = ip_address(client_ip)
+    except ValueError:
+        return client_ip
+    if isinstance(address, IPv6Address):
+        if address.ipv4_mapped is not None:
+            return str(address.ipv4_mapped)
+        return str(ip_network(f"{address}/64", strict=False))
+    return str(address)
+
+
 def _device_identifier(app_id: str, device_id: str | None) -> str:
     """One fixed-length key per (app, device): a device id is client-chosen, of any content."""
     return hashlib.sha256(json.dumps([app_id, device_id]).encode()).hexdigest()
@@ -378,7 +415,7 @@ async def enforce_ingest_limits(
     device_id share one budget per app. A refused batch spends nothing."""
     total = sum(events_per_device.values())
     budgets = [
-        Budget(_ip_event_limiter, client_ip, total),
+        Budget(_ip_event_limiter, _address_identifier(client_ip), total),
         *(
             Budget(_device_limiter, _device_identifier(app_id, device_id), count)
             for device_id, count in events_per_device.items()

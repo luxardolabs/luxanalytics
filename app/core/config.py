@@ -159,13 +159,16 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def ingest_limits_fit(self) -> Settings:
-        """A budget smaller than one batch refuses that batch on every retry; a ceiling one
-        address can fill is a budget anyone holding the public DSN can spend."""
+        """A budget smaller than one batch refuses that batch on every retry; a window under a
+        second empties every budget on each check; a ceiling one address can fill is a budget
+        anyone holding the public DSN can spend."""
         for name in ("IP_RATE_LIMIT_EVENTS", "DEVICE_RATE_LIMIT_EVENTS"):
             if getattr(self, name) < MAX_BATCH_EVENTS:
                 raise ValueError(
                     f"{name} must be at least MAX_BATCH_EVENTS ({MAX_BATCH_EVENTS})"
                 )
+        if self.INGEST_RATE_LIMIT_WINDOW < 1:
+            raise ValueError("INGEST_RATE_LIMIT_WINDOW must be at least 1 second")
         if self.APP_RATE_LIMIT_EVENTS <= self.IP_RATE_LIMIT_EVENTS:
             raise ValueError(
                 "APP_RATE_LIMIT_EVENTS must be above IP_RATE_LIMIT_EVENTS: one client address "

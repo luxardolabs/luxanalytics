@@ -596,3 +596,80 @@ def test_ingest_limits_that_cannot_work_refuse_to_start(
     budget anyone holding the DSN can spend."""
     with pytest.raises(ValueError, match=message):
         Settings.model_validate({**REQUIRED, **SAFE, **overrides})
+
+
+def _clock(monkeypatch: pytest.MonkeyPatch, redis_up: bool) -> list[float]:
+    """A settable clock for both windows: Redis's (time.time) and the fallback's (datetime)."""
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    if not redis_up:
+        monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+        monkeypatch.setattr(
+            rate_limiter,
+            "datetime",
+            type(
+                "Clock",
+                (),
+                {"now": staticmethod(lambda tz: datetime.fromtimestamp(clock[0], tz))},
+            ),
+        )
+    return clock
+
+
+@pytest.mark.parametrize("redis_up", [True, False])
+async def test_waiting_retry_after_admits_when_two_budgets_are_full(
+    monkeypatch: pytest.MonkeyPatch, redis_up: bool
+) -> None:
+    """The address is full until t+60 and the device until t+90: Retry-After is the later one."""
+    monkeypatch.setattr(settings, "IP_RATE_LIMIT_EVENTS", LIMIT)
+    monkeypatch.setattr(settings, "DEVICE_RATE_LIMIT_EVENTS", LIMIT)
+    clock = _clock(monkeypatch, redis_up)
+    app_id = f"app_two_full_{redis_up}"
+    address, other = f"198.18.{int(redis_up)}.10", f"198.18.{int(redis_up)}.20"
+    await rate_limiter.enforce_ingest_limits(app_id, address, {"B": LIMIT})
+    clock[0] += 30
+    await rate_limiter.enforce_ingest_limits(app_id, other, {"A": LIMIT})
+    clock[0] += 1
+    with pytest.raises(rate_limiter.AppRateLimitExceeded) as refused:
+        await rate_limiter.enforce_ingest_limits(app_id, address, {"A": 1})
+    assert refused.value.error == "Device rate limit exceeded"
+
+    clock[0] += refused.value.metadata["retry_after"]
+    await rate_limiter.enforce_ingest_limits(app_id, address, {"A": 1})
+
+
+@pytest.mark.parametrize(
+    "addresses",
+    [
+        ["203.0.113.66"] * 3,
+        [f"2001:db8:66:1::{i + 1:x}" for i in range(3)],
+        ["203.0.113.67", "::ffff:203.0.113.67", "::ffff:203.0.113.67"],
+    ],
+    ids=["one-ipv4", "one-ipv6-64", "ipv4-mapped"],
+)
+async def test_one_host_cannot_fill_the_app_ceiling_over_its_addresses(
+    monkeypatch: pytest.MonkeyPatch, sample_app: App, addresses: list[str]
+) -> None:
+    """An IPv6 host holds its whole /64, and an IPv4 client may also arrive IPv4-mapped: each is
+    one address budget."""
+    monkeypatch.setattr(settings, "IP_RATE_LIMIT_EVENTS", 20)
+    monkeypatch.setattr(settings, "APP_RATE_LIMIT_EVENTS", 30)
+    async with _client() as ac:
+        for a, address in enumerate(addresses):
+            for r in range(2):
+                body = _batch_of({f"fake-{a}-{r}-{i}": 1 for i in range(10)})
+                await _post_dsn(ac, body, sample_app.project_id, address)
+        honest = await _post_dsn(
+            ac, _event("honest-phone"), sample_app.project_id, "198.51.100.7"
+        )
+
+    assert honest == 200
+
+
+@pytest.mark.parametrize("window", [0, -1])
+def test_an_ingest_window_that_cannot_work_refuses_to_start(window: int) -> None:
+    """A window under a second empties every budget on each check: no limit at all."""
+    with pytest.raises(ValueError, match="INGEST_RATE_LIMIT_WINDOW"):
+        Settings.model_validate(
+            {**REQUIRED, **SAFE, "INGEST_RATE_LIMIT_WINDOW": window}
+        )
