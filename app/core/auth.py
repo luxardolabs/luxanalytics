@@ -52,9 +52,8 @@ async def _sessions_valid_after() -> datetime:
     """The time before which every session is refused: the last logout's.
 
     A missing stamp is not "never logged out": prod Redis keeps no AOF, so a crash can bring it back
-    from a snapshot older than the last logout, and reading the gap as no logout revived every
-    copied cookie still in date. The first reader writes the stamp as now (SET NX) instead, so a
-    lost stamp signs everyone out once. Login asks this before it creates its session
+    from a snapshot older than the last logout. The first reader writes the stamp as now (SET NX),
+    so a lost stamp signs everyone out once. Login asks this before it creates its session
     (session_store_available), so its own login time lands after the stamp.
 
     Raises SessionStoreError when Redis is unreachable or the stamp is not an aware ISO time, so

@@ -1,10 +1,9 @@
-"""The per-app ingest rate limit counts only requests that proved they are the app.
+"""The per-app ingest rate limit counts only requests that proved they hold the app's secret.
 
-It was keyed on the unverified X-Key-ID header and counted before authentication, so anyone could
-spend an app's budget with junk requests carrying its (public) key id and the app's own signed
-events got 429 (adversarial audit 2026-10-27, LUXANALYTI-97). DSN ingest is not limited per app:
-its credential (the public_id) ships in every app binary, so a per-app DSN budget is one anyone can
-spend, and the SDK drops a batch on a 429. The IP limit covers it.
+It is counted after the HMAC signature verifies, so junk carrying an app's (public) key id spends
+nothing. DSN ingest is not limited per app: its credential (the public_id) ships in every app
+binary, so a per-app DSN budget is one anyone can spend, and the SDK drops a batch on a 429. The IP
+limit covers it.
 """
 
 import hashlib

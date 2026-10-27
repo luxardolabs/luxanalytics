@@ -1,9 +1,8 @@
 """Request logs carry no end-user identifiers and no typed credentials.
 
 The dashboard's URLs hold SDK end-user ids (`/dashboard/user/{user_id}`, `/dashboard/session/{id}`,
-`?search_q=`), and LoggingMiddleware logged each full URL at INFO, as uvicorn's access log did again.
-A failed login logged the typed username, where a password typed into the wrong field lands
-(adversarial audit 2026-10-27, LUXANALYTI-101 and LUXANALYTI-102).
+`?search_q=`), so a request is logged by its path template, and uvicorn's access line is off. A
+failed login logs nothing that was typed, where a password typed into the wrong field would land.
 """
 
 import logging

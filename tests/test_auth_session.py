@@ -152,8 +152,7 @@ async def test_a_logged_out_cookie_stays_refused_when_redis_loses_the_stamp(
     client: AsyncClient,
 ) -> None:
     """Redis (no AOF in prod) can come back from a snapshot older than the last logout. A missing
-    stamp must not read as "never logged out": that revived every copied cookie still in date
-    (adversarial audit 2026-10-27, LUXANALYTI-99)."""
+    stamp does not read as "never logged out": a copied cookie still in date stays refused."""
     await _login(client, "198.51.100.234")
     copied = client.cookies["analytics_session"]
     await client.post("/logout", follow_redirects=False)

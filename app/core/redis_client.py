@@ -23,9 +23,8 @@ async def get_redis_client() -> redis.Redis | None:
     if _redis_client is None:
         try:
             # A blocking pool: a burst wider than the pool waits (up to `timeout`) for a free
-            # connection. A non-blocking one raised "Too many connections" past 50 in flight, which
-            # sent each rate-limit check to the in-memory window (a second, empty budget) and
-            # refused the dashboard's fail-closed session check.
+            # connection. A failed checkout would send each rate-limit check to the in-memory window
+            # (a second budget) and refuse the dashboard's fail-closed session check.
             pool = redis.BlockingConnectionPool.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",

@@ -1,9 +1,8 @@
 """The sliding-window limiter admits at most its limit, however many requests arrive at once.
 
-The check (ZREMRANGEBYSCORE + ZCARD) and the add (ZADD) were two round trips, so every request of a
-concurrent burst read the same count and all were admitted; the member `f"{now}:{cost}"` also made
-two requests at the same timestamp count once (adversarial audit 2026-10-27, LUXANALYTI-100). The IP
-limit is DSN ingest's only limit, so this is the bound on anyone with the public DSN.
+The drop, count and add are one Redis script with a unique member per request, so a concurrent
+burst cannot read one count and all be admitted, and requests at the same instant each count. The
+IP limit is DSN ingest's only limit, so this is the bound on anyone with the public DSN.
 """
 
 import asyncio

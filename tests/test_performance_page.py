@@ -1,8 +1,8 @@
 """The performance page survives any duration_ms an SDK sends.
 
-Metadata values are strings, and the queries cast `duration_ms` straight to INTEGER, so one event
-with "12.5" (a Swift Double) made the page a 500 for that app and for all apps, for as long as the
-event is in range: events are never deleted (adversarial audit 2026-10-27, LUXANALYTI-98).
+Metadata values are strings: "12.5" (a Swift Double), "abc" or an int32 overflow are read as a
+number when they are one and skipped otherwise, so one odd event cannot fail the page. Events are
+never deleted, so such an event stays in range for good.
 """
 
 from datetime import UTC, datetime

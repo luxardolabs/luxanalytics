@@ -2,8 +2,8 @@
 
 charts.js builds the tooltip string from `data-heatmap-screens`, and ECharts inserts a formatter's
 string as HTML. A screen name comes from any client holding the app's DSN, which is public (it
-ships in every iOS app), so a name like `<img onerror=…>` ran as script in the operator's session
-(adversarial audit 2026-10-27, LUXANALYTI-96).
+ships in every iOS app), so the tooltip list holds each name HTML-escaped; the axes keep the raw
+names, which ECharts draws as canvas text.
 """
 
 import html

@@ -267,8 +267,8 @@ class EventCRUD:
     @staticmethod
     def _duration_ms() -> ColumnElement[float]:
         """`properties.duration_ms` as a number when it is one (`150`, `12.5`), else NULL, which the
-        aggregates skip. A metadata value is whatever the SDK sent, so a straight CAST to INTEGER
-        turned one "12.5" or "abc" into a 500 for the whole page."""
+        aggregates skip. A metadata value is whatever the SDK sent, so a plain CAST would fail the whole
+        page on one "12.5" or "abc"."""
         raw = Event.properties["duration_ms"].astext
         return case(
             (raw.regexp_match(r"^[0-9]{1,12}(\.[0-9]+)?$"), cast(raw, Float)),
