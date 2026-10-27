@@ -59,3 +59,68 @@ upload = 0
 webhook = 2
 mounts = 1
 jobs = 3
+
+# ── Attacked slices (copied from the sweep at the commit audited; never computed) ──
+
+[slices."web/routers/auth_router"]
+fingerprint = "7b3a248f0becac1932af6535d167b4b9d2566d81b30258e64a05faac3e60b0b0"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = ["LUXANALYTI-99", "LUXANALYTI-102", "LUXANALYTI-115", "LUXANALYTI-116", "LUXANALYTI-117"]
+
+[slices."api/v1/routers/events_router"]
+fingerprint = "913df166d7d7c93df122fd86cf23f2f224795dc542acbc4ba02b2288ad1de1f9"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = ["LUXANALYTI-97", "LUXANALYTI-100", "LUXANALYTI-103"]
+
+[slices."entry-points"]
+fingerprint = "1f66599bf1a019e3088af723f1a7d556a69a7d1931102c6fe54e2547aad2fb0b"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = []
+
+[slices."web/routers/apps_router"]
+fingerprint = "835f64bd8ae4786f50784b5094c6e7e1eb4f9cd53650359178858382d005280b"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = ["LUXANALYTI-104", "LUXANALYTI-105", "LUXANALYTI-106", "LUXANALYTI-118"]
+
+[slices."jobs"]
+fingerprint = "e3cf21c232812365b75f94b92bbdc611cde142e99f635a9a3cb046ec696e930c"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = ["LUXANALYTI-97", "LUXANALYTI-101", "LUXANALYTI-102", "LUXANALYTI-119", "LUXANALYTI-120"]
+
+[slices."main"]
+fingerprint = "e3cf21c232812365b75f94b92bbdc611cde142e99f635a9a3cb046ec696e930c"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = ["LUXANALYTI-97", "LUXANALYTI-101", "LUXANALYTI-102", "LUXANALYTI-119", "LUXANALYTI-120"]
+
+[slices."web/routers/dashboard_router#dashboard"]
+fingerprint = "59cf99a313d4d3811bb244b5f575782e0c9b0f19d03e6ed413373a28495464ec"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = ["LUXANALYTI-96", "LUXANALYTI-98", "LUXANALYTI-108", "LUXANALYTI-109", "LUXANALYTI-110", "LUXANALYTI-111", "LUXANALYTI-112", "LUXANALYTI-113", "LUXANALYTI-114"]
+
+[slices."web/routers/dashboard_router#root"]
+fingerprint = "24a2d0e37a0bc6b6ee21af637e33edd66e7da4fc5855d4a247e7e9153f480f25"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = []
+
+[slices."web/routers/dashboard_router#set-app-context"]
+fingerprint = "24a2d0e37a0bc6b6ee21af637e33edd66e7da4fc5855d4a247e7e9153f480f25"
+commit = "38cf7a5"
+date = "2026-10-27"
+epic = "LUXANALYTI-95"
+findings = ["LUXANALYTI-107", "LUXANALYTI-108", "LUXANALYTI-114"]
