@@ -63,6 +63,14 @@ def verify_hmac_signature(
     return x_key_id
 
 
+async def verify_hmac_app(
+    app_id: Annotated[str, Depends(verify_hmac_signature)],
+) -> str:
+    """A verified HMAC key, counted against its app's rate limit (the stats read)."""
+    await enforce_app_rate_limit(app_id)
+    return app_id
+
+
 async def verify_hmac_ingest(
     app_id: Annotated[str, Depends(verify_hmac_signature)],
     db: Annotated[AsyncSession, Depends(get_db, scope="function")],

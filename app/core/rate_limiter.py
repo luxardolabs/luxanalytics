@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import redis.asyncio as redis
-from fastapi import HTTPException
 from redis.exceptions import RedisError
 
 from app.core.config import settings
@@ -27,12 +26,30 @@ class RateLimiter:
         window_seconds: int | None = None,
         key_prefix: str = "rate_limit",
     ) -> None:
-        self.requests_per_window = requests_per_window or settings.RATE_LIMIT_REQUESTS
-        self.window_seconds = window_seconds or settings.RATE_LIMIT_WINDOW
+        # Unset, a limit is read from settings when it is used, so one long-lived limiter (whose
+        # in-memory fallback window must outlive a request) follows the configured value.
+        self._requests_per_window = requests_per_window
+        self._window_seconds = window_seconds
         self.key_prefix = key_prefix
         # Fallback in-memory storage
         # identifier -> [(request time, cost)] within the window
         self._memory_storage: dict[str, list[tuple[datetime, int]]] = {}
+
+    @property
+    def requests_per_window(self) -> int:
+        return self._requests_per_window or settings.RATE_LIMIT_REQUESTS
+
+    @requests_per_window.setter
+    def requests_per_window(self, value: int) -> None:
+        self._requests_per_window = value
+
+    @property
+    def window_seconds(self) -> int:
+        return self._window_seconds or settings.RATE_LIMIT_WINDOW
+
+    @window_seconds.setter
+    def window_seconds(self, value: int) -> None:
+        self._window_seconds = value
 
     async def is_allowed(
         self, identifier: str, cost: int = 1
@@ -197,37 +214,32 @@ class IPRateLimiter(RateLimiter):
         return await self.is_allowed(ip_address, cost)
 
 
-async def enforce_app_rate_limit(app_id: str) -> None:
-    """The per-app ingest limit, for a request that has already proved it is `app_id`.
+class AppRateLimitExceeded(Exception):
+    """An authenticated app is over its budget; app_rate_limit_exceeded_handler (beside the IP
+    limit, in request_middleware) answers it with the same 429."""
 
-    The ingest auth dependencies call it after the credential verifies, so only the app's own
-    requests spend its budget. Keyed on the unverified X-Key-ID before auth, anyone could exhaust
-    an app's budget with junk carrying its public key id, and DSN ingest was never limited per app.
-    It is a second line behind the IP limit the middleware already applied: on a Redis failure it
-    fails open, but never silently."""
-    limiter = AppRateLimiter()
-    try:
-        allowed, metadata = await limiter.check_app_limit(app_id)
-    except RedisError, OSError:
-        logger.warning(
-            "App rate limit check failed; request allowed",
-            extra={"app_id": app_id},
-            exc_info=True,
-        )
-        return
+    def __init__(self, metadata: dict[str, Any], limit: int) -> None:
+        super().__init__("App rate limit exceeded")
+        self.metadata = metadata
+        self.limit = limit
+
+
+# One per process: its in-memory fallback window (Redis down) has to outlive a request.
+_app_limiter = AppRateLimiter()
+
+
+async def enforce_app_rate_limit(app_id: str) -> None:
+    """The per-app limit, for a request that has already proved it holds the app's secret.
+
+    HMAC callers only (verify_hmac_ingest, verify_hmac_app): counted after the signature verifies,
+    so no one without the secret spends the app's budget. Not on DSN ingest: the DSN's public_id
+    ships in every app binary, so a DSN budget is one anyone can spend, and the SDK drops a batch
+    on a 429. A Redis failure falls back to the process's in-memory window, as the IP limit does."""
+    allowed, metadata = await _app_limiter.check_app_limit(app_id)
     if allowed:
         return
-    retry_after = metadata.get("retry_after") or 60
     logger.warning(
-        "App rate limit exceeded", extra={"app_id": app_id, "retry_after": retry_after}
+        "App rate limit exceeded",
+        extra={"app_id": app_id, "retry_after": metadata.get("retry_after")},
     )
-    raise HTTPException(
-        status_code=429,
-        detail="App rate limit exceeded",
-        headers={
-            "X-RateLimit-Limit": str(limiter.requests_per_window),
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": str(metadata.get("reset", 0)),
-            "Retry-After": str(retry_after),
-        },
-    )
+    raise AppRateLimitExceeded(metadata, _app_limiter.requests_per_window)

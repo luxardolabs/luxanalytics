@@ -2,8 +2,9 @@
 
 It was keyed on the unverified X-Key-ID header and counted before authentication, so anyone could
 spend an app's budget with junk requests carrying its (public) key id and the app's own signed
-events got 429. DSN ingest sends no X-Key-ID, so it was never limited per app at all (adversarial
-audit 2026-10-27, LUXANALYTI-97).
+events got 429 (adversarial audit 2026-10-27, LUXANALYTI-97). DSN ingest is not limited per app:
+its credential (the public_id) ships in every app binary, so a per-app DSN budget is one anyone can
+spend, and the SDK drops a batch on a 429. The IP limit covers it.
 """
 
 import hashlib
@@ -16,6 +17,7 @@ from datetime import UTC, datetime
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+import app.core.rate_limiter as rate_limiter
 from app.core.config import settings
 from app.main import create_application
 from app.models.app_model import App
@@ -113,26 +115,120 @@ async def test_signed_ingest_is_limited_per_app(limited: None, sample_app: App) 
     assert codes[LIMIT:] == [429, 429], codes
 
 
-async def test_dsn_ingest_is_limited_per_app(limited: None, sample_app: App) -> None:
-    auth = "Basic " + b64encode(f"{PUBLIC_ID}:".encode()).decode()
-    async with _client() as ac:
-        responses = []
-        for i in range(LIMIT + 2):
-            responses.append(
-                await ac.post(
-                    "/api/v1/events/public",
-                    content=_event(),
-                    headers={
-                        "Authorization": auth,
-                        "Content-Type": "application/json",
-                        "X-Forwarded-For": f"203.0.113.{i + 1}",
-                    },
-                )
-            )
+def _dsn(public_id: str) -> dict[str, str]:
+    return {
+        "Authorization": "Basic " + b64encode(f"{public_id}:".encode()).decode(),
+        "Content-Type": "application/json",
+    }
 
-    codes = [r.status_code for r in responses]
-    assert codes[:LIMIT] == [200] * LIMIT
+
+async def test_public_dsn_requests_cannot_starve_the_app(
+    limited: None, sample_app: App
+) -> None:
+    """The DSN is public: junk sent with it from one IP must not cost the app's signed or DSN
+    ingest anything."""
+    async with _client() as ac:
+        for _ in range(LIMIT):
+            junk = await ac.post(
+                f"/api/v1/events/{sample_app.project_id}",
+                content=b"not json",
+                headers={**_dsn(PUBLIC_ID), "X-Forwarded-For": "203.0.113.66"},
+            )
+            assert junk.status_code == 400
+        body = _event()
+        signed = await ac.post(
+            "/api/v1/events/",
+            content=body,
+            headers={
+                **_signed(body, sample_app.app_id),
+                "X-Forwarded-For": "198.51.100.7",
+            },
+        )
+        device = await ac.post(
+            f"/api/v1/events/{sample_app.project_id}",
+            content=_event(),
+            headers={**_dsn(PUBLIC_ID), "X-Forwarded-For": "198.51.100.8"},
+        )
+
+    assert (signed.status_code, device.status_code) == (200, 200)
+
+
+async def _no_redis() -> None:
+    return None
+
+
+async def test_the_app_limit_holds_without_redis(
+    limited: None, sample_app: App, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Redis down: the per-app limit falls back to the process's in-memory window, as the IP limit
+    does, instead of switching off."""
+    monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+    app_id = sample_app.app_id
+    async with _client() as ac:
+        codes = []
+        for i in range(LIMIT + 2):
+            body = _event()
+            r = await ac.post(
+                "/api/v1/events/",
+                content=body,
+                headers={
+                    **_signed(body, app_id),
+                    "X-Forwarded-For": f"203.0.113.{i + 100}",
+                },
+            )
+            codes.append(r.status_code)
+
     assert codes[LIMIT:] == [429, 429], codes
-    refused = responses[-1]
-    assert refused.headers["Retry-After"]
-    assert refused.headers["X-RateLimit-Limit"] == str(LIMIT)
+
+
+async def test_signed_stats_reads_are_limited_per_app(
+    limited: None, sample_app: App
+) -> None:
+    async with _client() as ac:
+        codes = []
+        for i in range(LIMIT + 1):
+            r = await ac.get(
+                "/api/v1/events/stats",
+                headers={
+                    **_signed(b"", sample_app.app_id),
+                    "X-Forwarded-For": f"203.0.113.{i + 1}",
+                },
+            )
+            codes.append(r.status_code)
+
+    assert codes[:LIMIT] == [200] * LIMIT
+    assert codes[LIMIT] == 429, codes
+
+
+async def test_both_rate_limits_answer_the_same_429(
+    limited: None, sample_app: App
+) -> None:
+    async with _client() as ac:
+        for i in range(LIMIT):  # the app's budget, spent from distinct IPs
+            body = _event()
+            await ac.post(
+                "/api/v1/events/",
+                content=body,
+                headers={
+                    **_signed(body, sample_app.app_id),
+                    "X-Forwarded-For": f"203.0.113.{i + 1}",
+                },
+            )
+        body = _event()
+        app_429 = await ac.post(
+            "/api/v1/events/",
+            content=body,
+            headers={
+                **_signed(body, sample_app.app_id),
+                "X-Forwarded-For": "203.0.113.200",
+            },
+        )
+        for _ in range(LIMIT):  # one IP's budget
+            await ac.get("/login", headers={"X-Forwarded-For": "198.51.100.250"})
+        ip_429 = await ac.get("/login", headers={"X-Forwarded-For": "198.51.100.250"})
+
+    assert (app_429.status_code, ip_429.status_code) == (429, 429)
+    assert set(app_429.json()) == set(ip_429.json()) == {"error", "retry_after"}
+    for r in (app_429, ip_429):
+        assert r.headers["Retry-After"]
+        assert r.headers["X-RateLimit-Limit"] == str(LIMIT)

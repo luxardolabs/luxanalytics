@@ -15,7 +15,7 @@ from starlette.types import ASGIApp, Message
 
 from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
-from app.core.rate_limiter import IPRateLimiter
+from app.core.rate_limiter import AppRateLimitExceeded, IPRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +172,31 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise
 
 
+def too_many_requests(error: str, metadata: dict[str, Any], limit: int) -> JSONResponse:
+    """The one 429 both limits answer: the IP limit (RateLimitMiddleware) and the per-app limit
+    (app_rate_limit_exceeded_handler)."""
+    retry_after = metadata.get("retry_after") or 60
+    return JSONResponse(
+        status_code=429,
+        content={"error": error, "retry_after": retry_after},
+        headers={
+            "X-RateLimit-Limit": str(limit),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": str(metadata.get("reset", 0)),
+            "Retry-After": str(retry_after),
+        },
+    )
+
+
+async def app_rate_limit_exceeded_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    """The per-app limit's refusal (enforce_app_rate_limit raises it after HMAC auth)."""
+    if not isinstance(exc, AppRateLimitExceeded):
+        raise exc
+    return too_many_requests("App rate limit exceeded", exc.metadata, exc.limit)
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Redis-based distributed rate limiting with in-memory fallback."""
 
@@ -243,7 +268,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "retry_after": ip_metadata.get("retry_after"),
                 },
             )
-            return _too_many_requests(
+            return too_many_requests(
                 "Rate limit exceeded",
                 ip_metadata,
                 limit=self.ip_limiter.requests_per_window,
@@ -277,7 +302,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 )
                 # A response, not HTTPException: raised from a middleware it reaches no
                 # exception handler and the client gets a 500.
-                return _too_many_requests(
+                return too_many_requests(
                     "Rate limit exceeded",
                     {"retry_after": settings.RATE_LIMIT_WINDOW},
                     limit=settings.RATE_LIMIT_REQUESTS,
@@ -287,22 +312,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self.requests[client_ip].append(now)
 
         return None
-
-
-def _too_many_requests(
-    error: str, metadata: dict[str, Any], limit: int
-) -> JSONResponse:
-    retry_after = metadata.get("retry_after") or 60
-    return JSONResponse(
-        status_code=429,
-        content={"error": error, "retry_after": retry_after},
-        headers={
-            "X-RateLimit-Limit": str(limit),
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": str(metadata.get("reset", 0)),
-            "Retry-After": str(retry_after),
-        },
-    )
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):

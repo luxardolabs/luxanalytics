@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dsn_auth import extract_app_from_dsn, verify_project_dsn
-from app.core.security import verify_hmac_ingest, verify_hmac_signature
+from app.core.security import verify_hmac_app, verify_hmac_ingest
 from app.db.database import get_db
 from app.schemas.event_schema import INGEST_OPENAPI, AppStatsResponse, EventResponse
 from app.services.core.event_core_service import EventCoreService, InvalidEventPayload
@@ -105,7 +105,7 @@ async def create_events_by_project_id(
 
 @router.get("/stats", response_model=AppStatsResponse, name="api.events.stats")
 async def get_app_stats(
-    app_id: str = Depends(verify_hmac_signature),
+    app_id: str = Depends(verify_hmac_app),
     db: AsyncSession = Depends(get_db, scope="function"),
 ) -> AppStatsResponse:
     """Get basic analytics stats for the app."""

@@ -26,7 +26,9 @@ from app.core.middleware import (
     LoggingMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
+    app_rate_limit_exceeded_handler,
 )
+from app.core.rate_limiter import AppRateLimitExceeded
 from app.core.redis_client import close_redis_client
 from app.core.same_origin import SameOriginMiddleware
 from app.core.telemetry import setup_telemetry
@@ -217,6 +219,8 @@ def create_application() -> FastAPI:
     # Per-route limits (slowapi): the limiter is found on app.state; a refusal is a 429 + Retry-After.
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+    # The per-app ingest limit (HMAC callers), answered like the IP limit's 429.
+    app.add_exception_handler(AppRateLimitExceeded, app_rate_limit_exceeded_handler)
 
     _publish_ingest_schemas(app)
 
