@@ -67,3 +67,8 @@ evidence = "UIDevice.current.model per event, as sent by the iOS SDK (docs/ios-s
 path = "app/schemas/event_schema.py"
 field = "device_type"
 evidence = "EventInDB.device_type mirrors events.device_type: UIDevice.current.model, an open Apple set"
+
+# Who pushes (repo.agent_push_declared): the agent, when its work lands. Agents have pushed this repo
+# since onboarding (origin/main 9dc3f97 and every release before it).
+[agents]
+push = "agent"

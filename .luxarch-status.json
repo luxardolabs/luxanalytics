@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.289.3",
+  "guard_version": "0.327.0",
   "repo": "/repo",
   "targets": [
     {
@@ -878,13 +878,13 @@
         },
         {
           "rule": "fw.no_dynamic_column_sort",
-          "status": "PASS",
+          "status": "FAIL",
           "since": "0.29.0",
-          "violations": 0,
+          "violations": 4,
           "deferred": false,
           "inert": false,
           "inert_reason": "",
-          "fix": "",
+          "fix": "Map sort keys to columns via an allowlist (dict/enum; unknown key \u2192 safe default) \u2014 never a bare getattr(Model, sort_by), and never a key spliced into `text()` / `literal_column()`. For a GENERIC field accessor (a base-crud get_by_field(field_name=\u2026)), the fleet's answer is a named method per field on the concrete crud \u2014 `select(Model).where(Model.code == code)`, which mypy type-checks and which 12 of 13 fleet base_cruds do instead of a dynamic accessor. If a generic primitive is genuinely wanted, narrow the key's domain before resolving it (membership-test it against `sqlalchemy.inspect(self.model).columns`, `Model.__table__.c`, or a container of string literals; unknown key \u2192 raise) \u2014 that shape is recognised and passes. 'Every caller passes a literal today' is not a fix: the primitive still accepts any string, so the next caller is the defect. See --playbook pagination \u00a7'Safe sort in the crud' and \u00a7'A generic field accessor'.",
           "example": ""
         },
         {
@@ -1790,6 +1790,61 @@
           "example": ""
         },
         {
+          "rule": "fw.request_owner_commits_before_response",
+          "status": "FAIL",
+          "since": "0.290.0",
+          "violations": 40,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "declare the request owner as `Depends(get_db, scope=\"function\")` at every site, written exactly that way: the route parameter default, the `Annotated` alias (`DbSession = Annotated[AsyncSession, Depends(get_db, scope=\"function\")]`), and a router's or app's `dependencies=[...]`. Without `scope=\"function\"` a `yield` dependency is \"request\"-scoped and FastAPI runs its commit only after the response is sent, so the client can read past its own write and a failed commit follows a 200. Every site must use the same scope: the dependency cache keys on it, so a mix opens two sessions in one request. A `yield` dependency that itself takes this session must declare `scope=\"function\"` too \u2014 FastAPI refuses a request-scoped dependency over a function-scoped one when the route is declared (DependencyScopeError names it). `Security(...)` takes no scope, so a `Security(<owner>)` becomes the `Depends` form above. A BackgroundTask or StreamingResponse body runs after the session closes: give it its own `get_db_context()`. See --playbook db-mutations \u00a71.",
+          "example": ""
+        },
+        {
+          "rule": "fw.route_names_unique",
+          "status": "FAIL",
+          "since": "0.297.0",
+          "violations": 47,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "Give every route an explicit, unique, literal `name=\"<area>.<entity>.<action>\"` (e.g. `name=\"admin.users.list\"` and `name=\"api.users.list\"`: the web page and the API endpoint are two names). One name may serve several methods of ONE path. Without this, `url_path_for` resolves a shared handler name to the first route registered: in one app, `login` returned `/api/v1/auth/login` for the web login link, silently. See --playbook url-in-view.",
+          "example": ""
+        },
+        {
+          "rule": "fw.urls_from_route_names",
+          "status": "FAIL",
+          "since": "0.297.0",
+          "violations": 34,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "Build every link to an app route from the route's NAME, in the view service: `request.app.url_path_for(\"<area>.<entity>.<action>\", **params)` (a relative path; `request.url_for` is absolute and carries the internal scheme and host behind a proxy). Put the finished string on the view model and render `{{ item.urls.detail }}`. A redirect, an `HX-Redirect` header and a path comparison resolve the name the same way. JavaScript cannot resolve a name: render the URL into the markup (an `hx-*` attribute, or `data-url` read as `el.dataset.url`); a nav or config file lists route NAMES, resolved in the view. Code with no request (a job's email, a device payload built in core) resolves the name through `luxarch --emit route-urls`: `absolute_url(settings.base_url, <name>, **params)`. Name the routes first (fw.route_names_unique). While the literals burn down, `luxarch --emit route-links` is the runtime net: it fails on any template link the live route table does not serve. See --playbook url-in-view.",
+          "example": ""
+        },
+        {
+          "rule": "fw.adversarial_wired",
+          "status": "INERT",
+          "since": "0.302.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "a read/derive app proves its reads hold against dirty data only through the adversarial sweep, and it is off here. To turn it ON: set [adversarial].enabled = true, then emit `adversarial`, `adversarial-invariants` and `adversarial-sweep` (this rule then enforces they are wired). See --doc FLEET-ADVERSARIAL-TESTING-STANDARD.",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.test_sessions_isolated",
+          "status": "FAIL",
+          "since": "0.304.0",
+          "violations": 6,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "Adopt the shipped harness, `luxarch --emit test-db-bound`, in its own conftest.py one directory above the tests, with TEST_DB_SESSION_FACTORY naming the app's sessionmaker. It runs every test in one rolled-back transaction that every session the app opens joins (routes, background jobs, importers of the factory), so delete the overrides and patches: the repo's own `db` fixture is `async with AsyncSessionLocal() as s: yield s`, its `client` uses the app as it is, and a test that must really commit requests `real_commits`. See --playbook test-isolation",
+          "example": ""
+        },
+        {
           "rule": "obs.method_span",
           "status": "PASS",
           "since": "0.10.0",
@@ -1851,7 +1906,7 @@
           "violations": 0,
           "deferred": false,
           "inert": true,
-          "inert_reason": "no external-client service method calls matches `create_service_span` \u2014 set `[observability.markers].span_fn` to the name this repo actually uses (or leave the baked default if it is already correct). A marker that matches nothing cannot certify anything",
+          "inert_reason": "no outbound client found to judge: no module constructs or calls an outbound client (httpx, requests, aiohttp, urllib3, botocore/boto3, aiobotocore/aioboto3, grpc, the OpenAI/Anthropic SDKs) and none follows the `*_client_service.py` naming \u2014 NOT a clearance: nothing was read",
           "fix": "",
           "example": ""
         },
@@ -1934,11 +1989,11 @@
         }
       ],
       "summary": {
-        "PASS": 149,
-        "FAIL": 0,
+        "PASS": 148,
+        "FAIL": 5,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 26
+        "INERT": 27
       }
     }
   ],
@@ -2047,6 +2102,17 @@
         "rule": "repo.fleet_skills_present",
         "status": "PASS",
         "since": "0.245.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
+        "rule": "repo.agent_push_declared",
+        "status": "PASS",
+        "since": "0.296.0",
         "violations": 0,
         "deferred": false,
         "inert": false,
@@ -2529,13 +2595,13 @@
       },
       {
         "rule": "repo.test_block_wired",
-        "status": "PASS",
+        "status": "FAIL",
         "since": "0.271.0",
-        "violations": 0,
+        "violations": 2,
         "deferred": false,
         "inert": false,
         "inert_reason": "",
-        "fix": "",
+        "fix": "Paste `luxarch --emit test-block` below the build core (`luxarch --emit build-core`; and below the image block when the repo has one) and delete the hand-written `test` (keep `test-db-up`/`test-db-down` only if another target, such as db-verify, calls them); set TEST_SERVICES (the backing services) and TEST_ENV (their URLs) above it, and never commit PYTEST_ARGS. Each test service: a healthcheck that is only the probe (Postgres: `pg_isready -h 127.0.0.1 -U <user> -d <db>`); no `container_name`, fixed host port, `network_mode`, bind-mounted or named volume, or named or shared network. A TEST_ENV value holding a quote, `$`, backslash or backtick goes in an `--env-file` git tracks (`test-suite.env`). LUXLINT is luxlint 0.67.0 or later in every value it can take. A `$(if \u2026)` fallback branch of the luxlint pin is pinned as `luxlint:$(LUXLINT_VERSION)`, never `luxlint:local`: the fleet never runs `:local`, and an offline run uses the one declared offline profile. See --doc FLEET-MAKEFILE-STANDARD \u00a71.",
         "example": ""
       },
       {
@@ -2684,19 +2750,19 @@
     ],
     "summary": {
       "PASS": 66,
-      "FAIL": 0,
+      "FAIL": 1,
       "XFAIL": 0,
       "XPASS": 0,
       "INERT": 1
     }
   },
   "summary": {
-    "PASS": 215,
-    "FAIL": 0,
+    "PASS": 214,
+    "FAIL": 6,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 27
+    "INERT": 28
   },
-  "commit": "ef9a6caa306ebc62a0a277c97506aabc7a2ae769",
-  "generated_at": "2026-10-13T02:40:42Z"
+  "commit": "9dc3f976f0fa576c0542913715b9e1a17ce71199",
+  "generated_at": "2026-10-27T03:50:02Z"
 }

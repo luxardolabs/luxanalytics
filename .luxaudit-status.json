@@ -1,27 +1,119 @@
 {
   "guard": "luxaudit",
-  "guard_version": "0.14.0",
+  "guard_version": "0.15.0",
   "repo": "/repo",
   "packages": 69,
   "source": "poetry.lock",
   "summary": {
-    "PASS": 69,
-    "FAIL": 0,
+    "PASS": 68,
+    "FAIL": 9,
     "XFAIL": 0
   },
-  "vulnerable": [],
+  "vulnerable": [
+    {
+      "package": "certifi",
+      "version": "2026.7.22",
+      "vuln_id": "PYSEC-2026-4320",
+      "fix": "2026.10.18",
+      "sources": [
+        "poetry.lock"
+      ],
+      "occurrences": [
+        {
+          "listed": [
+            "poetry.lock"
+          ],
+          "file": "poetry.lock"
+        }
+      ]
+    }
+  ],
   "deferred": [],
   "banned": [],
   "not_audited": [],
+  "warnings": [],
   "image": {
-    "ref": "luxardolabs/luxanalytics:2026.10.1",
+    "ref": "luxardolabs/luxanalytics:2026.10.2",
     "inert": false,
     "inert_reason": "",
     "error": "",
     "not_released": [],
-    "vulnerable": [],
+    "vulnerable": [
+      {
+        "package": "certifi",
+        "installed": "2026.7.22",
+        "vuln_id": "GHSA-6q48-6c7w-9gw2",
+        "severity": "CRITICAL",
+        "layer": "lang",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "2026.10.18"
+      },
+      {
+        "package": "curl",
+        "installed": "8.14.1-2+deb13u5",
+        "vuln_id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "layer": "os",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "8.14.1-2+deb13u7"
+      },
+      {
+        "package": "curl",
+        "installed": "8.14.1-2+deb13u5",
+        "vuln_id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "layer": "os",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "8.14.1-2+deb13u7"
+      },
+      {
+        "package": "curl",
+        "installed": "8.14.1-2+deb13u5",
+        "vuln_id": "CVE-2026-92392",
+        "severity": "HIGH",
+        "layer": "os",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "8.14.1-2+deb13u7"
+      },
+      {
+        "package": "libbrotli1",
+        "installed": "1.1.0-2+b7",
+        "vuln_id": "CVE-2026-111497",
+        "severity": "HIGH",
+        "layer": "os",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "1.1.0-2+deb13u1"
+      },
+      {
+        "package": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u5",
+        "vuln_id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "layer": "os",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "8.14.1-2+deb13u7"
+      },
+      {
+        "package": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u5",
+        "vuln_id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "layer": "os",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "8.14.1-2+deb13u7"
+      },
+      {
+        "package": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u5",
+        "vuln_id": "CVE-2026-92392",
+        "severity": "HIGH",
+        "layer": "os",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "8.14.1-2+deb13u7"
+      }
+    ],
     "deferred": []
   },
-  "commit": "ef9a6caa306ebc62a0a277c97506aabc7a2ae769",
-  "generated_at": "2026-10-13T02:40:42Z"
+  "commit": "9dc3f976f0fa576c0542913715b9e1a17ce71199",
+  "generated_at": "2026-10-27T03:50:02Z"
 }
