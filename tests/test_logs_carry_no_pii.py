@@ -32,6 +32,11 @@ def _logged(caplog: pytest.LogCaptureFixture) -> list[str]:
         f"/dashboard/user/{END_USER}",
         f"/dashboard/session/{END_USER}",
         f"/dashboard/events/content?search_q={END_USER}",
+        # The dashboard percent-encodes ids, so ? and # can be part of one
+        f"/dashboard/user/{END_USER}%3Fq",
+        f"/dashboard/session/{END_USER}%23frag",
+        # No route matches: the path itself is not logged
+        f"/dashboard/users/{END_USER}",
     ],
 )
 async def test_a_request_log_names_the_route_not_the_end_user(
@@ -40,7 +45,7 @@ async def test_a_request_log_names_the_route_not_the_end_user(
     with caplog.at_level(logging.DEBUG):
         r = await client.get(path, follow_redirects=False)
 
-    assert r.status_code == 303  # unauthenticated: bounced, and still logged
+    assert r.status_code in (303, 404)  # unauthenticated or unmatched, and still logged
     logged = _logged(caplog)
     assert any("Request completed" in line for line in logged)
     assert not [line for line in logged if END_USER in line]
