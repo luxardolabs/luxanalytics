@@ -37,7 +37,9 @@ class RateLimiter:
 
     @property
     def requests_per_window(self) -> int:
-        return self._requests_per_window or settings.RATE_LIMIT_REQUESTS
+        if self._requests_per_window is None:
+            return settings.RATE_LIMIT_REQUESTS
+        return self._requests_per_window
 
     @requests_per_window.setter
     def requests_per_window(self, value: int) -> None:
@@ -45,7 +47,9 @@ class RateLimiter:
 
     @property
     def window_seconds(self) -> int:
-        return self._window_seconds or settings.RATE_LIMIT_WINDOW
+        if self._window_seconds is None:
+            return settings.RATE_LIMIT_WINDOW
+        return self._window_seconds
 
     @window_seconds.setter
     def window_seconds(self, value: int) -> None:
@@ -179,25 +183,34 @@ class RateLimiter:
             }
 
 
+# Per-app budgets that differ from RATE_LIMIT_*: app_id -> (requests, window seconds). Empty:
+# every app has the default.
+APP_LIMITS: dict[str, tuple[int, int]] = {}
+
+
 class AppRateLimiter(RateLimiter):
     """Rate limiter specifically for app_id based limiting."""
 
     def __init__(self) -> None:
         super().__init__(key_prefix="app_rate_limit")
+        # An app with its own budget gets its own limiter, so the shared one is never
+        # reconfigured for every app after it.
+        self._own_budgets: dict[str, RateLimiter] = {}
 
     async def check_app_limit(
         self, app_id: str, cost: int = 1
     ) -> tuple[bool, dict[str, Any]]:
         """Check rate limit for specific app_id."""
-        # Could have different limits per app
-        app_limits: dict[str, tuple[int, int]] = {
-            # "premium_app": (1000, 60),  # 1000 requests per minute
-            # "basic_app": (100, 60),     # 100 requests per minute
-        }
-
-        if app_id in app_limits:
-            self.requests_per_window, self.window_seconds = app_limits[app_id]
-
+        if app_id in APP_LIMITS:
+            requests, window = APP_LIMITS[app_id]
+            own = self._own_budgets.get(app_id)
+            if own is None or (own.requests_per_window, own.window_seconds) != (
+                requests,
+                window,
+            ):
+                own = RateLimiter(requests, window, key_prefix=self.key_prefix)
+                self._own_budgets[app_id] = own
+            return await own.is_allowed(app_id, cost)
         return await self.is_allowed(app_id, cost)
 
 

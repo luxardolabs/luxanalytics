@@ -243,7 +243,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
             return Response(status_code=499)
 
-        if ip_metadata.get("allowed"):
+        # A 429 the app limit answered carries its own window; never overwrite it with the IP's.
+        if ip_metadata.get("allowed") and response.status_code != 429:
             response.headers["X-RateLimit-Limit"] = str(
                 self.ip_limiter.requests_per_window
             )

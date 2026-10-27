@@ -232,3 +232,49 @@ async def test_both_rate_limits_answer_the_same_429(
     for r in (app_429, ip_429):
         assert r.headers["Retry-After"]
         assert r.headers["X-RateLimit-Limit"] == str(LIMIT)
+
+
+async def test_the_app_429_reports_the_app_window(
+    limited: None, sample_app: App
+) -> None:
+    """The middleware adds the IP window's X-RateLimit-* to responses it passes: never onto a 429
+    the app limit answered, which says 0 remaining."""
+    async with _client() as ac:
+        for i in range(LIMIT):
+            body = _event()
+            await ac.post(
+                "/api/v1/events/",
+                content=body,
+                headers={
+                    **_signed(body, sample_app.app_id),
+                    "X-Forwarded-For": f"203.0.113.{i + 1}",
+                },
+            )
+        body = _event()
+        refused = await ac.post(
+            "/api/v1/events/",
+            content=body,
+            headers={
+                **_signed(body, sample_app.app_id),
+                "X-Forwarded-For": "203.0.113.201",
+            },
+        )
+
+    assert refused.status_code == 429
+    assert refused.headers["X-RateLimit-Remaining"] == "0"
+
+
+async def test_a_per_app_limit_does_not_change_other_apps_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A per-app budget applies to that app only; the shared limiter is not reconfigured by it."""
+    limiter = rate_limiter.AppRateLimiter()
+    monkeypatch.setattr(rate_limiter, "APP_LIMITS", {"small_app": (1, 60)})
+    monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+
+    assert (await limiter.check_app_limit("small_app"))[0]
+    assert not (await limiter.check_app_limit("small_app"))[0]
+    for _ in range(3):
+        allowed, _meta = await limiter.check_app_limit("other_app")
+        assert allowed
+    assert limiter.requests_per_window == settings.RATE_LIMIT_REQUESTS
