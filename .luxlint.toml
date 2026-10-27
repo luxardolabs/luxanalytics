@@ -4,7 +4,8 @@
 
 [source]
 # tests/, alembic/ and scripts/ are first-party code we maintain, so they are style-held like app/.
-paths = ["app", "tests", "alembic", "scripts"]
+# conftest.py (root) is luxarch's test-db-bound block: linted as-is, it is already canonical.
+paths = ["app", "tests", "alembic", "scripts", "conftest.py"]
 
 # Python 3.14 app (Dockerfile: python:3.14-slim) — check ruff/mypy at 3.14.
 [python]

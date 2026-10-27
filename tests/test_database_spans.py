@@ -19,7 +19,10 @@ pytestmark = pytest.mark.db
 
 
 @pytest.fixture
-async def engine() -> AsyncIterator[AsyncEngine]:
+async def engine(real_commits: None) -> AsyncIterator[AsyncEngine]:
+    """An engine of the test's own: the measurement instruments THIS engine. Its connections are not
+    the app's sessions, so the test runs outside the rolled-back transaction (`real_commits`); it only
+    reads."""
     built = create_async_engine(os.environ["TEST_DATABASE_URL"])
     yield built
     SQLAlchemyInstrumentor().uninstrument()

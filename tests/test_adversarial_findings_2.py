@@ -10,10 +10,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.core.middleware.request_middleware import InflatedTooLarge, inflate_body
+from app.db.database import AsyncSessionLocal
 from app.models.device_model import Device
 from app.models.event_model import Event
 from app.schemas.event_schema import EventCreate
@@ -81,8 +82,10 @@ async def _request(
 
 
 @pytest.mark.db
-async def test_opposite_order_batches_do_not_deadlock(_engine: AsyncEngine) -> None:
-    maker = async_sessionmaker(bind=_engine, expire_on_commit=False)
+async def test_opposite_order_batches_do_not_deadlock(real_commits: None) -> None:
+    # Two requests at once, each on its own connection, committing for real: the deadlock this
+    # locks out happens only between two transactions, which one rolled-back transaction cannot hold.
+    maker = AsyncSessionLocal
     app_id = f"adv_{uuid.uuid4().hex[:8]}"
     failures: list[str] = []
     try:
@@ -179,8 +182,10 @@ async def test_nul_in_an_event_is_a_422(
 
 @pytest.mark.db
 async def test_startup_migrations_do_not_relabel_the_app_logs(
-    capfd: pytest.CaptureFixture[str],
+    capfd: pytest.CaptureFixture[str], real_commits: None
 ) -> None:
+    # Startup migrations run on the engine's own connection, before any request: outside the
+    # rolled-back transaction by design (`real_commits`). At head they change nothing.
     import logging
 
     from app.core.logging_config import configure_logging

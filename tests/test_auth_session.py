@@ -12,7 +12,6 @@ import app.core.auth as auth_module
 from app.core.auth import SESSIONS_VALID_AFTER_KEY
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
-from app.db.database import get_db
 from app.main import create_application
 from app.models.app_model import App
 
@@ -244,7 +243,6 @@ async def test_a_malformed_logout_stamp_fails_closed_without_a_500(
     db: AsyncSession, stamp: str
 ) -> None:
     app = create_application()
-    app.dependency_overrides[get_db] = lambda: db
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         await _login(c, "198.51.100.210")

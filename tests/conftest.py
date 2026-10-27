@@ -1,15 +1,24 @@
-# luxlint canonical DB-test harness — the fleet pattern for testing against a REAL
-# database (not mocks). Emit it as a starting point:  luxlint --emit-config conftest
+# luxlint canonical DB-test fixtures — the repo's half of the fleet's test harness against a REAL
+# database (not mocks). Emit it as a starting point:  luxlint --emit-config conftest  (as tests/conftest.py)
 #
-# Adapt the REPO lines marked «EDIT» (your Base, your get_db dependency, your app factory,
-# your module-level sessionmaker, your alembic.ini). Everything else is the standard: a per-test transaction that ROLLS BACK,
-# so tests share one migrated schema, never see each other's writes, and stay fast.
+# The other half is NOT here and is not yours to write: luxarch's shipped test-db-bound block
+# (`luxarch --emit test-db-bound`, in its own conftest.py one directory above tests, with its three
+# EDIT THIS settings naming your app, its session dependency and its sessionmaker). It runs EVERY test
+# in one transaction that is rolled back: it binds the app's own sessionmaker to one connection per
+# test, so a route's get_db, a background job's own session and any module that imported the factory
+# all write inside it. That is why nothing below overrides `get_db`, patches `get_db_context` or swaps
+# the maker: each of those left a path that committed outside the rollback (`luxarch --playbook
+# test-isolation`, enforced by `fw.test_sessions_isolated`).
 #
-# Why real Postgres, not SQLite/mocks: you ship on Postgres — jsonb, enums, ON
-# CONFLICT, TimescaleDB, cascade behaviour and constraint errors only reproduce on
-# the real engine. A mock proves your mock works. Use a disposable container.
+# Adapt the lines marked «EDIT» (your app factory, the setting your engine reads, your sessionmaker,
+# your alembic.ini). Everything else is the standard.
+#
+# Why real Postgres, not SQLite/mocks: you ship on Postgres — jsonb, enums, ON CONFLICT, TimescaleDB,
+# cascade behaviour and constraint errors only reproduce on the real engine. A mock proves your mock
+# works. Use a disposable container.
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
@@ -17,42 +26,45 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-
-# «EDIT» — the module holding your module-level `async_sessionmaker`, and its name. Every fixture that
-# gives the test a database points this maker at it, so app code opening its own session
-# (`get_db_context()`, schedulers, durable modules) lands in the SAME database the test reads.
-import app.db.database as _appdb
-
-# «EDIT» — the FastAPI dependency your routes use to get a session
-from app.core.config import settings as app_settings
-from app.core.redis_client import close_redis_client, get_redis_client
-from app.db.database import get_db
-
-# «EDIT» — your app factory / instance
-from app.main import create_application as create_app
-
-# «EDIT» — your declarative Base (with every model imported so metadata is complete)
-from app.models.base_model import Base  # noqa: F401  (adjust import)
-
-_APP_MAKER = "AsyncSessionLocal"
 
 # THE test database. A DEDICATED env var — never the app's DATABASE_URL — so the suite can never
 # accidentally run against the dev/prod database (it did once: a committing test left real rows behind,
 # and a FAILING test skips its cleanup, so a stale row sat in dev for a week). The default is a
 # throwaway container. In CI: spin up postgres as a service; locally: `make test-db`.
-import os  # noqa: E402  (kept local to this canonical block)
-
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://test:test@localhost:5432/test",
 )
+
+
+def _worker_url() -> str:
+    """This worker's OWN database: `<db>_gw0`, `<db>_gw1`, ... under `pytest -n`, the plain URL when
+    serial. The test-db-bound block reads the same convention, so it holds each worker to its own.
+
+    Read from the ENV VAR xdist sets, not from xdist's `worker_id` fixture: that exists only while the
+    plugin is loaded, so depending on it errors the whole suite on any repo without pytest-xdist."""
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    if worker == "master":
+        return TEST_DATABASE_URL
+    base, name = TEST_DATABASE_URL.rsplit("/", 1)
+    return f"{base}/{name}_{worker}"
+
+
+WORKER_DATABASE_URL = _worker_url()
+# The app's engine is built from its own setting when the app is imported, so point that setting at
+# this worker's database FIRST: the block refuses a sessionmaker on any other database.
+os.environ["DATABASE_URL"] = (
+    WORKER_DATABASE_URL  # the setting app/db/database.py builds its engine from
+)
+
+from httpx import ASGITransport, AsyncClient  # noqa: E402  (after the database is chosen)
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+
+# The app's sessionmaker (the one TEST_DB_SESSION_FACTORY names) and its app factory
+from app.core.config import settings as app_settings  # noqa: E402
+from app.core.redis_client import close_redis_client, get_redis_client  # noqa: E402
+from app.db.database import AsyncSessionLocal  # noqa: E402
+from app.main import create_application  # noqa: E402
 
 
 def _guard_not_the_dev_database(url: str) -> None:
@@ -67,7 +79,7 @@ def _guard_not_the_dev_database(url: str) -> None:
         )
 
 
-def _build_test_schema(url: str = TEST_DATABASE_URL) -> None:
+def _build_test_schema(url: str = WORKER_DATABASE_URL) -> None:
     """Build the throwaway DB's schema the SAME WAY dev/prod does — from the MIGRATION CHAIN. On an
     alembic repo `Base.metadata.create_all` is banned (fw.schema_from_migrations): a create_all schema
     is built from the models, NOT the chain, so the suite would run on a schema that can silently
@@ -100,7 +112,7 @@ def _build_test_schema(url: str = TEST_DATABASE_URL) -> None:
     # Done through the ASYNC driver the repo already has, not a sync one. Stripping "+asyncpg" to get
     # a sync URL silently demands psycopg — and which psycopg, since SQLAlchemy 2.1 resolves a bare
     # `postgresql://` to psycopg v3 — so it would make an async-native repo install a driver it does
-    # not otherwise need. That is the same "(sync driver)" trap OPENCLAIM-355 reported in this file's
+    # not otherwise need. That is the same "(sync driver)" trap an adopter reported in this file's
     # docstring, and it is not worth re-introducing two fixtures below the correction.
     if url != TEST_DATABASE_URL:
         import asyncio as _asyncio
@@ -124,149 +136,50 @@ def _build_test_schema(url: str = TEST_DATABASE_URL) -> None:
     command.upgrade(cfg, "head")  # sync API — the fixture runs it off the event loop
 
 
-# ── per-worker database: what makes `pytest -n auto` possible at all ─────────────────────────────
-# A single shared test database forces serial execution, and that is the whole cost of a slow suite —
-# not the schema build. Measured on a 69-revision chain: `alembic upgrade head` is 0.6s, and workers
-# build in PARALLEL, so the wall-clock cost is one build no matter how many workers you run. (A
-# `CREATE DATABASE ... TEMPLATE` clone is ~0.05s, but it needs exclusive access to the template while
-# cloning, which is its own source of flakes under xdist. Measured, then rejected: it buys half a
-# second and costs a coordination problem.)
-@pytest.fixture(scope="session")
-def worker_db_url() -> str:
-    """This worker's OWN database — "gw0"/"gw1"/... under `-n`, the plain URL when serial.
-
-    Read from the ENV VAR xdist sets, not from xdist's `worker_id` fixture. The fixture exists only
-    while the plugin is loaded, so depending on it makes the whole suite error with
-    `fixture 'worker_id' not found` on any repo that has not installed pytest-xdist and on any run
-    with `-p no:xdist`. The env var is absent in exactly those cases, which is the same question
-    answered without a hard dependency on the plugin.
-    """
-    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-    if worker == "master":
-        return TEST_DATABASE_URL
-    base, name = TEST_DATABASE_URL.rsplit("/", 1)
-    return f"{base}/{name}_{worker}"
-
-
-# The schema is built ONCE per worker, SYNCHRONOUSLY — no event loop is involved, so nothing created
-# here can outlive the loop that made it. The engine is deliberately NOT session-scoped; see `_engine`.
-@pytest.fixture(scope="session")
-def _schema(worker_db_url: str) -> str:
+# The schema is built ONCE per worker, before any test, SYNCHRONOUSLY: no event loop is involved, so
+# nothing created here can outlive the loop that made it. A fresh database per worker is also what
+# makes `pytest -n auto` possible at all: a shared one forces serial execution. Measured on a
+# 69-revision chain: `alembic upgrade head` is 0.6s, and workers build in parallel.
+@pytest.fixture(scope="session", autouse=True)
+def _schema() -> str:
     """Build this worker's database + schema from the MIGRATION CHAIN, once. Returns its URL."""
-    _guard_not_the_dev_database(worker_db_url)
+    _guard_not_the_dev_database(WORKER_DATABASE_URL)
     _build_test_schema(
-        worker_db_url
+        WORKER_DATABASE_URL
     )  # `alembic upgrade head` — a sync call, no loop needed
-    return worker_db_url
+    return WORKER_DATABASE_URL
 
 
 @pytest_asyncio.fixture
-async def _engine(_schema: str) -> AsyncIterator[AsyncEngine]:
-    """An engine PER TEST, created and disposed inside the test's OWN event loop — the one engine
-    `db`, `owner_session` and `separate_connection` all draw from.
-
-    A session-scoped engine is shared across loops, which is what forces `loop_scope` gymnastics — and
-    when those are wrong the fixture teardown is deferred and a connection leaks per test until the pool
-    wedges (measured: five connections sitting at `BEGIN;`, the sixth test blocks forever). It is also
-    the reason a suite ends up needing an autouse `_dispose_app_engine_between_tests` hack. Creating an
-    engine is cheap — it opens nothing until first use — so per-test is the simpler, sounder default.
-    The small pool matters under `-n`: the ceiling is the DB's max_connections, not CPU. It still holds
-    the two connections a durability lock needs (writer + separate reader) plus `db`'s own.
-
-    **It also points the app's module-level maker at this engine**, for as long as the test runs. That
-    is what makes a durability lock mean anything under `-n`: the WRITER is app code
-    (`async with get_db_context()`), which asks the app's maker, and the READER is `separate_connection`,
-    which draws from here. Before 0.58.2 only `db` swapped the maker, and `owner_session` /
-    `separate_connection` deliberately don't take `db` (a lock needs real commits). Serial hid it,
-    because the worker database IS the base database. Under `-n` the writer landed in the unmigrated
-    base database and the reader looked in `…_gw0`: 27 of 735 open-claim tests failed, every one a
-    durability lock, each reading as an application bug (OPENCLAIM-357).
-
-    Under `-n`, a test that reaches app database code must request one of these fixtures (`db`,
-    `owner_session`, `separate_connection`, or `_engine` itself). Otherwise the app's maker still points
-    at the base database, which no worker migrates, and it fails loudly with `relation … does not
-    exist`. In serial the same test passes only because some EARLIER test happened to migrate that
-    database: a missing dependency hidden by ordering.
-
-    App code writing through the maker in a durability test REALLY commits, exactly like
-    `owner_session`: clean up what it committed. A fresh database per RUN is not enough, because later
-    tests in the same run see the rows, and a unique key seeded twice reads as a flaky test.
-    """
-    engine = create_async_engine(_schema, pool_size=2, max_overflow=3)
-    original = getattr(_appdb, _APP_MAKER)
-    setattr(_appdb, _APP_MAKER, async_sessionmaker(bind=engine, expire_on_commit=False))
-    try:
-        yield engine
-    finally:
-        setattr(_appdb, _APP_MAKER, original)
-        await engine.dispose()
-
-
-@pytest_asyncio.fixture
-async def db(_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
-    """One connection, one outer transaction, and a SAVEPOINT that EVERY session joins — so each test
-    starts from the same migrated schema and leaks nothing, whichever session owner did the writing.
-
-    Two properties this fixture used to CLAIM and not have, both measured against a fleet-shaped app
-    (LUXWX-1023). They are the reason a suite needs an engine-dispose hack between tests, and the reason
-    it cannot be parallelised:
-
-    1. `join_transaction_mode="create_savepoint"`. The previous version opened a plain
-       `connection.begin()`, so app code calling `commit()` COMMITTED THE OUTER TRANSACTION — the
-       rollback below then undid nothing, and on asyncpg it raised
-       `InterfaceError: cannot rollback; the transaction is in error state` outright. With savepoint
-       mode an inner commit commits a SAVEPOINT and the outer transaction survives to be rolled back.
-       (Several fleet conftests carry a comment calling this a "SAVEPOINT session". It was not one.)
-
-    2. The module-level MAKER is swapped, not just the FastAPI dependency. `dependency_overrides`
-       only covers the DI path; a session opened by `get_db_context()` — schedulers, background work,
-       owned/durable modules — builds its own session from the app's maker, commits to the shared
-       database and ESCAPES this rollback entirely. Measured: a route writing through the DI path and
-       a route writing through the context path, one test, one rollback; the DI row vanished and the
-       context row was still there afterwards. Patching the maker catches both, because both ask it.
-
-    The maker is named once, at the top (`_appdb` / `_APP_MAKER`). If your app has more than one, they
-    all need swapping — and that is worth fixing at the source instead
-    (`luxarch --playbook db-session-unification`).
-    """
-    connection = await _engine.connect()
-    trans = await connection.begin()
-    maker = async_sessionmaker(
-        bind=connection,
-        expire_on_commit=False,
-        join_transaction_mode="create_savepoint",
-    )
-    # Over `_engine`'s real-commit maker for this test; restored to it (not to the app's original) below.
-    previous = getattr(_appdb, _APP_MAKER)
-    setattr(_appdb, _APP_MAKER, maker)
-    session = maker()
-    try:
+async def db() -> AsyncIterator[AsyncSession]:
+    """A session from the app's OWN sessionmaker. The test-db-bound block has bound it to this test's
+    rolled-back transaction, so what the test writes here, and what any app code writes, is visible to
+    both and gone after the test."""
+    async with AsyncSessionLocal() as session:
         yield session
-    finally:
-        setattr(_appdb, _APP_MAKER, previous)
-        await session.close()
-        await trans.rollback()  # undo everything this test wrote, through EITHER owner
-        await connection.close()
 
 
 @pytest_asyncio.fixture
-async def client(db: AsyncSession) -> AsyncIterator[AsyncClient]:
-    """An HTTP client whose requests use the SAME rolled-back session, so an
-    end-to-end call and its assertions see one consistent transaction."""
-    app = create_app()
-    app.dependency_overrides[get_db] = lambda: db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+async def client() -> AsyncIterator[AsyncClient]:
+    """An HTTP client over the app as it is: its `get_db` opens sessions from the same sessionmaker, so a
+    request and the test's assertions see one transaction. No dependency override.
+
+    `https://localhost`: TrustedHostMiddleware is on in every environment, so a Host outside the
+    allowlist gets 400, and httpx refuses to store a `Secure` cookie (every fleet cookie is) over
+    http."""
+    app = create_application()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://localhost"
+    ) as ac:
         yield ac
-    app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _redis_client_per_test() -> AsyncIterator[None]:
-    """The suite runs against a real Redis (repo.test_stack_parity), isolated per test the way `db`
-    rolls back: what a test counted (rate-limit windows) is flushed after it. The app's client is one
-    per process, bound to the loop that opened it, and pytest-asyncio gives each test its own loop:
-    close it while this test's loop is alive, so the next test opens its own."""
+    """The suite runs against a real Redis (repo.test_stack_parity), isolated per test the way the
+    database rolls back: what a test counted (rate-limit windows) is flushed after it. The app's client
+    is one per process, bound to the loop that opened it, and pytest-asyncio gives each test its own
+    loop: close it while this test's loop is alive, so the next test opens its own."""
     yield
     redis_client = await get_redis_client()
     if redis_client is not None:
@@ -277,9 +190,9 @@ async def _redis_client_per_test() -> AsyncIterator[None]:
 
 def _guard_not_the_dev_redis(url: str) -> None:
     """FLUSHDB is irreversible: refuse it on anything but a throwaway test Redis, the way
-    _guard_not_the_dev_database refuses the dev/prod database. `make test` runs
-    luxanalytics_testredis; pytest inside the dev app container would otherwise wipe the dev
-    stack's Redis (rate-limit state) after its first test."""
+    _guard_not_the_dev_database refuses the dev/prod database. `make test` runs a throwaway Redis;
+    pytest inside the dev app container would otherwise wipe the dev stack's Redis (rate-limit state)
+    after its first test."""
     host = urlsplit(url).hostname or ""
     if "test" not in host.lower():
         raise RuntimeError(
@@ -289,32 +202,33 @@ def _guard_not_the_dev_redis(url: str) -> None:
 
 
 # ── durability fixtures ─────────────────────────────────────────────────────────────────────────
-# The rollback-isolated `db` fixture above SWALLOWS a commit() into its outer transaction — invisible to
-# any other connection — so it CANNOT prove cross-session durability (the bug class where a flush looked
-# durable but a background task on a pooled connection got None: BOUTIQUE-383). A durability lock needs
-# a session that REALLY commits plus a SEPARATE connection that sees only committed rows. See
-# `luxarch --playbook db-mutations` §7 and FLEET-VERIFICATION-STANDARD.
+# Inside the rolled-back transaction nothing commits, so it cannot prove cross-session durability (the
+# bug class where a flush looked durable but a background task on another connection got None). A
+# durability lock asks for the block's `real_commits`: its sessions REALLY commit on this worker's
+# database, and the block empties the tables after it. So seed what a test needs inside the test.
+# See `luxarch --playbook db-mutations` §7 and FLEET-VERIFICATION-STANDARD.
 @pytest_asyncio.fixture
-async def owner_session(_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
-    """A session that REALLY commits (its own connection, no outer rollback) — the writer in a
-    durability lock. Clean up what it commits, or use a disposable DB."""
-    maker = async_sessionmaker(bind=_engine, expire_on_commit=False)
-    async with maker() as s:
+async def owner_session(real_commits: None) -> AsyncIterator[AsyncSession]:
+    """A session that REALLY commits: the writer in a durability lock (the app's own sessionmaker, not
+    bound to a transaction in a `real_commits` test)."""
+    async with AsyncSessionLocal() as s:
         yield s
 
 
 @pytest_asyncio.fixture
-async def separate_connection(_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
-    """A DISTINCT connection that sees only COMMITTED rows — the reader in a durability lock. Assert
+async def separate_connection(real_commits: None) -> AsyncIterator[AsyncSession]:
+    """A DISTINCT connection that sees only COMMITTED rows: the reader in a durability lock. Assert
     invisibility on THIS before the owner commits, visibility after. Reading back through the writing
     session proves nothing."""
-    maker = async_sessionmaker(bind=_engine, expire_on_commit=False)
-    async with maker() as s:
-        yield s
+    engine = create_async_engine(WORKER_DATABASE_URL)
+    try:
+        async with AsyncSession(engine, expire_on_commit=False) as s:
+            yield s
+    finally:
+        await engine.dispose()
 
 
 # Usage:
-#   @pytest.mark.db
 #   async def test_create_item(db: AsyncSession) -> None:
 #       item = await ItemCrud().create(db, name="x")
 #       assert (await ItemCrud().get(db, item.id)).name == "x"

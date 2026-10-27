@@ -3,13 +3,15 @@
 from sqlalchemy import literal, select
 from sqlalchemy.pool import QueuePool
 
-from app.db.database import async_engine
+from app.db.database import AsyncSessionLocal, async_engine
 
 
 async def ping_database() -> None:
-    """SELECT 1 on a fresh connection; raises SQLAlchemyError/OSError when the DB is unreachable."""
-    async with async_engine.connect() as conn:
-        await conn.execute(select(literal(1)))
+    """SELECT 1 through the app's own sessionmaker; raises SQLAlchemyError/OSError when the DB is
+    unreachable. A session, not a bare engine connection: every connection the app opens comes from the
+    one factory (fw.test_sessions_isolated)."""
+    async with AsyncSessionLocal() as session:
+        await session.execute(select(literal(1)))
 
 
 def pool_counters() -> tuple[int, int, int, int] | None:
