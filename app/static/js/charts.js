@@ -25,7 +25,8 @@ function initCharts(root) {
         try {
             var config = JSON.parse(el.getAttribute('data-echart-config'));
 
-            // Heatmap tooltip — needs a JS function, can't be in JSON
+            // Heatmap tooltip — needs a JS function, can't be in JSON. ECharts inserts its string
+            // as HTML; data-heatmap-screens holds each screen name already HTML-escaped by the view.
             var heatmapScreens = el.getAttribute('data-heatmap-screens');
             if (heatmapScreens && config.tooltip) {
                 var screens = JSON.parse(heatmapScreens);

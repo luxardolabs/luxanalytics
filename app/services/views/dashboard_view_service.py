@@ -6,6 +6,7 @@ app, search replaces paging), and the 404 for a missing event. Routers render; t
 nothing. Architecture: Router -> DashboardViewService -> AnalyticsCoreService -> CRUD -> DB
 """
 
+import html
 from collections.abc import Iterable
 from typing import Any
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit
@@ -429,6 +430,12 @@ class DashboardViewService:
                     **data,
                     "requires_app": False,
                     "heatmap_height": heatmap_height,
+                    # charts.js builds the cell tooltip as HTML from these, and a screen name is
+                    # whatever any DSN holder sent: the text of each, escaped. The axes keep the
+                    # raw names (ECharts draws them as canvas text).
+                    "heatmap_tooltip_screens": [
+                        html.escape(s) for s in heatmap["screens"]
+                    ],
                     "heatmap_max": max((d[2] for d in heatmap["data"]), default=1),
                     "flow_rows": flow_rows,
                     "screen_cards": screen_cards,
