@@ -69,3 +69,6 @@ app/static/css/app.css
 .claude/.*.lock
 .claude/.*.tmp
 .claude/.*.unreadable-*
+
+# Adversarial-audit run files: one machine's local cache of reproductions (the issues carry the proof)
+/.adversarial-audit/

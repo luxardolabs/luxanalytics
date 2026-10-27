@@ -1,0 +1,61 @@
+# The adversarial audit's record for this repo (luxarch --emit adversarial-audit-skill).
+# [profile] says what an attacker wants here and where it sits; the owner reviews it. Each
+# [slices."<id>"] table records one attacked slice: copied from the sweep, never computed.
+
+[profile]
+written = "2026-10-27"
+commit = "6152758cb9741bd6fa279bb74f1fbb826b172e5a"
+crown_jewels = [
+  "the SDK end users' data every app sends: user_id, session_id, device ids and models, and free-form event properties (PII), across every registered app",
+  "the one dashboard account: a signed-in session reads every app's analytics, and creates, edits and deletes apps (and so their DSN credentials)",
+  "the ingest credentials: an app's DSN public_id + project_id and the HMAC_KEYS secrets; holding one writes events into that app",
+  "the integrity of the events table: events are never deleted (owner ruling), so a forged, replayed or cross-app write poisons an app's analytics for good",
+]
+actors = [
+  "anonymous internet clients: the login page, POST /login, /health, /metrics, the static mount, and the ingest routes with forged or missing auth",
+  "SDK clients: every iOS app ships its DSN (public_id + project_id) inside the binary, so that credential is effectively public; HMAC-signing clients hold a per-app secret",
+  "WebView clients posting from the origins in CORS_ORIGINS",
+  "the single dashboard operator (DASHBOARD_USERNAME / DASHBOARD_PASSWORD, a Redis-backed session)",
+]
+boundaries = [
+  "ingest bodies: JSON, gzip/deflate-compressed (inflated in request_middleware), batch or single, with SDK-chosen ids, timestamps and metadata",
+  "event metadata and properties: stored as JSONB and rendered back in the dashboard (detail panels, the explorer, feedback content): a stored-XSS path",
+  "request headers nginx forwards: Host (ALLOWED_HOSTS), X-Forwarded-For (rate-limit keys), X-Forwarded-Proto, Origin / Sec-Fetch-Site (the same-origin guard)",
+  "request-supplied redirect targets: `next` on login, HX-Current-URL on /set-app-context",
+  "Redis: sessions_valid_after (logout revocation, fails closed) and the rate-limit windows",
+]
+hot_spots = [
+  { path = "app/api/v1/routers/events_router.py", why = "every ingest route: HMAC, DSN and the public route; it writes the never-deleted events table" },
+  { path = "app/core/dsn_auth.py", why = "DSN auth: the project_id in the path must name the app whose public_id authenticates (LUXANALYTI-5)" },
+  { path = "app/core/security.py", why = "HMAC verification and its 60s replay window (LUXANALYTI-10)" },
+  { path = "app/core/middleware/request_middleware.py", why = "body inflation (decompression bombs) and the rate-limit keys, both reached before auth" },
+  { path = "app/core/auth.py", why = "the dashboard session, server-side logout revocation and the login redirect" },
+  { path = "app/crud/event_crud.py", why = "the raw analytics SQL, with its app_id filter (CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id)" },
+  { path = "app/templates/web/partials/dashboard", why = "renders SDK-supplied properties back to the operator" },
+]
+out_of_scope = [
+  { path = "app/static/vendor", why = "third-party bundles (htmx, Alpine, Chart.js, ECharts), pinned and not ours to fix" },
+  { path = "scripts/verify_migration_chain.py", why = "runs only inside make db-verify, against a throwaway Postgres" },
+]
+history = [
+  "LUXANALYTI-5: POST /api/v1/events/{project_id} accepted events without auth",
+  "LUXANALYTI-62: GET /api/v1/stats/overview served every app's analytics unauthenticated",
+  "LUXANALYTI-3: SQL text in timeline_buckets via literal_column (now SQLAlchemy expressions)",
+  "LUXANALYTI-1: CORS, TrustedHost, session cookies and middleware order locked down",
+  "LUXANALYTI-58: unlimited POST /login, and every client shared the proxy's rate-limit bucket",
+  "LUXANALYTI-10: the HMAC replay window was 5 minutes",
+  "LUXANALYTI-18: |safe in the LuxWX macros audited",
+  "LUXANALYTI-68: adversarial pass 2 (inflate bomb, ingest deadlock, id leniency, NUL bytes, 422s)",
+  "LUXANALYTI-84: devices keyed on device_id alone, so a phone shared by two apps belonged to the first",
+  "LUXANALYTI-89: the cross-site exemption could not cover the DSN route; it stays held to the guard",
+]
+
+[profile.surface]   # copied from the sweep's `surface:` line verbatim
+routes = 47
+anon = 1
+money = 0
+credential = 1
+upload = 0
+webhook = 2
+mounts = 1
+jobs = 3
