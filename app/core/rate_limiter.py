@@ -2,6 +2,7 @@
 
 import logging
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -12,6 +13,26 @@ from app.core.config import settings
 from app.core.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
+
+
+# The sliding window as one Redis script: drop what left the window, count, and add `cost` members
+# (each unique) only when they fit. One round trip, atomic. Returns {allowed, count after, oldest
+# score when refused}.
+_SLIDING_WINDOW = """
+local key, now, window = KEYS[1], tonumber(ARGV[1]), tonumber(ARGV[2])
+local limit, cost, member = tonumber(ARGV[3]), tonumber(ARGV[4]), ARGV[5]
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+local count = redis.call('ZCARD', key)
+if count + cost <= limit then
+    for i = 1, cost do
+        redis.call('ZADD', key, now, member .. ':' .. i)
+    end
+    redis.call('EXPIRE', key, window + 1)
+    return {1, count + cost, ''}
+end
+local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+return {0, count, oldest[2] or ''}
+"""
 
 
 class RateLimiter:
@@ -75,62 +96,45 @@ class RateLimiter:
     async def _check_redis(
         self, redis_client: redis.Redis, identifier: str, cost: int
     ) -> tuple[bool, dict[str, Any]]:
-        """Check rate limit using Redis with sliding window."""
+        """Check rate limit using Redis with sliding window: one atomic script, so a concurrent
+        burst cannot read the same count and all be admitted."""
         key = f"{self.key_prefix}:{identifier}"
         now = time.time()
-        window_start = now - self.window_seconds
+        try:
+            allowed, count, oldest = await redis_client.eval(
+                _SLIDING_WINDOW,
+                1,
+                key,
+                repr(now),
+                self.window_seconds,
+                self.requests_per_window,
+                cost,
+                uuid.uuid4().hex,
+            )
+        except RedisError, OSError:
+            # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
+            # the in-memory window, so requests stay limited. Anything else is a bug and raises.
+            logger.exception("Redis rate limit check failed")
+            return self._check_memory(identifier, cost)
 
-        # Use Redis pipeline for atomic operations
-        async with redis_client.pipeline() as pipe:
-            try:
-                # Remove old entries outside the window
-                pipe.zremrangebyscore(key, 0, window_start)
-
-                # Count requests in current window
-                pipe.zcard(key)
-
-                # Execute removal and count
-                results = await pipe.execute()
-                current_requests = results[1]
-
-                # Check if under limit
-                if current_requests + cost <= self.requests_per_window:
-                    # Add new request(s)
-                    pipe.zadd(key, {f"{now}:{cost}": now})
-                    pipe.expire(key, self.window_seconds + 1)
-                    await pipe.execute()
-
-                    remaining = self.requests_per_window - current_requests - cost
-                    reset_time = int(now + self.window_seconds)
-
-                    return True, {
-                        "allowed": True,
-                        "remaining": max(0, remaining),
-                        "reset": reset_time,
-                        "retry_after": None,
-                    }
-                else:
-                    # Get oldest request time to calculate retry_after
-                    oldest = await redis_client.zrange(key, 0, 0, withscores=True)
-                    if oldest:
-                        # withscores=True yields (member, score); the score is the float timestamp
-                        oldest_time = float(oldest[0][1])
-                        retry_after = int(oldest_time + self.window_seconds - now)
-                    else:
-                        retry_after = self.window_seconds
-
-                    return False, {
-                        "allowed": False,
-                        "remaining": 0,
-                        "reset": int(now + retry_after),
-                        "retry_after": retry_after,
-                    }
-
-            except RedisError, OSError:
-                # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
-                # the in-memory window, so requests stay limited. Anything else is a bug and raises.
-                logger.exception("Redis rate limit check failed")
-                return self._check_memory(identifier, cost)
+        if int(allowed):
+            return True, {
+                "allowed": True,
+                "remaining": max(0, self.requests_per_window - int(count)),
+                "reset": int(now + self.window_seconds),
+                "retry_after": None,
+            }
+        retry_after = (
+            max(1, int(float(oldest) + self.window_seconds - now))
+            if oldest
+            else self.window_seconds
+        )
+        return False, {
+            "allowed": False,
+            "remaining": 0,
+            "reset": int(now + retry_after),
+            "retry_after": retry_after,
+        }
 
     def _check_memory(self, identifier: str, cost: int) -> tuple[bool, dict[str, Any]]:
         """Fallback in-memory rate limiting."""
