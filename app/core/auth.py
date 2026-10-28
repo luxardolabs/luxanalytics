@@ -4,12 +4,15 @@ from datetime import UTC, datetime
 from urllib.parse import quote
 
 from fastapi import HTTPException, Request, status
-from redis.exceptions import RedisError
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
-from app.core.redis_client import get_redis_client
 from app.core.request_route import route_template
 from app.core.safe_redirect import safe_redirect_target
+from app.crud.dashboard_session_crud import (
+    read_sessions_valid_after,
+    write_sessions_valid_after,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,51 +41,30 @@ def verify_credentials(username: str, password: str) -> bool:
 
 
 # The server-side half of logout (FLEET-AUTH-SESSION-STANDARD §2.1). The session is a signed cookie,
-# so clearing it in one browser leaves a copied cookie valid until it expires. Logout stamps this
-# key with the time, and a session that logged in before the stamp is refused: one dashboard
-# account, so a logout signs out every session.
-SESSIONS_VALID_AFTER_KEY = "dashboard:sessions_valid_after"
+# so clearing it in one browser leaves a copied cookie valid until it expires. Logout stamps the
+# database's session-state row with the time, and a session that logged in before the stamp is
+# refused: one dashboard account, so a logout signs out every session.
 
 
 class SessionStoreError(Exception):
     """The logout stamp cannot be read or written: no session is accepted, no logout is complete."""
 
 
-async def _sessions_valid_after() -> datetime:
-    """The time before which every session is refused: the last logout's.
+async def _sessions_valid_after() -> datetime | None:
+    """The time before which every session is refused: the last logout's, or None when no logout
+    is recorded (the row is written by migration 011 and by every logout, so it is missing only
+    from a table emptied by hand).
 
-    A missing stamp is not "never logged out": prod Redis keeps no AOF, so a crash can bring it back
-    from a snapshot older than the last logout. The first reader writes the stamp as now (SET NX),
-    so a lost stamp signs everyone out once. Login asks this before it creates its session
-    (session_store_available), so its own login time lands after the stamp.
+    Login asks this before it creates its session (session_store_available), so a sign-in the
+    store cannot check is refused up front.
 
-    Raises SessionStoreError when Redis is unreachable or the stamp is not an aware ISO time, so
-    the caller fails closed: a session that cannot be checked against the last logout is refused.
+    Raises SessionStoreError when the database is unreachable, so the caller fails closed: a
+    session that cannot be checked against the last logout is refused.
     """
-    redis_client = await get_redis_client()
-    if redis_client is None:
-        raise SessionStoreError("Redis is unavailable; logouts cannot be checked")
     try:
-        stamp = await redis_client.get(SESSIONS_VALID_AFTER_KEY)
-        if stamp is None:
-            await redis_client.set(
-                SESSIONS_VALID_AFTER_KEY, datetime.now(UTC).isoformat(), nx=True
-            )
-            # NX: a concurrent reader may have written first; every reader uses the one stored
-            stamp = await redis_client.get(SESSIONS_VALID_AFTER_KEY)
-    except RedisError as exc:
+        return await read_sessions_valid_after()
+    except (SQLAlchemyError, OSError) as exc:
         raise SessionStoreError("the logout stamp cannot be read") from exc
-    if stamp is None:
-        raise SessionStoreError("the logout stamp could not be written")
-    # The client decodes responses (redis_client.py); bytes would mean it was built without that
-    text = stamp.decode() if isinstance(stamp, bytes) else stamp
-    try:
-        valid_after = datetime.fromisoformat(text)
-    except ValueError as exc:
-        raise SessionStoreError("the logout stamp is not an ISO time") from exc
-    if valid_after.tzinfo is None:
-        raise SessionStoreError("the logout stamp has no timezone")
-    return valid_after
 
 
 async def session_store_available() -> bool:
@@ -123,7 +105,8 @@ async def _authenticated_user(
         return username
 
     # Revoked by a logout after this session signed in
-    if login_dt <= await _sessions_valid_after():
+    valid_after = await _sessions_valid_after()
+    if valid_after is not None and login_dt <= valid_after:
         return None
 
     return username
@@ -188,20 +171,13 @@ async def revoke_sessions(request: Request) -> None:
     try:
         username = await _authenticated_user(request)
     except SessionStoreError:
-        # The stamp cannot be read (Redis down, or a malformed stamp): the cookie alone decides
-        # whether this caller was signed in, and the write below fails loudly if Redis is down
+        # The stamp cannot be read (the database is down): the cookie alone decides whether this
+        # caller was signed in, and the write below fails loudly while the database is down
         username = await _authenticated_user(request, check_logout=False)
     request.session.clear()
     if username is not None:
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            raise SessionStoreError(
-                "Redis is unavailable; the logout cannot be recorded"
-            )
         try:
-            await redis_client.set(
-                SESSIONS_VALID_AFTER_KEY, datetime.now(UTC).isoformat()
-            )
-        except RedisError as exc:
+            await write_sessions_valid_after(datetime.now(UTC))
+        except (SQLAlchemyError, OSError) as exc:
             raise SessionStoreError("the logout stamp cannot be written") from exc
         logger.info("User logged out", extra={"username": username})

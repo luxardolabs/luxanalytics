@@ -3,17 +3,19 @@ hosts"): a forged Host, a cross-site login POST, an open redirect, and a logout 
 the cookie in one browser."""
 
 import base64
+from datetime import datetime
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
+from sqlalchemy import delete, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.core.auth as auth_module
-from app.core.auth import SESSIONS_VALID_AFTER_KEY
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
-from app.main import create_application
 from app.models.app_model import App
+from app.models.dashboard_session_model import DashboardSessionState
 
 CREDENTIALS = {
     "username": settings.DASHBOARD_USERNAME,
@@ -148,17 +150,22 @@ async def test_a_copied_session_cookie_is_refused_after_logout(
 
 
 @pytest.mark.db
-async def test_a_logged_out_cookie_stays_refused_when_redis_loses_the_stamp(
+async def test_a_logged_out_cookie_stays_refused_when_redis_is_restored(
     client: AsyncClient,
 ) -> None:
-    """Redis (no AOF in prod) can come back from a snapshot older than the last logout. A missing
-    stamp does not read as "never logged out": a copied cookie still in date stays refused."""
+    """Redis keeps no AOF in prod and can come back from an older snapshot. The logout lives in the
+    database, so whatever Redis holds after a restore, a copied cookie still in date stays
+    refused."""
     await _login(client, "198.51.100.234")
     copied = client.cookies["analytics_session"]
     await client.post("/logout", follow_redirects=False)
     redis_client = await get_redis_client()
     assert redis_client is not None
-    await redis_client.delete(SESSIONS_VALID_AFTER_KEY)
+    # What a snapshot from before that logout would hold
+    await redis_client.flushdb()
+    await redis_client.set(
+        "dashboard:sessions_valid_after", "2000-01-01T00:00:00+00:00"
+    )
 
     client.cookies.set("analytics_session", copied)
     after = await client.get("/dashboard/overview", follow_redirects=False)
@@ -167,15 +174,46 @@ async def test_a_logged_out_cookie_stays_refused_when_redis_loses_the_stamp(
 
 
 @pytest.mark.db
-async def test_signing_in_works_with_no_stamp_yet_control(client: AsyncClient) -> None:
-    """A fresh store has no stamp; the first sign-in still works (and so does every later page)."""
-    redis_client = await get_redis_client()
-    assert redis_client is not None
-    await redis_client.delete(SESSIONS_VALID_AFTER_KEY)
+async def test_with_no_logout_recorded_sign_in_works_and_logout_records_one(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """An emptied table records no logout: sign-in works, and the next logout writes the row."""
+    await db.execute(delete(DashboardSessionState))
 
     await _login(client, "198.51.100.235")
+    assert (await client.get("/dashboard/overview")).status_code == 200
+    copied = client.cookies["analytics_session"]
+    await client.post("/logout", follow_redirects=False)
+
+    client.cookies.set("analytics_session", copied)
+    after = await client.get("/dashboard/overview", follow_redirects=False)
+    assert after.status_code == 303
+
+
+@pytest.mark.db
+async def test_reading_the_stamp_writes_nothing(
+    dashboard_client: AsyncClient, db: AsyncSession
+) -> None:
+    """Every signed-in GET reads the stamp: a GET that wrote would be reachable cross-site."""
+    stamp = select(DashboardSessionState.sessions_valid_after)
+    before = (await db.execute(stamp)).scalar_one_or_none()
+
+    assert (await dashboard_client.get("/dashboard/overview")).status_code == 200
+    assert (await db.execute(stamp)).scalar_one_or_none() == before
+
+
+@pytest.mark.db
+async def test_dashboard_sessions_work_without_redis(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sessions need only the database: Redis down costs the rate limits their shared window, not
+    the dashboard."""
+    monkeypatch.setattr(settings, "REDIS_URL", None)
+    await _login(client, "198.51.100.236")
 
     assert (await client.get("/dashboard/overview")).status_code == 200
+    out = await client.post("/logout", follow_redirects=False)
+    assert out.headers["location"].startswith("/login?message=")
 
 
 @pytest.mark.db
@@ -193,12 +231,18 @@ async def test_logout_is_not_a_get(client: AsyncClient) -> None:
 
 
 @pytest.mark.db
-async def test_an_anonymous_logout_revokes_nothing(client: AsyncClient) -> None:
+async def test_an_anonymous_logout_revokes_nothing(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    stamp = select(DashboardSessionState.sessions_valid_after)
+    before = (await db.execute(stamp)).scalar_one_or_none()
     r = await client.post("/logout", follow_redirects=False)
     assert r.status_code == 303
-    redis_client = await get_redis_client()
-    assert redis_client is not None
-    assert await redis_client.get(SESSIONS_VALID_AFTER_KEY) is None
+    assert (await db.execute(stamp)).scalar_one_or_none() == before
+
+
+async def _database_down(*now: datetime) -> None:
+    raise OperationalError("SELECT 1", {}, ConnectionRefusedError())
 
 
 @pytest.mark.db
@@ -207,19 +251,12 @@ async def test_a_session_is_refused_when_logouts_cannot_be_checked(
 ) -> None:
     await _login(client, "198.51.100.207")
 
-    async def no_redis() -> None:
-        return None
-
-    monkeypatch.setattr(auth_module, "get_redis_client", no_redis)
+    monkeypatch.setattr(auth_module, "read_sessions_valid_after", _database_down)
     r = await client.get("/dashboard/overview", follow_redirects=False)
     assert r.status_code == 303
 
 
 # ── Adversarial pass findings (kept as regressions) ─────────────────────────────────────────────
-
-
-async def _no_redis() -> None:
-    return None
 
 
 @pytest.mark.db
@@ -238,13 +275,14 @@ async def test_sdk_ingest_from_a_webview_origin_is_not_refused(
 
 
 @pytest.mark.db
-async def test_a_logout_during_a_redis_outage_says_it_revoked_nothing(
+async def test_a_logout_during_a_database_outage_says_it_revoked_nothing(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """It used to answer "You have been logged out" and skip the stamp, so a copied cookie
-    still worked once Redis was back."""
+    """A logout whose stamp cannot be written says so: a copied cookie would still work once the
+    database is back."""
     await _login(client, "198.51.100.208")
-    monkeypatch.setattr(auth_module, "get_redis_client", _no_redis)
+    monkeypatch.setattr(auth_module, "read_sessions_valid_after", _database_down)
+    monkeypatch.setattr(auth_module, "write_sessions_valid_after", _database_down)
     r = await client.post("/logout", follow_redirects=False)
     assert r.status_code == 303
     assert "other+sessions+were+not+revoked" in r.headers["location"]
@@ -255,8 +293,8 @@ async def test_a_logout_during_a_redis_outage_says_it_revoked_nothing(
 async def test_sign_in_says_so_when_the_session_store_is_down(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """It used to accept the password and loop back to the login page with no word why."""
-    monkeypatch.setattr(auth_module, "get_redis_client", _no_redis)
+    """A password accepted while sessions cannot be checked would loop back to the login page."""
+    monkeypatch.setattr(auth_module, "read_sessions_valid_after", _database_down)
     client.base_url = "https://test"
     r = await client.post(
         "/login",
@@ -266,28 +304,6 @@ async def test_sign_in_says_so_when_the_session_store_is_down(
     )
     assert r.status_code == 303
     assert "session+store+is+down" in r.headers["location"]
-
-
-@pytest.mark.db
-@pytest.mark.parametrize("stamp", ["garbage", "2026-10-12T00:00:00"])
-async def test_a_malformed_logout_stamp_fails_closed_without_a_500(
-    db: AsyncSession, stamp: str
-) -> None:
-    app = create_application()
-    transport = ASGITransport(app=app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="https://test") as c:
-        await _login(c, "198.51.100.210")
-        redis_client = await get_redis_client()
-        assert redis_client is not None
-        await redis_client.set(SESSIONS_VALID_AFTER_KEY, stamp)
-        page = await c.get("/dashboard/overview", follow_redirects=False)
-        assert page.status_code == 303  # refused, not a 500
-        # The logout reads only the cookie, so it still writes a good stamp over the bad one
-        out = await c.post("/logout", follow_redirects=False)
-        assert out.status_code == 303
-        assert out.headers["location"].startswith("/login?message=")
-        assert await _login(c, "198.51.100.210") == "/dashboard/overview"
-        assert (await c.get("/dashboard/overview")).status_code == 200
 
 
 @pytest.mark.db

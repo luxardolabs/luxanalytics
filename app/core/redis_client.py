@@ -24,7 +24,7 @@ async def get_redis_client() -> redis.Redis | None:
         try:
             # A blocking pool: a burst wider than the pool waits (up to `timeout`) for a free
             # connection. A failed checkout would send each rate-limit check to the in-memory window
-            # (a second budget) and refuse the dashboard's fail-closed session check.
+            # (a second budget).
             pool = redis.BlockingConnectionPool.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",

@@ -243,6 +243,24 @@ _ = pytest  # keep the import meaningful when a repo trims the sample tests
 
 
 @pytest_asyncio.fixture
+async def dashboard_client(client: AsyncClient) -> AsyncIterator[AsyncClient]:
+    """`client`, signed in to the dashboard through the real POST /login (the session cookie is
+    https_only, hence the https base URL)."""
+    client.base_url = "https://test"
+    r = await client.post(
+        "/login",
+        data={
+            "username": app_settings.DASHBOARD_USERNAME,
+            "password": app_settings.DASHBOARD_PASSWORD,
+        },
+        headers={"X-Forwarded-For": "198.51.100.240"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303, r.text
+    yield client
+
+
+@pytest_asyncio.fixture
 async def sample_app(db: AsyncSession) -> object:
     """Create a sample app for testing."""
     from app.models.app_model import App

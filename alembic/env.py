@@ -20,7 +20,7 @@ sys.path.insert(0, dirname(dirname(abspath(__file__))))
 # Import all models so they register with Base.metadata
 from app.core.config import settings
 from app.core.logging_config import configure_logging
-from app.models import App, Device, Event
+from app.models import App, DashboardSessionState, Device, Event
 from app.models.base_model import Base
 
 # Alembic Config object
@@ -35,7 +35,7 @@ if config.attributes.get("connection") is None:
 
 # The models whose tables autogenerate and db-verify compare: importing them registers each
 # table on Base.metadata.
-MODELS = (App, Device, Event)
+MODELS = (App, DashboardSessionState, Device, Event)
 target_metadata = Base.metadata
 
 
