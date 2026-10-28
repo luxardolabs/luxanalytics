@@ -2659,9 +2659,12 @@ backup:
 
 restore:
 	@if [ -z "$(FILE)" ]; then echo "Usage: make restore FILE=backups/luxanalytics_YYYYMMDD_HHMMSS.sql"; exit 1; fi
-	@$(DEV_COMPOSE) exec -T luxanalytics_db psql -U luxanalytics -d luxanalytics < $(FILE)
-	@# The dump's session generation may be one a later logout revoked: sign everyone out
-	@$(DEV_COMPOSE) exec -T luxanalytics_app python -m app.scripts.sign_out_everyone
+	@# The app is down from the restore until every session is signed out: the dump's session
+	@# generation may be one a later logout revoked, and must never be served
+	@$(DEV_COMPOSE) stop luxanalytics_app
+	@case "$(FILE)" in *.gz) gunzip -c "$(FILE)";; *) cat "$(FILE)";; esac | $(DEV_COMPOSE) exec -T luxanalytics_db psql -U luxanalytics -d luxanalytics
+	@$(DEV_COMPOSE) run --rm --no-deps luxanalytics_app python -m app.scripts.sign_out_everyone
+	@$(DEV_COMPOSE) start luxanalytics_app
 	@echo "✅ Database restored from $(FILE)"
 
 work: ## Publish this commit, pin it in .env.dev, restart, migrate, tail logs

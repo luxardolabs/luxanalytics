@@ -4,6 +4,10 @@ Additive: a new table and its one row, at a random generation, which no existing
 so every session signs in again once. The logout revocation lives here from this revision on; the
 Redis key `dashboard:sessions_valid_after` is no longer read.
 
+Downgrade drops the table. A release before this one reads that Redis key instead, which no logout
+since this revision wrote: delete it (`redis-cli DEL dashboard:sessions_valid_after`) when rolling
+back, and the earlier release signs everyone out rather than accept a cookie revoked here.
+
 Revision ID: 011_dashboard_session_state
 Revises: 010_devices_per_app
 Create Date: 2026-10-28 02:30:00.000000

@@ -84,7 +84,7 @@ async def _authenticated_user(
     """The signed-in username, or None: no session, expired, or revoked by a logout.
 
     Raises SessionStoreError when the generation cannot be checked. ``check_logout=False`` asks
-    the cookie alone (in date, signed in), for a logout that cannot read the generation.
+    the cookie alone (in date, signed in), for a logout, whose write checks the generation.
     """
     # A refused cookie is left as it is: it is refused on every request, and login replaces it
     session = request.session
@@ -166,26 +166,22 @@ def create_session(request: Request, username: str, generation: int) -> None:
 async def revoke_sessions(request: Request) -> None:
     """Log out: clear this browser's cookie, and revoke every session on the server.
 
-    Only a caller whose signed cookie is in date advances the generation, so an anonymous request
-    cannot sign the operator out. When the generation cannot be read, the cookie alone decides,
-    because a session store that is down must fail this logout loudly, never skip the revocation.
+    The generation advances only from the one this cookie carries, in a single compare-and-advance:
+    an anonymous request, or a cookie a logout already revoked, changes nothing, with or without a
+    readable database, so neither can sign the operator out.
 
-    Raises SessionStoreError when the generation cannot be advanced: the cookie is cleared, but
-    other sessions are NOT revoked, and the caller must say so.
+    Raises SessionStoreError when the database cannot be written: the cookie is cleared, but other
+    sessions are NOT revoked, and the caller must say so.
     """
-    try:
-        username = await _authenticated_user(request)
-    except SessionStoreError:
-        # The generation cannot be read (the database is down, or the row is missing): the cookie
-        # alone decides whether this caller was signed in, and the write below fails loudly while
-        # the database is down
-        username = await _authenticated_user(request, check_logout=False)
+    # The cookie alone (in date, signed in): whether its generation is current is the write's test
+    username = await _authenticated_user(request, check_logout=False)
+    generation = request.session.get("generation")
     request.session.clear()
-    if username is not None:
-        try:
-            await advance_session_generation()
-        except (SQLAlchemyError, OSError) as exc:
-            raise SessionStoreError(
-                "the session generation cannot be advanced"
-            ) from exc
+    if username is None or not isinstance(generation, int):
+        return
+    try:
+        advanced = await advance_session_generation(generation)
+    except (SQLAlchemyError, OSError) as exc:
+        raise SessionStoreError("the session generation cannot be advanced") from exc
+    if advanced:
         logger.info("User logged out", extra={"username": username})

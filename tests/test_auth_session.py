@@ -15,10 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.core.auth as auth_module
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
-from app.crud.dashboard_session_crud import (
-    ensure_session_generation,
-    reset_session_generation,
-)
+from app.crud.dashboard_session_crud import reset_session_generation
+from app.main import create_application, lifespan
 from app.models.app_model import App
 from app.models.dashboard_session_model import DashboardSessionState
 
@@ -204,13 +202,17 @@ async def test_a_missing_row_refuses_every_session(
 
 @pytest.mark.db
 async def test_startup_rewrites_a_lost_row_signing_everyone_out(
-    client: AsyncClient, db: AsyncSession
+    client: AsyncClient, owner_session: AsyncSession
 ) -> None:
+    """The app's own startup (lifespan), not the helper: it migrates, then writes a lost row. Real
+    commits, because startup opens the engine itself."""
     await _login(client, "198.51.100.237")
     copied = client.cookies["analytics_session"]
-    await db.execute(delete(DashboardSessionState))
+    await owner_session.execute(delete(DashboardSessionState))
+    await owner_session.commit()
 
-    await ensure_session_generation()
+    async with lifespan(create_application()):
+        pass
 
     assert await _replay(client, copied) == 303
     client.cookies.clear()
@@ -321,8 +323,44 @@ async def test_an_anonymous_logout_revokes_nothing(
     assert (await db.execute(GENERATION)).scalar_one() == before
 
 
-async def _database_down() -> None:
+async def _database_down(*generation: int) -> None:
     raise OperationalError("SELECT 1", {}, ConnectionRefusedError())
+
+
+@pytest.mark.db
+async def test_a_revoked_cookie_cannot_sign_the_operator_out_while_reads_fail(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stolen cookie a logout revoked, still in date, posts /logout while generation reads time
+    out: the write itself checks the cookie's generation, so the operator's session survives."""
+    await _login(client, "198.51.100.243")
+    revoked = client.cookies["analytics_session"]
+    await client.post("/logout", follow_redirects=False)
+    await _login(client, "198.51.100.243")
+    live = client.cookies["analytics_session"]
+
+    monkeypatch.setattr(auth_module, "read_session_generation", _database_down)
+    client.cookies.set("analytics_session", revoked)
+    await client.post("/logout", follow_redirects=False)
+    monkeypatch.undo()
+
+    assert await _replay(client, live) == 200
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("generation", [(1 << 62) - 1, (1 << 63) - 1])
+async def test_a_logout_at_the_top_of_the_range_still_revokes(
+    client: AsyncClient, db: AsyncSession, generation: int
+) -> None:
+    """Advancing never leaves BIGINT, even from a generation set by hand at its maximum."""
+    await db.execute(update(DashboardSessionState).values(generation=generation))
+    await _login(client, "198.51.100.244")
+    copied = client.cookies["analytics_session"]
+
+    out = await client.post("/logout", follow_redirects=False)
+
+    assert out.headers["location"].startswith("/login?message=")
+    assert await _replay(client, copied) == 303
 
 
 @pytest.mark.db
