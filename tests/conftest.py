@@ -63,6 +63,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 # The app's sessionmaker (the one TEST_DB_SESSION_FACTORY names) and its app factory
 from app.core.config import settings as app_settings  # noqa: E402
 from app.core.redis_client import close_redis_client, get_redis_client  # noqa: E402
+from app.crud.dashboard_session_crud import ensure_session_generation  # noqa: E402 - imported once the test database is chosen, like the app modules above
 from app.db.database import AsyncSessionLocal  # noqa: E402
 from app.main import create_application  # noqa: E402
 
@@ -240,6 +241,13 @@ _ = pytest  # keep the import meaningful when a repo trims the sample tests
 
 
 # ── Seed Data Fixtures ────────────────────────────────────────────────────────
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _session_generation_row() -> None:
+    """The dashboard's session-generation row, as app startup writes it: the in-process client runs
+    no lifespan, and the test-db-bound block empties every table after a real-commit test."""
+    await ensure_session_generation()
 
 
 @pytest_asyncio.fixture

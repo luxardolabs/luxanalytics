@@ -33,6 +33,7 @@ from app.core.redis_client import close_redis_client
 from app.core.same_origin import SameOriginMiddleware
 from app.core.telemetry import setup_telemetry
 from app.core.trusted_host import AllowedHostsMiddleware
+from app.crud.dashboard_session_crud import ensure_session_generation
 from app.db.database import async_engine
 
 # Every model registered on Base.metadata before anything migrates or queries.
@@ -119,6 +120,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     await wait_for_database()
     await run_migrations()
+    # A session-state row lost from the table comes back at a fresh generation: everyone signs in
+    # again, no revoked cookie returns
+    await ensure_session_generation()
     logger.info("✅ Application startup completed successfully!")
 
     yield

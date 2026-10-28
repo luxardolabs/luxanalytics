@@ -3,19 +3,34 @@ hosts"): a forged Host, a cross-site login POST, an open redirect, and a logout 
 the cookie in one browser."""
 
 import base64
-from datetime import datetime
+from datetime import UTC, datetime, timedelta, tzinfo
+from typing import Self
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.core.auth as auth_module
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
+from app.crud.dashboard_session_crud import (
+    ensure_session_generation,
+    reset_session_generation,
+)
 from app.models.app_model import App
 from app.models.dashboard_session_model import DashboardSessionState
+
+GENERATION = select(DashboardSessionState.generation)
+
+
+async def _replay(client: AsyncClient, cookie: str) -> int:
+    """GET a dashboard page with only `cookie` as the session."""
+    client.cookies.set("analytics_session", cookie)
+    r = await client.get("/dashboard/overview", follow_redirects=False)
+    return r.status_code
+
 
 CREDENTIALS = {
     "username": settings.DASHBOARD_USERNAME,
@@ -174,32 +189,98 @@ async def test_a_logged_out_cookie_stays_refused_when_redis_is_restored(
 
 
 @pytest.mark.db
-async def test_with_no_logout_recorded_sign_in_works_and_logout_records_one(
+async def test_a_missing_row_refuses_every_session(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    """An emptied table records no logout: sign-in works, and the next logout writes the row."""
+    """With the row gone, no cookie can be checked against the last logout: none is accepted, and
+    no new one is opened."""
+    await _login(client, "198.51.100.235")
+    copied = client.cookies["analytics_session"]
     await db.execute(delete(DashboardSessionState))
 
-    await _login(client, "198.51.100.235")
-    assert (await client.get("/dashboard/overview")).status_code == 200
-    copied = client.cookies["analytics_session"]
-    await client.post("/logout", follow_redirects=False)
-
-    client.cookies.set("analytics_session", copied)
-    after = await client.get("/dashboard/overview", follow_redirects=False)
-    assert after.status_code == 303
+    assert await _replay(client, copied) == 303
+    assert "session+store+is+down" in await _login(client, "198.51.100.235")
 
 
 @pytest.mark.db
-async def test_reading_the_stamp_writes_nothing(
+async def test_startup_rewrites_a_lost_row_signing_everyone_out(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    await _login(client, "198.51.100.237")
+    copied = client.cookies["analytics_session"]
+    await db.execute(delete(DashboardSessionState))
+
+    await ensure_session_generation()
+
+    assert await _replay(client, copied) == 303
+    client.cookies.clear()
+    await _login(client, "198.51.100.237")
+    assert (await client.get("/dashboard/overview")).status_code == 200
+
+
+@pytest.mark.db
+async def test_reading_the_generation_writes_nothing(
     dashboard_client: AsyncClient, db: AsyncSession
 ) -> None:
-    """Every signed-in GET reads the stamp: a GET that wrote would be reachable cross-site."""
-    stamp = select(DashboardSessionState.sessions_valid_after)
-    before = (await db.execute(stamp)).scalar_one_or_none()
+    """Every signed-in GET reads the generation: a GET that wrote would be reachable cross-site."""
+    before = (await db.execute(GENERATION)).scalar_one()
 
     assert (await dashboard_client.get("/dashboard/overview")).status_code == 200
-    assert (await db.execute(stamp)).scalar_one_or_none() == before
+    assert (await db.execute(GENERATION)).scalar_one() == before
+
+
+@pytest.mark.db
+async def test_a_logout_after_the_clock_steps_back_still_revokes(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The clock ran fast at sign-in and NTP stepped it back before the logout: a count, not a
+    time, so the copy is refused all the same."""
+    await _login(client, "198.51.100.238")
+    copied = client.cookies["analytics_session"]
+    stepped_back = datetime.now(UTC) - timedelta(minutes=2)
+
+    class SteppedBack(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> Self:
+            return cls.fromtimestamp(stepped_back.timestamp(), tz)
+
+    monkeypatch.setattr(auth_module, "datetime", SteppedBack)
+    await client.post("/logout", follow_redirects=False)
+    monkeypatch.undo()
+
+    assert await _replay(client, copied) == 303
+
+
+@pytest.mark.db
+async def test_two_logouts_both_count(client: AsyncClient, db: AsyncSession) -> None:
+    """A logout advances the generation by one atomically: two logouts in any order are two steps,
+    so neither can undo the other."""
+    before = (await db.execute(GENERATION)).scalar_one()
+    for ip in ("198.51.100.239", "198.51.100.241"):
+        await _login(client, ip)
+        await client.post("/logout", follow_redirects=False)
+
+    assert (await db.execute(GENERATION)).scalar_one() == before + 2
+
+
+@pytest.mark.db
+async def test_signing_everyone_out_after_a_restore_refuses_every_cookie(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """A restored dump brings back the generation of its time, which a cookie revoked later may
+    hold; `make restore` then moves to a fresh generation."""
+    dump_time = (await db.execute(GENERATION)).scalar_one()
+    await _login(client, "198.51.100.242")
+    revoked_later = client.cookies["analytics_session"]
+    await client.post("/logout", follow_redirects=False)
+    await db.execute(update(DashboardSessionState).values(generation=dump_time))
+    assert (
+        await _replay(client, revoked_later) == 200
+    )  # what the restore alone brings back
+
+    await reset_session_generation()  # what app.scripts.sign_out_everyone runs
+
+    assert await _replay(client, revoked_later) == 303
 
 
 @pytest.mark.db
@@ -234,14 +315,13 @@ async def test_logout_is_not_a_get(client: AsyncClient) -> None:
 async def test_an_anonymous_logout_revokes_nothing(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    stamp = select(DashboardSessionState.sessions_valid_after)
-    before = (await db.execute(stamp)).scalar_one_or_none()
+    before = (await db.execute(GENERATION)).scalar_one()
     r = await client.post("/logout", follow_redirects=False)
     assert r.status_code == 303
-    assert (await db.execute(stamp)).scalar_one_or_none() == before
+    assert (await db.execute(GENERATION)).scalar_one() == before
 
 
-async def _database_down(*now: datetime) -> None:
+async def _database_down() -> None:
     raise OperationalError("SELECT 1", {}, ConnectionRefusedError())
 
 
@@ -251,7 +331,7 @@ async def test_a_session_is_refused_when_logouts_cannot_be_checked(
 ) -> None:
     await _login(client, "198.51.100.207")
 
-    monkeypatch.setattr(auth_module, "read_sessions_valid_after", _database_down)
+    monkeypatch.setattr(auth_module, "read_session_generation", _database_down)
     r = await client.get("/dashboard/overview", follow_redirects=False)
     assert r.status_code == 303
 
@@ -281,8 +361,8 @@ async def test_a_logout_during_a_database_outage_says_it_revoked_nothing(
     """A logout whose stamp cannot be written says so: a copied cookie would still work once the
     database is back."""
     await _login(client, "198.51.100.208")
-    monkeypatch.setattr(auth_module, "read_sessions_valid_after", _database_down)
-    monkeypatch.setattr(auth_module, "write_sessions_valid_after", _database_down)
+    monkeypatch.setattr(auth_module, "read_session_generation", _database_down)
+    monkeypatch.setattr(auth_module, "advance_session_generation", _database_down)
     r = await client.post("/logout", follow_redirects=False)
     assert r.status_code == 303
     assert "other+sessions+were+not+revoked" in r.headers["location"]
@@ -294,7 +374,7 @@ async def test_sign_in_says_so_when_the_session_store_is_down(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A password accepted while sessions cannot be checked would loop back to the login page."""
-    monkeypatch.setattr(auth_module, "read_sessions_valid_after", _database_down)
+    monkeypatch.setattr(auth_module, "read_session_generation", _database_down)
     client.base_url = "https://test"
     r = await client.post(
         "/login",

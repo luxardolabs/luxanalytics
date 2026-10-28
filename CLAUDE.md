@@ -242,7 +242,7 @@ make prod-release
 ## Authentication
 
 - **Dashboard**: Session-based (cookie), configured via `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`
-- **Logout is `POST /logout` and revokes on the server**: it stamps the one `dashboard_session_state` row (Postgres, `app/crud/dashboard_session_crud.py`), and `get_current_user` refuses any session that signed in before it (every session: one account). An unreadable database refuses sessions (fail closed). Migration 011 writes the row and every logout upserts it; reading it never writes, and an emptied table reads as no logout recorded. Sessions do not need Redis. FLEET-AUTH-SESSION-STANDARD §2.1
+- **Logout is `POST /logout` and revokes on the server**: each cookie carries the session generation of the one `dashboard_session_state` row (Postgres, `app/crud/dashboard_session_crud.py`); logout advances it, and `get_current_user` refuses a cookie of any other generation (every session: one account). An unreadable database or a missing row refuses sessions (fail closed); startup rewrites a missing row at a random generation. After a database restore, run `python -m app.scripts.sign_out_everyone` (`make restore` does). Sessions do not need Redis. FLEET-AUTH-SESSION-STANDARD §2.1
 - **Every unsafe-method request passes `SameOriginMiddleware`** (`app/core/same_origin.py`, emitted): a cross-site POST is a 403 (login CSRF, §5). Requests without browser headers (the iOS SDK) pass
 - **`ALLOWED_HOSTS` is required** (`app/core/trusted_host.py`, emitted): set per `.env.<env>`, no ports, never `*`; the in-container `/health` probe needs no entry
 - **Every request-supplied redirect target** goes through `safe_redirect_target` (`app/core/safe_redirect.py`, emitted), §6

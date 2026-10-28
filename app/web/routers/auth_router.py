@@ -6,9 +6,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from app.core.auth import (
     SessionStoreError,
     create_session,
+    current_session_generation,
     get_current_user,
     revoke_sessions,
-    session_store_available,
     verify_credentials,
 )
 from app.core.config import settings
@@ -63,7 +63,8 @@ async def login(
         )
 
     # A session the store cannot check would be refused on the very next request: say so here
-    if not await session_store_available():
+    generation = await current_session_generation()
+    if generation is None:
         return RedirectResponse(
             url=AuthViewService(request).login_page(
                 next=next,
@@ -73,7 +74,7 @@ async def login(
         )
 
     # Create session
-    create_session(request, username)
+    create_session(request, username, generation)
 
     # Redirect to the requested page — same-site paths only (no open redirect)
     return RedirectResponse(
