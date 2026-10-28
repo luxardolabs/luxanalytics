@@ -2,7 +2,6 @@ import hashlib
 import hmac
 import logging
 import time
-from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request
@@ -85,8 +84,3 @@ async def verify_hmac_ingest(
         )
         raise HTTPException(status_code=403, detail="App is inactive")
     return app_id
-
-
-def get_app_id_from_headers(headers: Mapping[str, str]) -> str:
-    """Extract app_id from request headers without full verification."""
-    return headers.get("x-key-id", "")
