@@ -2807,30 +2807,30 @@ ps:
 DUMP_EXCLUDE := --exclude-table-data=dashboard_session_state
 # A restore needs an EMPTY database (a plain dump without --clean fails on existing objects). psql
 # stops at its first error; the transaction is the stream's own: BEGIN, the dump, then
-# scripts/restore_tail.sql, which drops any restored session generation and is the only COMMIT. A
-# stream cut short or failing never reaches it, so nothing is kept. Not --single-transaction: that
-# commits whatever arrived when its input ends early.
-# -At: the tail's closing SELECT prints its bare value, the line restore_committed requires.
-RESTORE_PSQL := psql -v ON_ERROR_STOP=1 -At -U luxanalytics -d luxanalytics
-# A restore needs an empty database: refuse one with tables before the app is stopped. The query
-# goes on psql's stdin, so it needs no quoting through prod's two ssh hops.
+# scripts/restore_tail.sql, which drops any restored session generation, sets the database's
+# comment to the run's token and is the only COMMIT. A stream cut short or failing never reaches it,
+# so nothing is kept. Not --single-transaction: that commits whatever arrived when its input ends.
+RESTORE_PSQL := psql -v ON_ERROR_STOP=1 -q -U luxanalytics -d luxanalytics
+# The restore is confirmed only by reading the token back over a new connection after psql has
+# gone: psql's output and exit status are the dump's to shape, and a dump can end the stream early.
+restore_token = token="restore $$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+read_comment = echo 'SELECT shobj_description(oid, '"'"'pg_database'"'"') FROM pg_database WHERE datname = current_database();'
+# A restore needs an empty database: refuse one with tables before the app is stopped. Queries go
+# on psql's stdin, so they need no quoting through prod's two ssh hops.
 count_tables = echo 'SELECT count(*) FROM pg_tables WHERE schemaname = current_schema();'
 COUNT_PSQL := psql -At -U luxanalytics -d luxanalytics
-# A dump to restore is a readable file that pg_dump finished (its closing line) and, gzipped, a
-# whole one.
+# A dump to restore is a readable file that pg_dump finished (its closing line), gzipped a whole
+# one, with no statement of its own that would end the restore's transaction early (pg_dump
+# writes BEGIN/COMMIT around large objects; the app keeps none).
 define check_dump
 	@if [ -z "$(FILE)" ]; then echo "Usage: make $@ FILE=backups/<dump>.sql[.gz]"; exit 1; fi
 	@test -s "$(FILE)" || { echo "No readable dump at $(FILE)"; exit 1; }
 	@case "$(FILE)" in *.gz) gunzip -t "$(FILE)" || { echo "$(FILE) is not a whole gzip file"; exit 1; };; esac
 	@$(read_dump) | tail -n 5 | grep -q '^-- PostgreSQL database dump complete' || { echo "$(FILE) is not a complete pg_dump (no closing line)"; exit 1; }
+	@! $(read_dump) | grep -qxE '(BEGIN|COMMIT|ROLLBACK);' || { echo "$(FILE) has its own transaction control (BEGIN/COMMIT/ROLLBACK): it would end the restore's transaction early"; exit 1; }
 endef
 read_dump = case "$(FILE)" in *.gz) gunzip -c "$(FILE)";; *) cat "$(FILE)";; esac
 restore_stream = { echo 'BEGIN;' && $(read_dump) && cat scripts/restore_tail.sql; }
-# A restore is confirmed by psql's own exit status (pipefail: a dump that errors after printing
-# anything still fails) and by the line the tail selects after its COMMIT, which carries this
-# run's own token: psql exits 0 on a stream that ended before the COMMIT.
-restore_nonce = nonce=$$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
-restore_committed = grep -qx "restore committed $$nonce"
 # The table count, or a refusal: not empty, or not countable (the database is down)
 define refuse_unless_empty
 case "$$n" in 0) ;; ''|*[!0-9]*) echo "Could not count the tables of $(1)'s database: is luxanalytics_db up?"; exit 1;; \
@@ -2849,7 +2849,8 @@ restore: ## Restore FILE (plain or .gz) into the dev stack's EMPTY database; eve
 	@# The app is down until the restore has committed (or failed and changed nothing).
 	@n=$$($(count_tables) | $(DEV_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)) || n=; $(call refuse_unless_empty,dev)
 	@$(DEV_COMPOSE) stop luxanalytics_app
-	@set -o pipefail; $(restore_nonce); $(restore_stream) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) -v restore_nonce=$$nonce | $(restore_committed) || { echo "Restore of $(FILE) was not confirmed and the app is stopped: an empty database means nothing was kept"; exit 1; }
+	@$(restore_token); $(restore_stream) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) -v restore_token="$$token"; \
+	[ "$$($(read_comment) | $(DEV_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL))" = "$$token" ] || { echo "Restore of $(FILE) did not commit: the database keeps nothing of it, and the app is stopped"; exit 1; }
 	@$(DEV_COMPOSE) up -d luxanalytics_app
 	@echo "✅ Database restored from $(FILE)"
 
@@ -2967,7 +2968,8 @@ prod-restore: ## Restore FILE (plain or .gz) into prod's EMPTY database; every s
 	@# that drops ends without its COMMIT.
 	@n=$$($(count_tables) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)'") || n=; $(call refuse_unless_empty,prod)
 	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) stop luxanalytics_app'"
-	@set -o pipefail; $(restore_nonce); $(restore_stream) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) -v restore_nonce=$$nonce'" | $(restore_committed) || { echo "Restore of $(FILE) was not confirmed and prod's app is stopped: an empty database means nothing was kept"; exit 1; }
+	@$(restore_token); $(restore_stream) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) -v restore_token=\"$$token\"'"; \
+	[ "$$($(read_comment) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)'")" = "$$token" ] || { echo "Restore of $(FILE) did not commit: prod's database keeps nothing of it, and its app is stopped"; exit 1; }
 	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) up -d luxanalytics_app'"
 	@echo "✅ Production database restored from $(FILE)"
 

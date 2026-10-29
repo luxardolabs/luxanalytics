@@ -2,10 +2,11 @@
 -- recipe opens with BEGIN. A restored database carries no session generation: a dump taken before
 -- dumps left it out holds one a later logout may have revoked, so its row is deleted here, and the
 -- app writes a fresh one when it starts. Only this COMMIT commits the restore: a stream cut short
--- (Ctrl-C, a dropped ssh hop, a failed read) ends without it, and nothing is kept. psql exits 0
--- either way, so the recipe requires the line selected after it, with the run's own token
--- (psql -v restore_nonce): a query, not \echo, which a pg_dump that ends still restricted
--- (\restrict without its \unrestrict) would refuse.
+-- (Ctrl-C, a dropped ssh hop, a failed read) ends without it, and nothing is kept.
+--
+-- The proof of the commit is the database's comment, set to the run's own token (psql -v
+-- restore_token) in the same transaction: the recipe reads it back over a new connection once psql
+-- has gone, so nothing the dump prints, and no way it ends, can stand in for it.
 DO $$
 BEGIN
   IF to_regclass('public.dashboard_session_state') IS NOT NULL THEN
@@ -13,5 +14,5 @@ BEGIN
   END IF;
 END
 $$;
+COMMENT ON DATABASE luxanalytics IS :'restore_token';
 COMMIT;
-SELECT 'restore committed ' || :'restore_nonce';
