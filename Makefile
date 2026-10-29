@@ -2820,7 +2820,7 @@ restore_token = token="restore$$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 # did not finish, and a dump that ended its own transaction can have left part of itself. Either
 # way the app stays stopped.
 define restore_unconfirmed
-if [ "$$s" != 0 ] && [ "$$s" != 3 ]; then printf '%s\n' "The connection for the restore of $(FILE) failed (status $$s); it may still be running: wait, then check the database's comment and tables before anything else. The app is stopped"; \
+if [ "$$s" != 0 ] && [ "$$s" != 3 ]; then printf '%s\n' "The connection for the restore of $(FILE) failed (status $$s); it may still be running: wait, then check that the database's comment reads $$token before anything else. The app is stopped"; \
   else printf '%s\n' "Restore of $(FILE) did not finish; the database may hold part of it (README, Backups). The app is stopped"; fi
 endef
 read_comment = echo 'SELECT shobj_description(oid, '"'"'pg_database'"'"') FROM pg_database WHERE datname = current_database();'
@@ -2837,7 +2837,7 @@ define check_dump
 	@test -s "$(FILE)" || { echo "No readable dump at $(FILE)"; exit 1; }
 	@case "$(FILE)" in *.gz) gunzip -t "$(FILE)" || { echo "$(FILE) is not a whole gzip file"; exit 1; };; esac
 	@$(read_dump) | tail -n 5 | grep -q '^-- PostgreSQL database dump complete' || { echo "$(FILE) is not a complete pg_dump (no closing line)"; exit 1; }
-	@! $(dump_statements) | grep -q '^SELECT pg_catalog.lo_create(' || { printf '%s\n' "$(FILE) holds large objects: pg_dump commits them in a transaction of their own, which would end the restore's early"; exit 1; }
+	@! $(dump_statements) | grep -qE "^SELECT pg_catalog\.lo_create\('[0-9]+'\);$$" || { printf '%s\n' "$(FILE) holds large objects: pg_dump commits them in a transaction of their own, which would end the restore's early"; exit 1; }
 endef
 # The dump without its COPY data, whose rows hold any text, so a check never reads a row as SQL.
 dump_statements = $(read_dump) | tr -d '\r' | awk '/^COPY .* FROM stdin;$$/ {c = 1; next} c && /^\\\.$$/ {c = 0; next} !c'
