@@ -2805,30 +2805,39 @@ ps:
 # Every dump leaves out the session generation's row: a restore must never bring back a generation
 # a later logout revoked. The app writes a fresh one when it starts on a database without it.
 DUMP_EXCLUDE := --exclude-table-data=dashboard_session_state
-# A restore is one transaction that stops at its first error, so a restore that fails changes
-# nothing. It needs an EMPTY database: a plain dump without --clean fails on existing objects.
-RESTORE_PSQL := psql -v ON_ERROR_STOP=1 --single-transaction -U luxanalytics -d luxanalytics
-# A dump to restore is a readable, non-empty file and, gzipped, a whole one.
+# A restore needs an EMPTY database (a plain dump without --clean fails on existing objects). psql
+# stops at its first error; the transaction is the stream's own: BEGIN, the dump, then
+# scripts/restore_tail.sql, which drops any restored session generation and is the only COMMIT. A
+# stream cut short or failing never reaches it, so nothing is kept. Not --single-transaction: that
+# commits whatever arrived when its input ends early.
+RESTORE_PSQL := psql -v ON_ERROR_STOP=1 -U luxanalytics -d luxanalytics
+# A dump to restore is a readable file that pg_dump finished (its closing line) and, gzipped, a
+# whole one.
 define check_dump
 	@if [ -z "$(FILE)" ]; then echo "Usage: make $@ FILE=backups/<dump>.sql[.gz]"; exit 1; fi
 	@test -s "$(FILE)" || { echo "No readable dump at $(FILE)"; exit 1; }
 	@case "$(FILE)" in *.gz) gunzip -t "$(FILE)" || { echo "$(FILE) is not a whole gzip file"; exit 1; };; esac
+	@$(read_dump) | tail -n 5 | grep -q '^-- PostgreSQL database dump complete' || { echo "$(FILE) is not a complete pg_dump (no closing line)"; exit 1; }
 endef
 read_dump = case "$(FILE)" in *.gz) gunzip -c "$(FILE)";; *) cat "$(FILE)";; esac
+restore_stream = { echo 'BEGIN;' && $(read_dump) && cat scripts/restore_tail.sql; }
+# psql exits 0 on a stream that ended before the COMMIT: the restore happened only if it printed
+# the line the tail echoes after it.
+restore_committed = grep -qx 'restore committed'
 
 backup:
 	@mkdir -p backups
-	@$(DEV_COMPOSE) exec -T luxanalytics_db pg_dump -U luxanalytics $(DUMP_EXCLUDE) luxanalytics > backups/luxanalytics_$$(date +%Y%m%d_%H%M%S).sql
+	@set -e; f=backups/luxanalytics_$$(date +%Y%m%d_%H%M%S).sql; \
+	$(DEV_COMPOSE) exec -T luxanalytics_db pg_dump -U luxanalytics $(DUMP_EXCLUDE) luxanalytics > "$$f.part"; \
+	mv "$$f.part" "$$f"
 	@echo "✅ Database backed up to backups/"
 
-restore: ## Restore FILE (plain or .gz) into the dev stack's EMPTY database, then sign every session out
+restore: ## Restore FILE (plain or .gz) into the dev stack's EMPTY database; every session is signed out
 	$(check_dump)
-	@# The app is down from the restore until every session is signed out, so a generation an
-	@# older dump carries is never served; a failed restore leaves the database as it was.
+	@# The app is down until the restore has committed (or failed and changed nothing).
 	@$(DEV_COMPOSE) stop luxanalytics_app
-	@$(read_dump) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)
-	@$(DEV_COMPOSE) run --rm --no-deps luxanalytics_app python -m app.scripts.sign_out_everyone
-	@$(DEV_COMPOSE) start luxanalytics_app
+	@$(restore_stream) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) | $(restore_committed) || { echo "Restore of $(FILE) did not commit: the database is unchanged and the app is stopped"; exit 1; }
+	@$(DEV_COMPOSE) up -d luxanalytics_app
 	@echo "✅ Database restored from $(FILE)"
 
 work: ## Publish this commit, pin it in .env.dev, restart, migrate, tail logs
@@ -2938,14 +2947,14 @@ prod-backup:
 	mv "$$f.part" "$$f"
 	@echo "✅ Backup saved to backups/"
 
-prod-restore: ## Restore FILE (plain or .gz) into prod's EMPTY database, then sign every session out
+prod-restore: ## Restore FILE (plain or .gz) into prod's EMPTY database; every session is signed out
 	$(check_dump)
 	@echo "Restoring $(FILE) into the production database..."
-	@# The same steps as `make restore`, on the node; the dump streams over both ssh hops.
+	@# The same steps as `make restore`, on the node; the stream crosses both ssh hops, and one
+	@# that drops ends without its COMMIT.
 	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) stop luxanalytics_app'"
-	@$(read_dump) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)'"
-	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) run --rm --no-deps luxanalytics_app python -m app.scripts.sign_out_everyone'"
-	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) start luxanalytics_app'"
+	@$(restore_stream) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)'" | $(restore_committed) || { echo "Restore of $(FILE) did not commit: prod's database is unchanged and its app is stopped"; exit 1; }
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) up -d luxanalytics_app'"
 	@echo "✅ Production database restored from $(FILE)"
 
 prod-version:
