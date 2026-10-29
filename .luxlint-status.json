@@ -195,6 +195,6 @@
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "0650744de39a350660c83510df3538320c47c737",
-  "generated_at": "2026-10-29T01:09:39Z"
+  "commit": "94e2dbff3231734f95b9e660db0b00a9c55c0ee9",
+  "generated_at": "2026-10-29T02:37:48Z"
 }
