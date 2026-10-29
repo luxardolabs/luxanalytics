@@ -350,12 +350,12 @@
         },
         {
           "rule": "fw.uuid_id_typing",
-          "status": "PASS",
+          "status": "INERT",
           "since": "0.1.0",
           "violations": 0,
           "deferred": false,
-          "inert": false,
-          "inert_reason": "",
+          "inert": true,
+          "inert_reason": "no `Mapped[UUID]` column parsed under models/ (6 file(s) read), so no id name is known to be a UUID and nothing was judged. NOT a clearance if this repo does use UUID keys.",
           "fix": "",
           "example": ""
         },
@@ -2000,11 +2000,11 @@
         }
       ],
       "summary": {
-        "PASS": 154,
+        "PASS": 153,
         "FAIL": 1,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 26
+        "INERT": 27
       }
     }
   ],
@@ -2768,12 +2768,12 @@
     }
   },
   "summary": {
-    "PASS": 221,
+    "PASS": 220,
     "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 27
+    "INERT": 28
   },
-  "commit": "c12e5f3969357bd3af1c95f5dddc216a19afef04",
-  "generated_at": "2026-10-28T01:27:29Z"
+  "commit": "332f2c6d55332a28c2b4a5b005cf439e3c823a3e",
+  "generated_at": "2026-10-29T01:03:09Z"
 }
