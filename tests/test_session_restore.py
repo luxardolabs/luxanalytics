@@ -1,9 +1,9 @@
 """A restored database never serves a session generation a later logout revoked.
 
-Dumps leave the generation's row out (tests/test_backup_script.py), and the app writes a fresh one
-when it starts. A restore that failed partway can leave the table without its primary key, or
-without the table at all (a dump from before migration 011): writing a fresh generation works on
-both.
+Dumps leave the generation's row out (tests/test_backup_script.py), a restore drops any it brings
+(scripts/restore_tail.sql, tests/test_auth_session.py), and the app writes a fresh one when it
+starts. Writing a fresh generation does not depend on the table's primary key (a hand-made restore
+can lack it), and the reset leaves a database without the table (before migration 011) to startup.
 """
 
 import pytest

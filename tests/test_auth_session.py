@@ -4,18 +4,22 @@ the cookie in one browser."""
 
 import base64
 from datetime import UTC, datetime, timedelta, tzinfo
+from pathlib import Path
 from typing import Self
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.core.auth as auth_module
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
-from app.crud.dashboard_session_crud import reset_session_generation
+from app.crud.dashboard_session_crud import (
+    ensure_session_generation,
+    reset_session_generation,
+)
 from app.main import create_application, lifespan
 from app.models.app_model import App
 from app.models.dashboard_session_model import DashboardSessionState
@@ -266,11 +270,12 @@ async def test_two_logouts_both_count(client: AsyncClient, db: AsyncSession) -> 
 
 
 @pytest.mark.db
-async def test_signing_everyone_out_after_a_restore_refuses_every_cookie(
+async def test_a_restore_never_serves_the_dumps_generation(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    """A restored dump brings back the generation of its time, which a cookie revoked later may
-    hold; `make restore` then moves to a fresh generation."""
+    """An older dump brings back the generation of its time, which a cookie revoked later may
+    hold. The restore's own tail (scripts/restore_tail.sql) drops it, and startup writes a fresh
+    one: the revoked cookie stays refused."""
     dump_time = (await db.execute(GENERATION)).scalar_one()
     await _login(client, "198.51.100.242")
     revoked_later = client.cookies["analytics_session"]
@@ -278,11 +283,33 @@ async def test_signing_everyone_out_after_a_restore_refuses_every_cookie(
     await db.execute(update(DashboardSessionState).values(generation=dump_time))
     assert (
         await _replay(client, revoked_later) == 200
-    )  # what the restore alone brings back
+    )  # what the dump's row alone would bring back
 
-    await reset_session_generation()  # what app.scripts.sign_out_everyone runs
+    await db.execute(text(_restore_tail_block()))
+    await ensure_session_generation()  # what the app's startup runs
 
     assert await _replay(client, revoked_later) == 303
+
+
+def _restore_tail_block() -> str:
+    """The DO block scripts/restore_tail.sql runs inside a restore, before its COMMIT."""
+    tail = (
+        Path(__file__).resolve().parents[1] / "scripts" / "restore_tail.sql"
+    ).read_text()
+    start = tail.index("DO $$")
+    return tail[start : tail.index("$$;", start) + 2]
+
+
+@pytest.mark.db
+async def test_signing_everyone_out_refuses_every_cookie(
+    client: AsyncClient,
+) -> None:
+    await _login(client, "198.51.100.245")
+    copied = client.cookies["analytics_session"]
+
+    assert await reset_session_generation()  # what app.scripts.sign_out_everyone runs
+
+    assert await _replay(client, copied) == 303
 
 
 @pytest.mark.db

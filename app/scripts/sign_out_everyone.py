@@ -1,8 +1,8 @@
-"""Sign every dashboard session out: move the session generation to a fresh, random one.
+"""Sign every dashboard session out now: move the session generation to a fresh, random one.
 
-`make restore` and `make prod-restore` run it after restoring a dump, with the app stopped, since a
-dump taken before dumps left the session generation out carries one a later logout may have
-revoked. `python -m app.scripts.sign_out_everyone` in a one-off app container.
+A manual tool (`python -m app.scripts.sign_out_everyone` in the app container). A restore needs it
+not: `make restore` / `make prod-restore` drop any restored generation (scripts/restore_tail.sql),
+and the app writes a fresh one when it starts.
 """
 
 import asyncio

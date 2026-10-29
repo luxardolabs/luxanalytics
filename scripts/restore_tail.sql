@@ -3,7 +3,8 @@
 -- dumps left it out holds one a later logout may have revoked, so its row is deleted here, and the
 -- app writes a fresh one when it starts. Only this COMMIT commits the restore: a stream cut short
 -- (Ctrl-C, a dropped ssh hop, a failed read) ends without it, and nothing is kept. psql exits 0
--- either way, so the recipe requires the line echoed after it.
+-- either way, so the recipe requires the line selected after it: a query, not \echo, which a
+-- pg_dump that ends still restricted (\restrict without its \unrestrict) would refuse.
 DO $$
 BEGIN
   IF to_regclass('public.dashboard_session_state') IS NOT NULL THEN
@@ -12,4 +13,4 @@ BEGIN
 END
 $$;
 COMMIT;
-\echo restore committed
+SELECT 'restore committed';

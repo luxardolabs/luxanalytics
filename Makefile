@@ -2810,7 +2810,12 @@ DUMP_EXCLUDE := --exclude-table-data=dashboard_session_state
 # scripts/restore_tail.sql, which drops any restored session generation and is the only COMMIT. A
 # stream cut short or failing never reaches it, so nothing is kept. Not --single-transaction: that
 # commits whatever arrived when its input ends early.
-RESTORE_PSQL := psql -v ON_ERROR_STOP=1 -U luxanalytics -d luxanalytics
+# -At: the tail's closing SELECT prints its bare value, the line restore_committed requires.
+RESTORE_PSQL := psql -v ON_ERROR_STOP=1 -At -U luxanalytics -d luxanalytics
+# A restore needs an empty database: refuse one with tables before the app is stopped. The query
+# goes on psql's stdin, so it needs no quoting through prod's two ssh hops.
+count_tables = echo 'SELECT count(*) FROM pg_tables WHERE schemaname = current_schema();'
+COUNT_PSQL := psql -At -U luxanalytics -d luxanalytics
 # A dump to restore is a readable file that pg_dump finished (its closing line) and, gzipped, a
 # whole one.
 define check_dump
@@ -2821,8 +2826,8 @@ define check_dump
 endef
 read_dump = case "$(FILE)" in *.gz) gunzip -c "$(FILE)";; *) cat "$(FILE)";; esac
 restore_stream = { echo 'BEGIN;' && $(read_dump) && cat scripts/restore_tail.sql; }
-# psql exits 0 on a stream that ended before the COMMIT: the restore happened only if it printed
-# the line the tail echoes after it.
+# psql exits 0 on a stream that ended before the COMMIT: the restore is confirmed only by the
+# line the tail selects after it.
 restore_committed = grep -qx 'restore committed'
 
 backup:
@@ -2835,8 +2840,9 @@ backup:
 restore: ## Restore FILE (plain or .gz) into the dev stack's EMPTY database; every session is signed out
 	$(check_dump)
 	@# The app is down until the restore has committed (or failed and changed nothing).
+	@n=$$($(count_tables) | $(DEV_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)) && [ "$$n" = 0 ] || { echo "The dev database is not empty ($$n tables): see README, Backups, to empty it first"; exit 1; }
 	@$(DEV_COMPOSE) stop luxanalytics_app
-	@$(restore_stream) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) | $(restore_committed) || { echo "Restore of $(FILE) did not commit: the database is unchanged and the app is stopped"; exit 1; }
+	@$(restore_stream) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) | $(restore_committed) || { echo "Restore of $(FILE) was not confirmed and the app is stopped: an empty database means nothing was kept"; exit 1; }
 	@$(DEV_COMPOSE) up -d luxanalytics_app
 	@echo "✅ Database restored from $(FILE)"
 
@@ -2952,8 +2958,9 @@ prod-restore: ## Restore FILE (plain or .gz) into prod's EMPTY database; every s
 	@echo "Restoring $(FILE) into the production database..."
 	@# The same steps as `make restore`, on the node; the stream crosses both ssh hops, and one
 	@# that drops ends without its COMMIT.
+	@n=$$($(count_tables) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)'") && [ "$$n" = 0 ] || { echo "Prod's database is not empty ($$n tables): see README, Backups, to empty it first"; exit 1; }
 	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) stop luxanalytics_app'"
-	@$(restore_stream) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)'" | $(restore_committed) || { echo "Restore of $(FILE) did not commit: prod's database is unchanged and its app is stopped"; exit 1; }
+	@$(restore_stream) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)'" | $(restore_committed) || { echo "Restore of $(FILE) was not confirmed and prod's app is stopped: an empty database means nothing was kept"; exit 1; }
 	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) up -d luxanalytics_app'"
 	@echo "✅ Production database restored from $(FILE)"
 
