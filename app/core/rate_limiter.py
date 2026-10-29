@@ -27,8 +27,10 @@ logger = logging.getLogger(__name__)
 # unique) added to each. All or nothing, one round trip, atomic. ARGV: now, member, then per key
 # window, limit, cost. Returns {allowed, refused key index (1-based, 0 when allowed), count of the
 # refused key (the first key's count after adding when allowed), when every refused key has room
-# again (empty when one never will)}. With several keys refused, the one with the latest such time
-# is reported, so waiting it admits the batch.
+# again (empty when one never will), as a string carrying every digit of the double ('%.17g': a
+# rounded time can land just before the real one, making Retry-After a second short)}. With
+# several keys refused, the one with the latest such time is reported, so waiting it admits the
+# batch.
 _SLIDING_WINDOW = """
 local now, member = tonumber(ARGV[1]), ARGV[2]
 local refused, refused_count, ready = 0, 0, -1
@@ -53,7 +55,7 @@ if refused > 0 then
     if ready == math.huge then
         return {0, refused, refused_count, ''}
     end
-    return {0, refused, refused_count, string.format('%.6f', ready)}
+    return {0, refused, refused_count, string.format('%.17g', ready)}
 end
 local first = 0
 for i, key in ipairs(KEYS) do

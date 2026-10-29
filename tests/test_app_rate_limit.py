@@ -515,6 +515,22 @@ async def test_waiting_retry_after_admits_a_whole_batch(
     await rate_limiter.enforce_ingest_limits(app_id, IP, {"A": 3})
 
 
+async def test_waiting_retry_after_admits_on_a_sub_microsecond_clock(
+    device_limit: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Redis hands back the ready time exactly: rounded to the microsecond, a wait just past a
+    whole second would come back a second short. 2**-22 s is one ulp of a 1.8e9 timestamp."""
+    clock = [1_800_000_000.0 + 2**-22]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    await rate_limiter.enforce_ingest_limits("app_sub_us", IP, {"A": LIMIT})
+    clock[0] = 1_800_000_030.0
+    with pytest.raises(rate_limiter.AppRateLimitExceeded) as refused:
+        await rate_limiter.enforce_ingest_limits("app_sub_us", IP, {"A": 1})
+
+    clock[0] += refused.value.metadata["retry_after"]
+    await rate_limiter.enforce_ingest_limits("app_sub_us", IP, {"A": 1})
+
+
 async def test_the_in_memory_retry_after_is_at_least_a_second(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
