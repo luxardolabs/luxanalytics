@@ -2806,14 +2806,15 @@ ps:
 # a later logout revoked. The app writes a fresh one when it starts on a database without it.
 DUMP_EXCLUDE := --exclude-table-data=dashboard_session_state
 # A restore needs an EMPTY database (a plain dump without --clean fails on existing objects). psql
-# stops at its first error; the transaction is the stream's own: BEGIN, the dump, then
-# scripts/restore_tail.sql, which drops any restored session generation, sets the database's
-# comment to the run's token and is the only COMMIT. A stream cut short or failing never reaches it,
-# so nothing is kept. Not --single-transaction: that commits whatever arrived when its input ends.
+# stops at its first error; the transaction is the stream's own: BEGIN (marked with SET LOCAL),
+# the dump, scripts/restore_tail.sql (which refuses to go on if the dump ended that transaction,
+# and drops any restored session generation), then the run's token as the database's comment and
+# the only COMMIT. A stream cut short or failing never reaches it, so nothing is kept. Not
+# --single-transaction: that commits whatever arrived when its input ends.
 RESTORE_PSQL := psql -v ON_ERROR_STOP=1 -q -U luxanalytics -d luxanalytics
 # The restore is confirmed only by reading the token back over a new connection after psql has
-# gone: psql's output and exit status are the dump's to shape, and a dump can end the stream early.
-restore_token = token="restore $$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+# gone. The token is appended by the shell, after the dump, so nothing in the dump can name it.
+restore_token = token="restore$$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 read_comment = echo 'SELECT shobj_description(oid, '"'"'pg_database'"'"') FROM pg_database WHERE datname = current_database();'
 # A restore needs an empty database: refuse one with tables before the app is stopped. Queries go
 # on psql's stdin, so they need no quoting through prod's two ssh hops.
@@ -2827,10 +2828,15 @@ define check_dump
 	@test -s "$(FILE)" || { echo "No readable dump at $(FILE)"; exit 1; }
 	@case "$(FILE)" in *.gz) gunzip -t "$(FILE)" || { echo "$(FILE) is not a whole gzip file"; exit 1; };; esac
 	@$(read_dump) | tail -n 5 | grep -q '^-- PostgreSQL database dump complete' || { echo "$(FILE) is not a complete pg_dump (no closing line)"; exit 1; }
-	@! $(read_dump) | grep -qxE '(BEGIN|COMMIT|ROLLBACK);' || { echo "$(FILE) has its own transaction control (BEGIN/COMMIT/ROLLBACK): it would end the restore's transaction early"; exit 1; }
+	@! $(dump_statements) | grep -qiE '^[[:space:]]*(begin|start|commit|end|rollback|abort|savepoint|release|prepare)([[:space:];]|$$)' || { echo "$(FILE) has its own transaction control (BEGIN/COMMIT/ROLLBACK...): it would end the restore's transaction early"; exit 1; }
+	@! $(dump_statements) | grep -vE '^\\(restrict|unrestrict) ' | grep -qE '(^|[^\\])\\[a-z!]' || { echo "$(FILE) has psql commands pg_dump does not write (\\connect, \\gexec, \\i, \\!...)"; exit 1; }
 endef
+# The dump's statements and psql commands without its COPY data, whose rows hold escapes (\n) and
+# any text, so a check never reads a row as a command.
+dump_statements = $(read_dump) | tr -d '\r' | awk '/^COPY .* FROM stdin;$$/ {c = 1; next} c && /^\\\.$$/ {c = 0; next} !c'
 read_dump = case "$(FILE)" in *.gz) gunzip -c "$(FILE)";; *) cat "$(FILE)";; esac
-restore_stream = { echo 'BEGIN;' && $(read_dump) && cat scripts/restore_tail.sql; }
+restore_stream = { printf 'BEGIN;\nSET LOCAL luxanalytics.restore = %s;\n' "'on'" && $(read_dump) && cat scripts/restore_tail.sql \
+  && printf "COMMENT ON DATABASE luxanalytics IS '%s';\nCOMMIT;\n" "$$token"; }
 # The table count, or a refusal: not empty, or not countable (the database is down)
 define refuse_unless_empty
 case "$$n" in 0) ;; ''|*[!0-9]*) echo "Could not count the tables of $(1)'s database: is luxanalytics_db up?"; exit 1;; \
@@ -2849,8 +2855,9 @@ restore: ## Restore FILE (plain or .gz) into the dev stack's EMPTY database; eve
 	@# The app is down until the restore has committed (or failed and changed nothing).
 	@n=$$($(count_tables) | $(DEV_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)) || n=; $(call refuse_unless_empty,dev)
 	@$(DEV_COMPOSE) stop luxanalytics_app
-	@$(restore_token); $(restore_stream) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) -v restore_token="$$token"; \
-	[ "$$($(read_comment) | $(DEV_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL))" = "$$token" ] || { echo "Restore of $(FILE) did not commit: the database keeps nothing of it, and the app is stopped"; exit 1; }
+	@$(restore_token); $(restore_stream) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL); \
+	c=$$($(read_comment) | $(DEV_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)) || { echo "Could not read back whether the restore of $(FILE) committed; the app is stopped. Check the database before anything else"; exit 1; }; \
+	[ "$$c" = "$$token" ] || { echo "Restore of $(FILE) did not commit; the app is stopped (README, Backups)"; exit 1; }
 	@$(DEV_COMPOSE) up -d luxanalytics_app
 	@echo "✅ Database restored from $(FILE)"
 
@@ -2968,8 +2975,9 @@ prod-restore: ## Restore FILE (plain or .gz) into prod's EMPTY database; every s
 	@# that drops ends without its COMMIT.
 	@n=$$($(count_tables) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)'") || n=; $(call refuse_unless_empty,prod)
 	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) stop luxanalytics_app'"
-	@$(restore_token); $(restore_stream) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL) -v restore_token=\"$$token\"'"; \
-	[ "$$($(read_comment) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)'")" = "$$token" ] || { echo "Restore of $(FILE) did not commit: prod's database keeps nothing of it, and its app is stopped"; exit 1; }
+	@$(restore_token); $(restore_stream) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)'"; \
+	c=$$($(read_comment) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(COUNT_PSQL)'") || { echo "Could not read back whether the restore of $(FILE) committed; prod's app is stopped. Check its database before anything else"; exit 1; }; \
+	[ "$$c" = "$$token" ] || { echo "Restore of $(FILE) did not commit; prod's app is stopped (README, Backups)"; exit 1; }
 	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) up -d luxanalytics_app'"
 	@echo "✅ Production database restored from $(FILE)"
 

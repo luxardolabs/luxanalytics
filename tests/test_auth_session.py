@@ -10,7 +10,7 @@ from typing import Self
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select, text, update
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.core.auth as auth_module
@@ -281,10 +281,17 @@ async def test_a_restore_never_serves_the_dumps_generation(
     revoked_later = client.cookies["analytics_session"]
     await client.post("/logout", follow_redirects=False)
     await db.execute(update(DashboardSessionState).values(generation=dump_time))
+    # Without the restore's transaction marker, the tail refuses to touch anything
+    await db.execute(text("SAVEPOINT unmarked"))
+    with pytest.raises(DBAPIError, match="ended the restore's transaction early"):
+        await db.execute(text(_restore_tail_block()))
+    await db.execute(text("ROLLBACK TO SAVEPOINT unmarked"))
     assert (
         await _replay(client, revoked_later) == 200
     )  # what the dump's row alone would bring back
 
+    # The restore's transaction as the recipe opens it, then the tail's own block
+    await db.execute(text("SET LOCAL luxanalytics.restore = 'on'"))
     await db.execute(text(_restore_tail_block()))
     await ensure_session_generation()  # what the app's startup runs
 
