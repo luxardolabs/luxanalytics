@@ -2802,17 +2802,31 @@ health:
 ps:
 	$(DEV_COMPOSE) ps
 
+# Every dump leaves out the session generation's row: a restore must never bring back a generation
+# a later logout revoked. The app writes a fresh one when it starts on a database without it.
+DUMP_EXCLUDE := --exclude-table-data=dashboard_session_state
+# A restore is one transaction that stops at its first error, so a restore that fails changes
+# nothing. It needs an EMPTY database: a plain dump without --clean fails on existing objects.
+RESTORE_PSQL := psql -v ON_ERROR_STOP=1 --single-transaction -U luxanalytics -d luxanalytics
+# A dump to restore is a readable, non-empty file and, gzipped, a whole one.
+define check_dump
+	@if [ -z "$(FILE)" ]; then echo "Usage: make $@ FILE=backups/<dump>.sql[.gz]"; exit 1; fi
+	@test -s "$(FILE)" || { echo "No readable dump at $(FILE)"; exit 1; }
+	@case "$(FILE)" in *.gz) gunzip -t "$(FILE)" || { echo "$(FILE) is not a whole gzip file"; exit 1; };; esac
+endef
+read_dump = case "$(FILE)" in *.gz) gunzip -c "$(FILE)";; *) cat "$(FILE)";; esac
+
 backup:
 	@mkdir -p backups
-	@$(DEV_COMPOSE) exec -T luxanalytics_db pg_dump -U luxanalytics luxanalytics > backups/luxanalytics_$$(date +%Y%m%d_%H%M%S).sql
+	@$(DEV_COMPOSE) exec -T luxanalytics_db pg_dump -U luxanalytics $(DUMP_EXCLUDE) luxanalytics > backups/luxanalytics_$$(date +%Y%m%d_%H%M%S).sql
 	@echo "✅ Database backed up to backups/"
 
-restore:
-	@if [ -z "$(FILE)" ]; then echo "Usage: make restore FILE=backups/luxanalytics_YYYYMMDD_HHMMSS.sql"; exit 1; fi
-	@# The app is down from the restore until every session is signed out: the dump's session
-	@# generation may be one a later logout revoked, and must never be served
+restore: ## Restore FILE (plain or .gz) into the dev stack's EMPTY database, then sign every session out
+	$(check_dump)
+	@# The app is down from the restore until every session is signed out, so a generation an
+	@# older dump carries is never served; a failed restore leaves the database as it was.
 	@$(DEV_COMPOSE) stop luxanalytics_app
-	@case "$(FILE)" in *.gz) gunzip -c "$(FILE)";; *) cat "$(FILE)";; esac | $(DEV_COMPOSE) exec -T luxanalytics_db psql -U luxanalytics -d luxanalytics
+	@$(read_dump) | $(DEV_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)
 	@$(DEV_COMPOSE) run --rm --no-deps luxanalytics_app python -m app.scripts.sign_out_everyone
 	@$(DEV_COMPOSE) start luxanalytics_app
 	@echo "✅ Database restored from $(FILE)"
@@ -2920,9 +2934,19 @@ prod-backup:
 	@echo "Backing up production database..."
 	@# pg_dump streams back over both ssh hops into backups/ (gitignored): no staging file on any host.
 	@set -e; mkdir -p backups; f=backups/luxanalytics-backup-$$(date +%Y%m%d).sql.gz; \
-	$(PROD_SSH) 'set -o pipefail; docker exec luxanalytics_db pg_dump -U luxanalytics luxanalytics | gzip'" > "$$f.part"; \
+	$(PROD_SSH) 'set -o pipefail; docker exec luxanalytics_db pg_dump -U luxanalytics $(DUMP_EXCLUDE) luxanalytics | gzip'" > "$$f.part"; \
 	mv "$$f.part" "$$f"
 	@echo "✅ Backup saved to backups/"
+
+prod-restore: ## Restore FILE (plain or .gz) into prod's EMPTY database, then sign every session out
+	$(check_dump)
+	@echo "Restoring $(FILE) into the production database..."
+	@# The same steps as `make restore`, on the node; the dump streams over both ssh hops.
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) stop luxanalytics_app'"
+	@$(read_dump) | $(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) exec -T luxanalytics_db $(RESTORE_PSQL)'"
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) run --rm --no-deps luxanalytics_app python -m app.scripts.sign_out_everyone'"
+	@$(PROD_SSH) 'cd $(PROD_PATH) && $(PROD_COMPOSE) start luxanalytics_app'"
+	@echo "✅ Production database restored from $(FILE)"
 
 prod-version:
 	@$(PROD_SSH) 'docker inspect luxanalytics_app --format \"{{.Config.Image}}\" 2>/dev/null || echo not running'"

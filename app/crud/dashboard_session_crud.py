@@ -7,7 +7,7 @@ so advancing one never leaves BIGINT.
 
 import secrets
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.db.database import get_db_context
@@ -53,26 +53,34 @@ async def advance_session_generation(from_generation: int) -> bool:
 
 
 async def ensure_session_generation() -> None:
-    """Write the row at a fresh generation when it is missing (app startup); an existing row is
-    left as it is."""
+    """Write the row at a fresh generation when it is missing (app startup, and a database restored
+    from a dump, which leaves the row out); an existing row is left as it is. No ON CONFLICT: it
+    must not need the table's primary key, which a restore that failed partway may not have
+    written."""
     async with get_db_context() as session:
-        await session.execute(
-            insert(DashboardSessionState)
-            .values(id=SESSION_STATE_ROW, generation=_fresh_generation())
-            .on_conflict_do_nothing(index_elements=[DashboardSessionState.id])
-        )
+        if (await session.execute(_GENERATION)).first() is None:
+            await session.execute(
+                insert(DashboardSessionState).values(
+                    id=SESSION_STATE_ROW, generation=_fresh_generation()
+                )
+            )
 
 
-async def reset_session_generation() -> None:
+async def reset_session_generation() -> bool:
     """Sign every session out by moving to a fresh generation: what a database restore needs,
-    since the restored row carries a generation that cookies revoked after the dump may hold."""
+    since a dump taken before dumps left the row out carries a generation that cookies revoked
+    after it may hold. Replaces the row whole, without needing the primary key. False when the
+    table does not exist yet (a dump from before migration 011: startup creates and seeds it)."""
     async with get_db_context() as session:
-        stmt = insert(DashboardSessionState).values(
-            id=SESSION_STATE_ROW, generation=_fresh_generation()
+        table = await session.execute(
+            select(func.to_regclass(DashboardSessionState.__tablename__))
         )
+        if table.scalar_one() is None:
+            return False
+        await session.execute(delete(DashboardSessionState))
         await session.execute(
-            stmt.on_conflict_do_update(
-                index_elements=[DashboardSessionState.id],
-                set_={"generation": stmt.excluded.generation},
+            insert(DashboardSessionState).values(
+                id=SESSION_STATE_ROW, generation=_fresh_generation()
             )
         )
+        return True

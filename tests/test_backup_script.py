@@ -14,9 +14,13 @@ OURS = "luxanalytics-20261001T000000Z.sql.gz"
 
 
 def _stub_pg_dump(bin_dir: Path, *, ok: bool) -> None:
-    """A pg_dump that writes its -f file and succeeds, or writes half of one and fails."""
+    """A pg_dump that writes its -f file and succeeds, or writes half of one and fails. Its
+    arguments land in `pg_dump.args` beside it."""
     stub = bin_dir / "pg_dump"
-    body = 'while [ "$1" != -f ]; do shift; done; echo dump > "$2"; '
+    body = (
+        'echo "$@" > "$(dirname "$0")/pg_dump.args"; '
+        'while [ "$1" != -f ]; do shift; done; echo dump > "$2"; '
+    )
     stub.write_text(f"#!/bin/sh\n{body}exit {0 if ok else 1}\n")
     stub.chmod(0o755)
 
@@ -69,6 +73,16 @@ def backups(tmp_path: Path) -> Path:
     d = tmp_path / "backups"
     d.mkdir()
     return d
+
+
+def test_a_dump_leaves_the_session_generation_out(
+    backups: Path, tmp_path: Path
+) -> None:
+    """A restore must never bring back a session generation a later logout revoked."""
+    _run(backups, tmp_path, ok=True)
+
+    args = (tmp_path / "bin" / "pg_dump.args").read_text().split()
+    assert "--exclude-table-data=dashboard_session_state" in args
 
 
 def test_a_failed_dump_deletes_nothing(backups: Path, tmp_path: Path) -> None:

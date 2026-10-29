@@ -1,8 +1,8 @@
 """Sign every dashboard session out: move the session generation to a fresh, random one.
 
-Run after restoring the database from a dump (`make restore` does): the restored row carries the
-generation of the dump's time, which a cookie revoked by a later logout may still hold.
-`python -m app.scripts.sign_out_everyone` inside the app container.
+`make restore` and `make prod-restore` run it after restoring a dump, with the app stopped, since a
+dump taken before dumps left the session generation out carries one a later logout may have
+revoked. `python -m app.scripts.sign_out_everyone` in a one-off app container.
 """
 
 import asyncio
@@ -11,8 +11,12 @@ from app.crud.dashboard_session_crud import reset_session_generation
 
 
 def main() -> None:
-    asyncio.run(reset_session_generation())
-    print("Every dashboard session is signed out.")
+    if asyncio.run(reset_session_generation()):
+        print("Every dashboard session is signed out.")
+    else:
+        print(
+            "No session table yet: the app creates it at a fresh generation when it starts."
+        )
 
 
 if __name__ == "__main__":

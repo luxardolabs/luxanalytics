@@ -27,8 +27,11 @@ while :; do
   # A dump interrupted by a restart leaves its .part behind.
   rm -f "$dir"/*.part
   f="$dir/luxanalytics-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
-  # pg_dump compresses itself (-Z): no pipe, so its exit status is the dump's.
-  if pg_dump -h luxanalytics_db -U luxanalytics -Z 6 -f "$f.part" luxanalytics; then
+  # pg_dump compresses itself (-Z): no pipe, so its exit status is the dump's. The session
+  # generation's row is left out: a restore must never bring back one a later logout revoked (the
+  # app writes a fresh one when it starts on a restored database).
+  if pg_dump -h luxanalytics_db -U luxanalytics -Z 6 \
+    --exclude-table-data=dashboard_session_state -f "$f.part" luxanalytics; then
     mv "$f.part" "$f"
     echo "backup written: $f"
     # The glob expands oldest first (the stamp sorts by time): past $keep dumps, drop from the
