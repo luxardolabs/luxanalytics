@@ -177,6 +177,16 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def request_limits_fit(self) -> Settings:
+        """A window under a second empties the request limits' windows on each check, and a
+        budget under one refuses everything: neither limits anything as configured."""
+        if self.RATE_LIMIT_WINDOW < 1:
+            raise ValueError("RATE_LIMIT_WINDOW must be at least 1 second")
+        if self.RATE_LIMIT_REQUESTS < 1:
+            raise ValueError("RATE_LIMIT_REQUESTS must be at least 1")
+        return self
+
+    @model_validator(mode="after")
     def production_is_safe(self) -> Settings:
         """Production refuses to start on a setting that is only safe in development
         (LUXANALYTI-22): a guessable dashboard password, DEBUG (it serves /docs and /openapi.json),

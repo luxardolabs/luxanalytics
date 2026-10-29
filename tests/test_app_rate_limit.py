@@ -673,3 +673,32 @@ def test_an_ingest_window_that_cannot_work_refuses_to_start(window: int) -> None
         Settings.model_validate(
             {**REQUIRED, **SAFE, "INGEST_RATE_LIMIT_WINDOW": window}
         )
+
+
+@pytest.mark.parametrize(
+    ("setting", "value"),
+    [
+        ("RATE_LIMIT_WINDOW", 0),
+        ("RATE_LIMIT_WINDOW", -1),
+        ("RATE_LIMIT_REQUESTS", 0),
+    ],
+)
+def test_a_request_limit_that_cannot_work_refuses_to_start(
+    setting: str, value: int
+) -> None:
+    """A window under a second empties the per-IP and stats windows on each check: no limit."""
+    with pytest.raises(ValueError, match=setting):
+        Settings.model_validate({**REQUIRED, **SAFE, setting: value})
+
+
+async def test_the_request_window_limits_at_its_smallest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The control: a one-second window still refuses past its budget."""
+    monkeypatch.setattr(settings, "RATE_LIMIT_WINDOW", 1)
+    monkeypatch.setattr(settings, "RATE_LIMIT_REQUESTS", LIMIT)
+    limiter = rate_limiter.IPRateLimiter()
+
+    results = [await limiter.check_ip_limit("192.0.2.60") for _ in range(LIMIT + 1)]
+
+    assert [allowed for allowed, _ in results] == [True] * LIMIT + [False]
