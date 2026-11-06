@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
+from app.core.query_params import Hours, Page
 from app.db.database import get_db
 from app.services.views.dashboard_view_service import (
     DashboardViewService,
@@ -33,7 +34,7 @@ async def overview_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).overview_context(app_id, hours)
     return templates.TemplateResponse(request, "pages/dashboard/overview.html", context)
@@ -46,7 +47,7 @@ async def overview_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).overview_context(app_id, hours)
     return templates.TemplateResponse(
@@ -63,7 +64,7 @@ async def overview_timeline(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).timeline_context(app_id, hours)
     return templates.TemplateResponse(
@@ -80,7 +81,7 @@ async def overview_event_types(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).event_types_context(app_id, hours)
     return templates.TemplateResponse(
@@ -97,7 +98,7 @@ async def overview_top_screens(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).top_screens_context(app_id, hours)
     return templates.TemplateResponse(
@@ -111,8 +112,8 @@ async def events_page(
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     event_name: str | None = Query(None),
-    hours: int = Query(24),
-    page: int = Query(1),
+    hours: Hours = 24,
+    page: Page = 1,
 ) -> Response:
     context = await DashboardViewService(db, request).events_context(
         app_id, event_name, hours, page
@@ -129,8 +130,8 @@ async def events_content(
     app_id: str | None = Depends(selected_app_id),
     event_name: str | None = Query(None),
     search_q: str | None = Query(None),
-    hours: int = Query(24),
-    page: int = Query(1),
+    hours: Hours = 24,
+    page: Page = 1,
 ) -> Response:
     context = await DashboardViewService(db, request).events_context(
         app_id, event_name, hours, page, search_q
@@ -145,7 +146,7 @@ async def devices_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).devices_context(app_id, hours)
     return templates.TemplateResponse(request, "pages/dashboard/devices.html", context)
@@ -158,7 +159,7 @@ async def devices_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).devices_context(app_id, hours)
     return templates.TemplateResponse(
@@ -171,7 +172,7 @@ async def errors_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).errors_context(app_id, hours)
     return templates.TemplateResponse(request, "pages/dashboard/errors.html", context)
@@ -184,7 +185,7 @@ async def errors_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).errors_context(app_id, hours)
     return templates.TemplateResponse(
@@ -199,7 +200,7 @@ async def performance_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).performance_context(app_id, hours)
     return templates.TemplateResponse(
@@ -216,7 +217,7 @@ async def performance_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).performance_context(app_id, hours)
     return templates.TemplateResponse(
@@ -229,7 +230,7 @@ async def features_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).features_context(app_id, hours)
     return templates.TemplateResponse(request, "pages/dashboard/features.html", context)
@@ -242,7 +243,7 @@ async def features_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).features_context(app_id, hours)
     return templates.TemplateResponse(
@@ -255,7 +256,7 @@ async def journey_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).journey_context(app_id, hours)
     return templates.TemplateResponse(request, "pages/dashboard/journey.html", context)
@@ -268,7 +269,7 @@ async def journey_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).journey_context(app_id, hours)
     return templates.TemplateResponse(
@@ -281,7 +282,7 @@ async def feedback_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).feedback_context(app_id, hours)
     return templates.TemplateResponse(request, "pages/dashboard/feedback.html", context)
@@ -294,7 +295,7 @@ async def feedback_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).feedback_context(app_id, hours)
     return templates.TemplateResponse(
@@ -307,7 +308,7 @@ async def explorer_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
     event_name: str | None = Query(None),
 ) -> Response:
     context = await DashboardViewService(db, request).explorer_context(
@@ -323,7 +324,7 @@ async def explorer_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
     event_name: str | None = Query(None),
 ) -> Response:
     context = await DashboardViewService(db, request).explorer_context(
@@ -361,7 +362,7 @@ async def key_deep_dive_panel(
     key_name: str,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    hours: int = Query(24),
+    hours: Hours = 24,
 ) -> Response:
     context = await DashboardViewService(db, request).key_deep_dive_context(
         key_name, app_id, hours
