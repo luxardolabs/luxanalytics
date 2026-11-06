@@ -1,3 +1,16 @@
+# What the shipped image copies from app/ and alembic/ is an allowlist: a stray dump, key or env file
+# has no way in, whatever it is called. tests/test_dockerignore.py fails on a file type added there
+# and not here, since a file left out only goes missing at run time.
+app/**
+!app/**/*.py
+!app/templates/**/*.html
+!app/templates/**/*.svg
+!app/static/**/*.css
+!app/static/**/*.js
+alembic/**
+!alembic/**/*.py
+!alembic/script.py.mako
+
 **/.git
 .gitignore
 README.md
@@ -18,18 +31,18 @@ pip-delete-this-directory.txt
 nosetests.xml
 coverage.xml
 *.cover
-*.log
+**/*.log
 .DS_Store
 .vscode
 .idea
 .claude/
 *.swp
 *.swo
-*~
+**/*~
 test.db
 
-# Secrets, private topology and data never enter the build context, at any depth
-# (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD, "Clean-clone build readiness").
+# Secrets, private topology and data stay out of the rest of the build context, which reaches the css
+# stage's layers (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD, "Clean-clone build readiness").
 **/.env
 **/.env.*
 **/*.env
@@ -50,8 +63,8 @@ test.db
 **/.ssh/
 !.env.example
 **/Makefile.local
-**/deploy/
-**/backups/
+deploy/
+backups/
 **/*.sql
 **/*.sql.gz
 **/*.dump

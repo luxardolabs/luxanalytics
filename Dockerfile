@@ -62,9 +62,9 @@ COPY alembic ./alembic
 COPY alembic.ini ./
 
 # The code stays root-owned: the runtime user reads it and can rewrite none of it. COPY keeps each
-# file's mode from the build context, so a 0600 file in a checkout would be unreadable: open them all
-# for reading. The app writes nothing to disk (logs go to stdout), so it owns no directory here.
-RUN chmod -R a+rX /app && useradd -m -u 1000 luxanalytics
+# file's mode from the build context, so a 0600 file in a checkout would be unreadable and a 0666 one
+# writable: set both. The app writes nothing to disk (logs go to stdout), so it owns no directory here.
+RUN chmod -R a+rX,go-w /app && useradd -m -u 1000 luxanalytics
 USER luxanalytics
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

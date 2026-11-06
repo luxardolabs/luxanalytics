@@ -3,6 +3,8 @@
 from pathlib import Path
 
 import pytest
+import redis.asyncio as redis
+from limits.storage import storage_from_string
 from pydantic import ValidationError
 
 from app.core.config import Settings
@@ -43,17 +45,23 @@ def test_a_refused_setting_does_not_print_its_value() -> None:
     assert "short-secret-value" not in str(refused.value)
 
 
-@pytest.mark.parametrize("secret", ["", "x", "short-secret-value", "s" * 31])
-def test_a_short_session_signing_key_is_refused(secret: str) -> None:
+@pytest.mark.parametrize(
+    "secret", ["x", "short-secret-value", "s" * 31, " " * 32, "\t" * 32]
+)
+def test_a_short_or_blank_session_signing_key_is_refused(secret: str) -> None:
     with pytest.raises(ValidationError, match="DASHBOARD_SESSION_SECRET") as refused:
         _settings(DASHBOARD_SESSION_SECRET=secret)
 
     assert "short-secret-value" not in str(refused.value)
 
 
-@pytest.mark.parametrize("secret", [None, "s" * 32])
-def test_an_unset_or_long_session_signing_key_starts(secret: str | None) -> None:
-    assert _settings(DASHBOARD_SESSION_SECRET=secret).ENVIRONMENT == "production"
+@pytest.mark.parametrize(
+    ("secret", "stored"), [(None, None), ("", None), ("s" * 32, "s" * 32)]
+)
+def test_an_unset_empty_or_long_session_signing_key_starts(
+    secret: str | None, stored: str | None
+) -> None:
+    assert _settings(DASHBOARD_SESSION_SECRET=secret).DASHBOARD_SESSION_SECRET == stored
 
 
 @pytest.mark.parametrize(
@@ -76,12 +84,20 @@ def test_well_formed_hmac_keys_start() -> None:
     assert _settings(HMAC_KEYS='{"app": "hmac-secret-value"}').hmac_keys_dict == keys
 
 
+@pytest.mark.parametrize("value", ["{}", "", " "])
+def test_a_dsn_only_deployment_needs_no_hmac_keys(value: str) -> None:
+    assert _settings(HMAC_KEYS=value).hmac_keys_dict == {}
+
+
 @pytest.mark.parametrize(
     "url",
     [
         "memcached://:redis-password@host:6379/0",
         "redis://:redis-password@host:port/0",
         "redis://:redis-password@host:99999/0",
+        "unix://:redis-password@/var/run/redis.sock?db=0",
+        "REDIS://:redis-password@host:6379/0",
+        " redis://:redis-password@host:6379/0",
     ],
 )
 def test_an_unreadable_redis_url_is_refused_without_printing_it(url: str) -> None:
@@ -92,17 +108,39 @@ def test_an_unreadable_redis_url_is_refused_without_printing_it(url: str) -> Non
 
 
 @pytest.mark.parametrize(
-    "url",
-    [
-        None,
-        "",
-        "redis://localhost:6379/0",
-        "rediss://:p@host:6380/1",
-        "unix:///var/run/redis.sock",
-    ],
+    "url", ["redis://:p@localhost:6379/0", "rediss://:p@localhost:6380/1"]
 )
-def test_a_readable_or_unset_redis_url_starts(url: str | None) -> None:
+def test_a_redis_url_the_settings_accept_is_one_both_clients_read(url: str) -> None:
+    accepted = _settings(REDIS_URL=url).REDIS_URL
+    assert accepted == url
+
+    storage_from_string(url)
+    redis.from_url(url)
+
+
+@pytest.mark.parametrize("url", [None, ""])
+def test_an_unset_redis_url_starts(url: str | None) -> None:
     assert _settings(REDIS_URL=url).REDIS_URL == url
+
+
+def test_an_unreadable_database_url_is_refused_without_printing_it() -> None:
+    url = "postgresql+asyncpg://u:p@ss:db-password@h:5432/d"
+    with pytest.raises(ValidationError, match="DATABASE_URL") as refused:
+        _settings(DATABASE_URL=url)
+
+    assert "db-password" not in str(refused.value)
+
+
+def test_a_percent_encoded_database_password_starts() -> None:
+    url = "postgresql+asyncpg://u:p%40ss%3Adb-password@h:5432/d"
+    assert _settings(DATABASE_URL=url).DATABASE_URL == url
+
+
+def test_malformed_cors_origins_are_refused_without_printing_them() -> None:
+    with pytest.raises(ValidationError) as refused:
+        _ = _settings(CORS_ORIGINS='["https://origin-value"').cors_origins_list
+
+    assert "origin-value" not in str(refused.value)
 
 
 @pytest.mark.parametrize("password", ["admin", "changeme", "ChangeMe", "password"])

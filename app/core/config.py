@@ -14,13 +14,17 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from app.core.trusted_host import AllowedHosts
 
 # Parses HMAC_KEYS, so a refusal must not print what it refused: the value holds secrets.
 _STR_DICT = TypeAdapter(dict[str, str], config=ConfigDict(hide_input_in_errors=True))
-_REDIS_URL_SCHEMES = frozenset({"redis", "rediss", "unix"})
-_STR_LIST = TypeAdapter(list[str])
+# The forms both Redis clients read: redis-py checks the prefix as written, and slowapi's `limits`
+# names a socket differently from redis-py, so no socket form works for both.
+_REDIS_URL_PREFIXES = ("redis://", "rediss://")
+_STR_LIST = TypeAdapter(list[str], config=ConfigDict(hide_input_in_errors=True))
 
 
 def _guessable(password: str, username: str) -> bool:
@@ -169,14 +173,43 @@ class Settings(BaseSettings):
         included, in its traceback; refused here, the startup log names only the setting."""
         if not v:
             return v
+        if not v.startswith(_REDIS_URL_PREFIXES):
+            raise ValueError("REDIS_URL must be a redis:// or rediss:// URL")
         try:
-            parts = urlparse(v)
-            _ = parts.port
+            _ = urlparse(v).port
         except ValueError:
             raise ValueError("REDIS_URL is not a readable URL") from None
-        if parts.scheme not in _REDIS_URL_SCHEMES:
-            raise ValueError("REDIS_URL must be a redis://, rediss:// or unix:// URL")
         return v
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def database_url_readable(cls, v: str) -> str:
+        """A URL SQLAlchemy cannot read (an unencoded `@` or `:` in the password) crashes the import
+        with part of the password in its traceback; refused here, the log names only the setting."""
+        try:
+            make_url(v)
+        except (ArgumentError, ValueError):
+            raise ValueError(
+                "DATABASE_URL is not a readable URL (percent-encode its password)"
+            ) from None
+        return v
+
+    @field_validator("DASHBOARD_SESSION_SECRET", mode="before")
+    @classmethod
+    def blank_session_secret_is_unset(cls, v: object) -> object:
+        """An empty `KEY=` line means unset, as it does for REDIS_URL. Whitespace that fills the
+        length is a key anyone can guess."""
+        if v == "":
+            return None
+        if isinstance(v, str) and not v.strip():
+            raise ValueError("DASHBOARD_SESSION_SECRET must not be blank")
+        return v
+
+    @field_validator("HMAC_KEYS", mode="before")
+    @classmethod
+    def blank_hmac_keys_are_none(cls, v: object) -> object:
+        """An empty `KEY=` line means no keys: a DSN-only deployment needs none."""
+        return "{}" if isinstance(v, str) and not v.strip() else v
 
     @model_validator(mode="after")
     def hmac_keys_readable(self) -> Settings:
