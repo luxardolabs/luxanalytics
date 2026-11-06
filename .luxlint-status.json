@@ -77,40 +77,18 @@
     },
     {
       "rule": "lint.ruff",
-      "status": "FAIL",
+      "status": "PASS",
       "since": "0.1.0",
-      "violations": 3,
-      "sites": [
-        {
-          "path": "tests/test_settings.py",
-          "line": 64,
-          "detail": "SIM300 Yoda condition detected"
-        },
-        {
-          "path": "tests/test_settings.py",
-          "line": 123,
-          "detail": "SIM300 Yoda condition detected"
-        },
-        {
-          "path": "tests/test_settings.py",
-          "line": 136,
-          "detail": "SIM300 Yoda condition detected"
-        }
-      ],
+      "violations": 0,
+      "sites": [],
       "deferred": false
     },
     {
       "rule": "lint.format",
-      "status": "FAIL",
+      "status": "PASS",
       "since": "0.1.0",
-      "violations": 1,
-      "sites": [
-        {
-          "path": "app/core/config.py",
-          "line": null,
-          "detail": "would be reformatted"
-        }
-      ],
+      "violations": 0,
+      "sites": [],
       "deferred": false
     },
     {
@@ -219,13 +197,13 @@
     }
   ],
   "summary": {
-    "PASS": 21,
-    "FAIL": 2,
+    "PASS": 23,
+    "FAIL": 0,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "18d083a438bde2c7b7175cba9a3caff9d418140e",
-  "generated_at": "2026-11-06T19:00:40Z"
+  "commit": "0584a7242eface56275879c369c377652218c154",
+  "generated_at": "2026-11-06T19:05:25Z"
 }
