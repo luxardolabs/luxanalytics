@@ -921,9 +921,12 @@ class AnalyticsCoreService:
         with create_service_span(
             "AnalyticsCoreService", "get_session_detail", session_id=session_id
         ):
-            events = await event_crud.get_events_by_session(
-                self.db, session_id, limit=SESSION_EVENTS_SHOWN
-            )
+            events = [
+                EventInDB.model_validate(e)
+                for e in await event_crud.get_events_by_session(
+                    self.db, session_id, limit=SESSION_EVENTS_SHOWN
+                )
+            ]
             if not events:
                 return {"session_id": session_id, "events": [], "duration_seconds": 0}
 

@@ -196,8 +196,14 @@ class EventInDB(BaseModel):
     locale: str | None
     timezone: str | None
     is_testflight: bool | None
-    # JSONB the SDK fills per event name: keys and value types are the caller's.
+    # JSONB the SDK fills per event name: keys and value types are the caller's. A stored value
+    # that is not a JSON object (a list, a string, a number) reads as no properties.
     properties: dict[str, Any] | None
+
+    @field_validator("properties", mode="before")
+    @classmethod
+    def _only_an_object(cls, value: object) -> object:
+        return value if isinstance(value, dict) else None
 
     model_config = ConfigDict(from_attributes=True)
 

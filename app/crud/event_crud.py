@@ -670,10 +670,14 @@ class EventCRUD:
     async def get_events_with_properties(
         self, db: AsyncSession, conditions: Conditions, limit: int = 500
     ) -> list[Event]:
-        """Get events that have non-null properties for metadata analysis."""
+        """Get events whose properties are a JSON object or JSON null (not SQL NULL, and not a
+        list, string or number, which have no keys to analyse), for metadata analysis."""
         query = (
             select(Event)
-            .where(and_(true(), *conditions), Event.properties.isnot(None))
+            .where(
+                and_(true(), *conditions),
+                func.jsonb_typeof(Event.properties).in_(("object", "null")),
+            )
             .order_by(desc(Event.received_at))
             .limit(limit)
         )
