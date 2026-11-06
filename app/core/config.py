@@ -185,13 +185,16 @@ class Settings(BaseSettings):
     @classmethod
     def database_url_readable(cls, v: str) -> str:
         """A URL SQLAlchemy cannot read (an unencoded `@` or `:` in the password) crashes the import
-        with part of the password in its traceback; refused here, the log names only the setting."""
+        with part of the password in its traceback, and an unencoded `@` can parse with the rest of
+        the password as the host; refused here, the log names only the setting."""
         try:
-            make_url(v)
+            host = make_url(v).host or ""
         except ArgumentError, ValueError:
+            host = "@"
+        if "@" in host:
             raise ValueError(
                 "DATABASE_URL is not a readable URL (percent-encode its password)"
-            ) from None
+            )
         return v
 
     @field_validator("DASHBOARD_SESSION_SECRET", mode="before")

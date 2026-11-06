@@ -135,6 +135,20 @@ def test_an_unreadable_database_url_is_refused_without_printing_it() -> None:
     assert "db-password" not in str(refused.value)
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql+asyncpg://u:pw@tail-secret@h:5432/d",
+        "postgresql+asyncpg://u:pw@tail-secret@h/d",
+    ],
+)
+def test_an_unencoded_at_in_the_database_password_is_refused(url: str) -> None:
+    with pytest.raises(ValidationError, match="DATABASE_URL") as refused:
+        _settings(DATABASE_URL=url)
+
+    assert "tail-secret" not in str(refused.value)
+
+
 def test_a_percent_encoded_database_password_starts() -> None:
     url = "postgresql+asyncpg://u:p%40ss%3Adb-password@h:5432/d"
     loaded = _settings(DATABASE_URL=url)

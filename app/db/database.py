@@ -2,6 +2,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
@@ -19,9 +20,7 @@ logger.info(
         "max_overflow": settings.DB_POOL_MAX_OVERFLOW,
         "pool_recycle": settings.DB_POOL_RECYCLE,
         "pool_pre_ping": settings.DB_POOL_PRE_PING,
-        "database_url": settings.DATABASE_URL.split("@")[1]
-        if "@" in settings.DATABASE_URL
-        else "invalid",
+        "database_host": make_url(settings.DATABASE_URL).host,
     },
 )
 
