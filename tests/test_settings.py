@@ -81,6 +81,22 @@ def test_malformed_hmac_keys_refuse_startup_without_printing_them(value: str) ->
     assert "hmac-secret-value" not in str(refused.value)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        '{"app": "   "}',
+        '{"app": ""}',
+        '{"app": "\\t\\n"}',
+        '{"a": "real-secret", "b": " "}',
+    ],
+)
+def test_a_blank_hmac_secret_is_refused(value: str) -> None:
+    with pytest.raises(ValidationError, match="HMAC_KEYS") as refused:
+        _settings(HMAC_KEYS=value)
+
+    assert "real-secret" not in str(refused.value)
+
+
 def test_well_formed_hmac_keys_start() -> None:
     keys = {"app": "hmac-secret-value"}
     assert _settings(HMAC_KEYS='{"app": "hmac-secret-value"}').hmac_keys_dict == keys

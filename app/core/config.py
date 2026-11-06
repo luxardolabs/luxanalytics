@@ -217,13 +217,16 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def hmac_keys_readable(self) -> Settings:
         """HMAC_KEYS is parsed on each signed request, so a malformed value is refused at startup,
-        not at the first request; the refusal names the setting and none of its value."""
+        not at the first request, and so is a blank secret; the refusal names the setting and none of
+        its value."""
         try:
-            _STR_DICT.validate_json(self.HMAC_KEYS)
+            keys = _STR_DICT.validate_json(self.HMAC_KEYS)
         except ValidationError:
             raise ValueError(
                 'HMAC_KEYS must be a JSON object of {"<key id>": "<secret>"}'
             ) from None
+        if not all(secret.strip() for secret in keys.values()):
+            raise ValueError("HMAC_KEYS must not hold a blank secret")
         return self
 
     @property
