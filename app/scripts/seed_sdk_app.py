@@ -33,7 +33,8 @@ async def ensure_sdk_app(db: AsyncSession) -> AppRow:
     core = AppCoreService(db)
     app = await core.get_app_by_app_id_including_deleted(SDK_APP_ID)
     if app is None:
-        return await core.create_app(
+        # None: another seed run created it first, and the read below finds it.
+        await core.create_app(
             AppCreate(
                 app_id=SDK_APP_ID,
                 name="SDK integration tests",
@@ -41,6 +42,9 @@ async def ensure_sdk_app(db: AsyncSession) -> AppRow:
                 description="Swift SDK integration tests against dev; disposable data.",
             )
         )
+        app = await core.get_app_by_app_id_including_deleted(SDK_APP_ID)
+    if app is None:
+        raise LookupError(f"{SDK_APP_ID!r} was neither found nor created")
     if app.deleted_at is not None:
         restored = await core.restore_app(SDK_APP_ID)
         if restored is not None:

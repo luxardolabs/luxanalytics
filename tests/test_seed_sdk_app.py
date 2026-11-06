@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.main import create_application
 from app.models.app_model import App
-from app.schemas.app_schema import AppUpdate
+from app.schemas.app_schema import AppCreate, AppUpdate
 from app.scripts import seed_sdk_app
 from app.services.core.app_core_service import AppCoreService
 
@@ -36,6 +36,18 @@ async def test_it_refuses_production(
 ) -> None:
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
     with pytest.raises(seed_sdk_app.NotADevEnvironment):
+        await seed_sdk_app.ensure_sdk_app(db)
+
+
+@pytest.mark.db
+async def test_an_app_that_is_neither_found_nor_created_is_an_error(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def refuse(self: AppCoreService, app_data: AppCreate) -> None:
+        return None
+
+    monkeypatch.setattr(AppCoreService, "create_app", refuse)
+    with pytest.raises(LookupError):
         await seed_sdk_app.ensure_sdk_app(db)
 
 

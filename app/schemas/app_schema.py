@@ -13,7 +13,12 @@ class AppBase(BaseModel):
 
 
 class AppCreate(AppBase):
-    app_id: str = Field(..., min_length=1, max_length=255)
+    # Lowercase letters, digits, underscores and hyphens, starting with a letter or digit: an
+    # app_id is a URL path segment, a cookie value and a query value, so it carries none of the
+    # characters those need escaped. Checked at creation only; stored app_ids are read as they are.
+    app_id: str = Field(
+        ..., min_length=1, max_length=255, pattern=r"^[a-z0-9][a-z0-9_-]*$"
+    )
 
 
 class AppUpdate(BaseModel):

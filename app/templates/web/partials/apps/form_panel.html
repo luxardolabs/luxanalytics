@@ -23,7 +23,7 @@
                 {{ input("app_id_display", label="App ID", value=app.app_id, help="Cannot be changed after creation.", class="opacity-60 cursor-not-allowed") }}
                 {% else %}
                 {{ input("app_id", label="App ID", required=true, placeholder="my_app_name",
-                         help="Lowercase, underscores only. Cannot be changed later.") }}
+                         help="Lowercase letters, digits, underscores and hyphens. Cannot be changed later.") }}
                 {% endif %}
 
                 {{ input("organization", label="Organization", value=app.organization if app else '', placeholder="Luxardo Labs") }}
