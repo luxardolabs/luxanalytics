@@ -188,7 +188,7 @@ class Settings(BaseSettings):
         with part of the password in its traceback; refused here, the log names only the setting."""
         try:
             make_url(v)
-        except (ArgumentError, ValueError):
+        except ArgumentError, ValueError:
             raise ValueError(
                 "DATABASE_URL is not a readable URL (percent-encode its password)"
             ) from None

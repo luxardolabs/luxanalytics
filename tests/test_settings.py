@@ -61,7 +61,9 @@ def test_a_short_or_blank_session_signing_key_is_refused(secret: str) -> None:
 def test_an_unset_empty_or_long_session_signing_key_starts(
     secret: str | None, stored: str | None
 ) -> None:
-    assert _settings(DASHBOARD_SESSION_SECRET=secret).DASHBOARD_SESSION_SECRET == stored
+    loaded = _settings(DASHBOARD_SESSION_SECRET=secret)
+
+    assert stored == loaded.DASHBOARD_SESSION_SECRET
 
 
 @pytest.mark.parametrize(
@@ -120,7 +122,9 @@ def test_a_redis_url_the_settings_accept_is_one_both_clients_read(url: str) -> N
 
 @pytest.mark.parametrize("url", [None, ""])
 def test_an_unset_redis_url_starts(url: str | None) -> None:
-    assert _settings(REDIS_URL=url).REDIS_URL == url
+    loaded = _settings(REDIS_URL=url)
+
+    assert url == loaded.REDIS_URL
 
 
 def test_an_unreadable_database_url_is_refused_without_printing_it() -> None:
@@ -133,7 +137,9 @@ def test_an_unreadable_database_url_is_refused_without_printing_it() -> None:
 
 def test_a_percent_encoded_database_password_starts() -> None:
     url = "postgresql+asyncpg://u:p%40ss%3Adb-password@h:5432/d"
-    assert _settings(DATABASE_URL=url).DATABASE_URL == url
+    loaded = _settings(DATABASE_URL=url)
+
+    assert url == loaded.DATABASE_URL
 
 
 def test_malformed_cors_origins_are_refused_without_printing_them() -> None:
