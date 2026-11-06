@@ -10,24 +10,38 @@ from app.models.event_model import Event
 class AppCRUD:
     async def get_by_public_id(self, db: AsyncSession, public_id: str) -> App | None:
         result = await db.execute(
-            select(App).where(App.public_id == public_id, App.is_active)
+            select(App).where(
+                App.public_id == public_id, App.is_active, App.deleted_at.is_(None)
+            )
         )
         return result.scalar_one_or_none()
 
     async def get_by_project_id(self, db: AsyncSession, project_id: str) -> App | None:
         result = await db.execute(
-            select(App).where(App.project_id == project_id, App.is_active)
+            select(App).where(
+                App.project_id == project_id, App.is_active, App.deleted_at.is_(None)
+            )
         )
         return result.scalar_one_or_none()
 
     async def get_by_app_id(self, db: AsyncSession, app_id: str) -> App | None:
+        """The live app with this app_id (a deleted one is not found)."""
+        result = await db.execute(
+            select(App).where(App.app_id == app_id, App.deleted_at.is_(None))
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_app_id_including_deleted(
+        self, db: AsyncSession, app_id: str
+    ) -> App | None:
+        """The app holding this app_id, deleted or not: a deleted row keeps its app_id."""
         result = await db.execute(select(App).where(App.app_id == app_id))
         return result.scalar_one_or_none()
 
     async def get_all(
         self, db: AsyncSession, include_inactive: bool = False
     ) -> list[App]:
-        query = select(App)
+        query = select(App).where(App.deleted_at.is_(None))
         if not include_inactive:
             query = query.where(App.is_active.is_(True))
         query = query.order_by(App.created_at.desc())
@@ -45,8 +59,8 @@ class AppCRUD:
         await db.refresh(app)
         return app
 
-    async def delete(self, db: AsyncSession, app: App) -> None:
-        await db.delete(app)
+    async def soft_delete(self, db: AsyncSession, app: App) -> None:
+        app.soft_delete()
         await db.flush()
 
     async def search(self, db: AsyncSession, query_str: str) -> list[App]:
@@ -54,10 +68,11 @@ class AppCRUD:
         result = await db.execute(
             select(App)
             .where(
+                App.deleted_at.is_(None),
                 (App.name.ilike(pattern))
                 | (App.app_id.ilike(pattern))
                 | (App.organization.ilike(pattern))
-                | (App.public_id.ilike(pattern))
+                | (App.public_id.ilike(pattern)),
             )
             .order_by(App.created_at.desc())
         )

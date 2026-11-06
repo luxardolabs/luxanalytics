@@ -34,6 +34,7 @@ class AppRow(AppBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -50,6 +50,15 @@ class AppCoreService:
             app = await app_crud.get_by_app_id(self.db, app_id)
             return AppRow.model_validate(app) if app is not None else None
 
+    async def get_app_by_app_id_including_deleted(self, app_id: str) -> AppRow | None:
+        """The app holding this app_id even when deleted: a deleted app keeps its app_id, so the id
+        cannot be registered again and its events never pass to another app."""
+        with create_service_span(
+            "AppCoreService", "get_app_by_app_id_including_deleted", app_id=app_id
+        ):
+            app = await app_crud.get_by_app_id_including_deleted(self.db, app_id)
+            return AppRow.model_validate(app) if app is not None else None
+
     async def get_all_apps(self, include_inactive: bool = False) -> list[AppRow]:
         with create_service_span("AppCoreService", "get_all_apps"):
             apps = await app_crud.get_all(self.db, include_inactive)
@@ -79,7 +88,7 @@ class AppCoreService:
             app = await app_crud.get_by_app_id(self.db, app_id)
             if not app:
                 return False
-            await app_crud.delete(self.db, app)
+            await app_crud.soft_delete(self.db, app)
             return True
 
     async def search_apps(self, query: str) -> list[AppRow]:
