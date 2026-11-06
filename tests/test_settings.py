@@ -43,6 +43,68 @@ def test_a_refused_setting_does_not_print_its_value() -> None:
     assert "short-secret-value" not in str(refused.value)
 
 
+@pytest.mark.parametrize("secret", ["", "x", "short-secret-value", "s" * 31])
+def test_a_short_session_signing_key_is_refused(secret: str) -> None:
+    with pytest.raises(ValidationError, match="DASHBOARD_SESSION_SECRET") as refused:
+        _settings(DASHBOARD_SESSION_SECRET=secret)
+
+    assert "short-secret-value" not in str(refused.value)
+
+
+@pytest.mark.parametrize("secret", [None, "s" * 32])
+def test_an_unset_or_long_session_signing_key_starts(secret: str | None) -> None:
+    assert _settings(DASHBOARD_SESSION_SECRET=secret).ENVIRONMENT == "production"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        '{"app": "hmac-secret-value"',
+        '["hmac-secret-value"]',
+        '{"app": ["hmac-secret-value"]}',
+    ],
+)
+def test_malformed_hmac_keys_refuse_startup_without_printing_them(value: str) -> None:
+    with pytest.raises(ValidationError, match="HMAC_KEYS") as refused:
+        _settings(HMAC_KEYS=value)
+
+    assert "hmac-secret-value" not in str(refused.value)
+
+
+def test_well_formed_hmac_keys_start() -> None:
+    keys = {"app": "hmac-secret-value"}
+    assert _settings(HMAC_KEYS='{"app": "hmac-secret-value"}').hmac_keys_dict == keys
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "memcached://:redis-password@host:6379/0",
+        "redis://:redis-password@host:port/0",
+        "redis://:redis-password@host:99999/0",
+    ],
+)
+def test_an_unreadable_redis_url_is_refused_without_printing_it(url: str) -> None:
+    with pytest.raises(ValidationError, match="REDIS_URL") as refused:
+        _settings(REDIS_URL=url)
+
+    assert "redis-password" not in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        None,
+        "",
+        "redis://localhost:6379/0",
+        "rediss://:p@host:6380/1",
+        "unix:///var/run/redis.sock",
+    ],
+)
+def test_a_readable_or_unset_redis_url_starts(url: str | None) -> None:
+    assert _settings(REDIS_URL=url).REDIS_URL == url
+
+
 @pytest.mark.parametrize("password", ["admin", "changeme", "ChangeMe", "password"])
 def test_a_guessable_password_is_refused_in_production(password: str) -> None:
     with pytest.raises(ValidationError, match="guessable"):

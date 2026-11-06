@@ -5,12 +5,21 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import Field, TypeAdapter, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.trusted_host import AllowedHosts
 
-_STR_DICT = TypeAdapter(dict[str, str])
+# Parses HMAC_KEYS, so a refusal must not print what it refused: the value holds secrets.
+_STR_DICT = TypeAdapter(dict[str, str], config=ConfigDict(hide_input_in_errors=True))
+_REDIS_URL_SCHEMES = frozenset({"redis", "rediss", "unix"})
 _STR_LIST = TypeAdapter(list[str])
 
 
@@ -114,7 +123,7 @@ class Settings(BaseSettings):
     # Required, no default: a missing env var must stop the app, never fall back to a guessable
     # credential on the internet-facing dashboard.
     DASHBOARD_PASSWORD: str = Field(min_length=1)
-    DASHBOARD_SESSION_SECRET: str | None = None
+    DASHBOARD_SESSION_SECRET: str | None = Field(default=None, min_length=32)
     DASHBOARD_SESSION_TIMEOUT: int = 3600
 
     # URLs
@@ -152,6 +161,34 @@ class Settings(BaseSettings):
         if v is None:
             return None
         return v.strip() or None
+
+    @field_validator("REDIS_URL")
+    @classmethod
+    def redis_url_readable(cls, v: str | None) -> str | None:
+        """A URL the Redis clients cannot read crashes the import with the whole URL, password
+        included, in its traceback; refused here, the startup log names only the setting."""
+        if not v:
+            return v
+        try:
+            parts = urlparse(v)
+            _ = parts.port
+        except ValueError:
+            raise ValueError("REDIS_URL is not a readable URL") from None
+        if parts.scheme not in _REDIS_URL_SCHEMES:
+            raise ValueError("REDIS_URL must be a redis://, rediss:// or unix:// URL")
+        return v
+
+    @model_validator(mode="after")
+    def hmac_keys_readable(self) -> Settings:
+        """HMAC_KEYS is parsed on each signed request, so a malformed value is refused at startup,
+        not at the first request; the refusal names the setting and none of its value."""
+        try:
+            _STR_DICT.validate_json(self.HMAC_KEYS)
+        except ValidationError:
+            raise ValueError(
+                'HMAC_KEYS must be a JSON object of {"<key id>": "<secret>"}'
+            ) from None
+        return self
 
     @property
     def is_production(self) -> bool:

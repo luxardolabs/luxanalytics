@@ -2,8 +2,11 @@
 
 Every write goes through the models, whose defaults run in Python: `App` by the ORM, `Event` and
 `Device` by `pg_insert` on the model. So no write relies on these, and the chain now builds what the
-models describe. Catalog-only: no table is rewritten, and each statement holds its lock only for the
-catalog update.
+models describe. Catalog-only: no table is rewritten.
+
+Each ALTER needs an exclusive lock on its table, and reads of that table queue behind it while it
+waits. A long reader such as a `pg_dump` would hold them all up, so the wait is bounded: past
+LOCK_TIMEOUT the migration fails, changes nothing, and is safe to run again.
 
 Downgrade puts the five defaults back.
 
@@ -21,6 +24,7 @@ down_revision = "011_dashboard_session_state"
 branch_labels = None
 depends_on = None
 
+LOCK_TIMEOUT = "5s"
 DEFAULTS = (
     ("apps", "app_metadata", "'{}'::jsonb"),
     ("apps", "created_at", "now()"),
@@ -31,10 +35,12 @@ DEFAULTS = (
 
 
 def upgrade() -> None:
+    op.execute(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'")
     for table, column, _default in DEFAULTS:
         op.alter_column(table, column, server_default=None)
 
 
 def downgrade() -> None:
+    op.execute(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'")
     for table, column, default in DEFAULTS:
         op.alter_column(table, column, server_default=sa.text(default))

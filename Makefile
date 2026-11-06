@@ -2587,7 +2587,7 @@ TEST_DB_URL   := postgresql+asyncpg://test:test@db-test:5432/test
 TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
             -e REDIS_URL=redis://redis-test:6379/0 \
             -e SECRET_KEY=test-only-test-only-test-only-test-only -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost \
-            -e DASHBOARD_SESSION_SECRET=test-only -e DASHBOARD_PASSWORD=test-only-dashboard-password \
+            -e DASHBOARD_SESSION_SECRET=test-only-test-only-test-only-test-only -e DASHBOARD_PASSWORD=test-only-dashboard-password \
             --env-file test-suite.env
 
 # luxarch:test-block asset v13 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit test-block`.
