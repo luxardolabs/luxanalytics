@@ -1,6 +1,7 @@
 # What the shipped image copies from app/ and alembic/ is an allowlist: a stray dump, key or env file
-# has no way in, whatever it is called. tests/test_dockerignore.py fails on a file type added there
-# and not here, since a file left out only goes missing at run time.
+# has no way in, whatever it is called. tests/test_dockerignore.py matches every file under app/ and
+# alembic/ against these patterns and fails on one that does not ship (the change_logs and
+# release_notes .md files excepted), since a file left out only goes missing at run time.
 app/**
 !app/**/*.py
 !app/templates/**/*.html
