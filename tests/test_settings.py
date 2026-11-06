@@ -126,7 +126,36 @@ def test_an_unreadable_redis_url_is_refused_without_printing_it(url: str) -> Non
 
 
 @pytest.mark.parametrize(
-    "url", ["redis://:p@localhost:6379/0", "rediss://:p@localhost:6380/1"]
+    "url",
+    [
+        "redis://:?db=redis-password@127.0.0.1:6379/0",
+        "redis://h/0?db=abc&x=redis-password",
+        "redis://:redis-password@h/0?socket_timeout=abc",
+        "redis://:redis-password@h/0?foo=bar",
+        "redis://:redis-password@h/0?db=abc",
+    ],
+)
+def test_a_redis_url_redis_py_cannot_build_a_client_from_is_refused_unprinted(
+    url: str,
+) -> None:
+    with pytest.raises(ValidationError, match="REDIS_URL") as refused:
+        _settings(REDIS_URL=url)
+
+    assert "redis-password" not in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "redis://localhost",
+        "redis://:p@localhost:6379/0",
+        "redis://user:p@localhost:6379/0",
+        "redis://[::1]:6379/2",
+        "redis://h/0?socket_timeout=5",
+        "redis://h/0?db=3",
+        "redis://:p%40ss@h:6379/0",
+        "rediss://:p@localhost:6380/1",
+    ],
 )
 def test_a_redis_url_the_settings_accept_is_one_both_clients_read(url: str) -> None:
     accepted = _settings(REDIS_URL=url).REDIS_URL

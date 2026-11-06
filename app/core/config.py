@@ -14,6 +14,8 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from redis.asyncio import BlockingConnectionPool
+from redis.exceptions import RedisError
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
@@ -176,8 +178,10 @@ class Settings(BaseSettings):
         if not v.startswith(_REDIS_URL_PREFIXES):
             raise ValueError("REDIS_URL must be a redis:// or rediss:// URL")
         try:
-            _ = urlparse(v).port
-        except ValueError:
+            # The client's own parser and constructor, so a form redis-py refuses is refused here.
+            pool = BlockingConnectionPool.from_url(v)
+            _ = pool.connection_class(**pool.connection_kwargs)
+        except ValueError, TypeError, RedisError:
             raise ValueError("REDIS_URL is not a readable URL") from None
         return v
 
