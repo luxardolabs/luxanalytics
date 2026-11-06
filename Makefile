@@ -43,7 +43,7 @@ endif
 # =============================================================================
 # Fleet guards — pinned (`:=`, a committed fact); see luxarch --doc FLEET-MAKEFILE-STANDARD
 # =============================================================================
-LUXARCH_VERSION  := 0.346.0
+LUXARCH_VERSION  := 0.348.0
 LUXLINT_VERSION  := 0.74.0
 LUXAUDIT_VERSION := 0.16.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
@@ -401,7 +401,7 @@ DBV_PG_IMAGE  := postgres:16-alpine
 DBV_EXTRA_ENV := -e ENVIRONMENT=test -e SECRET_KEY=db-verify-only-db-verify-only-db-verify -e DASHBOARD_PASSWORD=db-verify-only \
                  -e ALLOWED_HOSTS=db-verify.invalid
 
-# luxarch:db-verify asset v8 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
+# luxarch:db-verify asset v9 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
 # ── The migration-chain gate ────────────────────────────────────────────────────────────────────
 # Emitted by `luxarch --emit db-verify`. Drop in verbatim and set the variables above it.
 #
@@ -429,7 +429,7 @@ DBV_EXTRA_ENV := -e ENVIRONMENT=test -e SECRET_KEY=db-verify-only-db-verify-only
 # docker refuses becomes `-`.
 DBV_DB        ?= $(shell printf '%s\n' '$(subst ','\'',$(notdir $(CURDIR)))' | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_.\n-' '-')_migverify
 DBV_NET       ?= $(DBV_DB)_net
-DBV_IMAGE     ?= $(DBV_DB):verify
+override DBV_IMAGE = $(DBV_DB):verify
 DBV_PG_IMAGE  ?= postgres:17-alpine
 # Any env the app's Settings REQUIRES to import. Values are irrelevant here — this never serves
 # traffic — but a missing required setting fails at import and reads as a migration error.
@@ -450,8 +450,11 @@ DB_DRIFT_CONTAINER   ?=
 DB_DRIFT_IMPORT_ROOT ?= /app
 
 # The postgres image declares a VOLUME, so the data directory is a tmpfs (no anonymous volume to leak),
-# and the whole target is ONE shell whose `trap` removes the container and network on every exit path,
-# a failing upgrade or verify included.
+# and the whole target is ONE shell whose `trap` removes the container, network and image tag on every
+# exit path, a failing upgrade or verify included. A signal exits the shell, so the EXIT trap runs and the
+# run stops there. The tag is this run's own and is not a setting (each worktree derives its own name, so
+# a kept tag piles up on a shared machine). Its layers stay in the build cache, so the next run still
+# builds from cache.
 #
 # The image is BUILT, never a registry tag: `:dev`/`:latest` are MOVING pointers, so with the tree
 # mounted you would verify today's migrations against yesterday's interpreter and dependencies, which
@@ -460,8 +463,8 @@ DB_DRIFT_IMPORT_ROOT ?= /app
 # verifier cannot import the models it exists to diff against.
 db-verify: ## PROVE the chain builds the schema from EMPTY, no drift vs models
 	@set -e; \
-	cleanup() { docker rm -fv $(DBV_DB) >/dev/null 2>&1 || true; docker network rm $(DBV_NET) >/dev/null 2>&1 || true; }; \
-	trap cleanup EXIT INT TERM; cleanup; \
+	cleanup() { docker rm -fv $(DBV_DB) >/dev/null 2>&1 || true; docker network rm $(DBV_NET) >/dev/null 2>&1 || true; docker image rm $(DBV_IMAGE) >/dev/null 2>&1 || true; }; \
+	trap 'trap "" HUP INT QUIT PIPE TERM; cleanup' EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 131' QUIT; trap 'exit 141' PIPE; trap 'exit 143' TERM; cleanup; \
 	docker network create $(DBV_NET) >/dev/null; \
 	docker run -d --name $(DBV_DB) --network $(DBV_NET) --tmpfs /var/lib/postgresql/data \
 	  -e POSTGRES_USER=$(DBV_DB) -e POSTGRES_PASSWORD=$(DBV_DB) -e POSTGRES_DB=$(DBV_DB) \
