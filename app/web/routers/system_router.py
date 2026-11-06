@@ -4,10 +4,11 @@ Module-level (not defined inside create_application) so every app instance share
 objects, like every other router.
 """
 
-from fastapi import APIRouter, Depends, Form, Header, Request
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import RedirectResponse, Response
 
 from app.core.auth import require_auth
+from app.core.query_params import AppIdForm
 from app.services.views.dashboard_view_service import switch_app_response
 
 router = APIRouter()
@@ -29,7 +30,7 @@ async def root(request: Request) -> RedirectResponse:
 )
 async def set_app_context(
     request: Request,
-    app_id: str = Form(""),
+    app_id: AppIdForm = "",
     hx_current_url: str = Header("", alias="HX-Current-URL"),
 ) -> Response:
     """Set the current app context via cookie (used by nav app selector)."""

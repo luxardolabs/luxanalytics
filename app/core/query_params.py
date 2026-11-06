@@ -4,7 +4,7 @@ and the services below never see a value no query can use."""
 
 from typing import Annotated
 
-from fastapi import Path, Query
+from fastapi import Form, Path, Query
 from pydantic import BeforeValidator, StringConstraints
 
 # Ten years of hours. The window is subtracted from "now"; far past this the date arithmetic
@@ -35,3 +35,5 @@ TextFilter = Annotated[
     Query(),
 ]
 PathText = Annotated[str, Path(pattern=_NO_NUL)]
+# An app_id as a form field: no longer than the column that stores it.
+AppIdForm = Annotated[str, Form(pattern=_NO_NUL, max_length=255)]

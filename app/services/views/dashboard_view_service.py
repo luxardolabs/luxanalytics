@@ -9,7 +9,7 @@ nothing. Architecture: Router -> DashboardViewService -> AnalyticsCoreService ->
 import html
 from collections.abc import Iterable
 from typing import Any
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 from uuid import UUID
 
 from fastapi import HTTPException, Request
@@ -39,11 +39,19 @@ EVENTS_PER_PAGE = 50
 Context = dict[str, Any]
 
 
+def cookie_app_id(request: Request) -> str | None:
+    """The app the nav selector's cookie names. The cookie holds the id percent-encoded (an app_id
+    can carry any character; a cookie value only a few), so it is decoded here; a value that
+    decodes to a NUL byte, which no query takes, names no app."""
+    value = unquote(request.cookies.get(APP_CONTEXT_COOKIE, ""))
+    return None if not value or "\x00" in value else value
+
+
 def selected_app_id(request: Request, app_id: TextFilter = None) -> str | None:
     """The app a dashboard page is scoped to: ?app_id= first, then the nav selector's cookie."""
     if app_id:
         return app_id
-    return request.cookies.get(APP_CONTEXT_COOKIE) or None
+    return cookie_app_id(request)
 
 
 def switch_app_response(request: Request, current_url: str, app_id: str) -> Response:
@@ -61,7 +69,7 @@ def switch_app_response(request: Request, current_url: str, app_id: str) -> Resp
     if app_id:
         response.set_cookie(
             APP_CONTEXT_COOKIE,
-            app_id,
+            quote(app_id, safe=""),
             max_age=86400 * 30,
             secure=True,
             httponly=True,
@@ -161,7 +169,7 @@ class DashboardViewService:
             return {
                 "options": [{"value": "", "label": "All Apps"}]
                 + [{"value": a["app_id"], "label": a["app_id"]} for a in apps],
-                "current_app_id": request.cookies.get(APP_CONTEXT_COOKIE, ""),
+                "current_app_id": cookie_app_id(request) or "",
                 "set_context_url": self._path("system.set_app_context"),
             }
 
