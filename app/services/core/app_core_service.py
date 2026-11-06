@@ -3,12 +3,16 @@
 import secrets
 import string
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.tracing import create_service_span
+from app.core.tracing import create_service_span, record_exception_in_span
 from app.crud.app_crud import app_crud
 from app.models.app_model import App
 from app.schemas.app_schema import AppCreate, AppRow, AppStats, AppUpdate
+
+# The unique index on apps.app_id (App.app_id: unique + index).
+_APP_ID_INDEX = "ix_apps_app_id"
 
 
 class AppCoreService:
@@ -24,7 +28,9 @@ class AppCoreService:
     def generate_project_id(length: int = 16) -> str:
         return "".join(secrets.choice(string.digits) for _ in range(length))
 
-    async def create_app(self, app_data: AppCreate) -> AppRow:
+    async def create_app(self, app_data: AppCreate) -> AppRow | None:
+        """Insert the app; None when the app_id is taken (the unique index decides, so two
+        concurrent creates cannot both win)."""
         with create_service_span("AppCoreService", "create_app"):
             app = App(
                 public_id=self.generate_public_id(),
@@ -35,7 +41,14 @@ class AppCoreService:
                 description=app_data.description,
                 app_metadata=app_data.app_metadata,
             )
-            return AppRow.model_validate(await app_crud.create(self.db, app))
+            try:
+                created = await app_crud.create(self.db, app)
+            except IntegrityError as exc:
+                record_exception_in_span(exc)
+                if _APP_ID_INDEX not in str(exc.orig):
+                    raise
+                return None
+            return AppRow.model_validate(created)
 
     async def get_app_by_public_id(self, public_id: str) -> App | None:
         with create_service_span("AppCoreService", "get_app_by_public_id"):

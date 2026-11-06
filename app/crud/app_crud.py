@@ -49,8 +49,11 @@ class AppCRUD:
         return list(result.scalars().all())
 
     async def create(self, db: AsyncSession, app: App) -> App:
-        db.add(app)
-        await db.flush()
+        """Insert the app. The insert runs in a savepoint, so a unique-index refusal leaves the
+        request's transaction usable for the caller to answer with."""
+        async with db.begin_nested():
+            db.add(app)
+            await db.flush()
         await db.refresh(app)
         return app
 

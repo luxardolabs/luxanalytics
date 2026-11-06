@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import require_auth
 from app.db.database import get_db
 from app.services.views.apps_view_service import (
+    AppFormError,
     AppsViewService,
-    DuplicateAppIdError,
     new_panel_context,
     page_context,
 )
@@ -89,17 +89,8 @@ async def create_app(
     view = AppsViewService(db, request)
     try:
         message = await view.create(name, app_id, organization, description)
-    except DuplicateAppIdError as e:
-        # Shown in the form's own error box (the emitted htmx-error-swap honours HX-Error-Swap).
-        response = templates.TemplateResponse(
-            request,
-            "partials/apps/form_error.html",
-            {"message": str(e)},
-            status_code=400,
-        )
-        response.headers["HX-Retarget"] = "#form-errors"
-        response.headers["HX-Error-Swap"] = "true"
-        return response
+    except AppFormError as e:
+        return view.form_error(str(e))
     return await view.list_with_toast(message)
 
 
@@ -115,7 +106,10 @@ async def update_app(
 ) -> Response:
     """Update an app."""
     view = AppsViewService(db, request)
-    message = await view.update(app_id, name, organization, description, is_active)
+    try:
+        message = await view.update(app_id, name, organization, description, is_active)
+    except AppFormError as e:
+        return view.form_error(str(e))
     return await view.list_with_toast(message)
 
 

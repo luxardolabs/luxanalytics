@@ -13,6 +13,7 @@ from urllib.parse import urlencode, urlsplit
 
 from fastapi import HTTPException, Request
 from fastapi.responses import Response
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -43,8 +44,57 @@ def new_panel_context(request: Request) -> dict[str, Any]:
     return {"app": None, "create_url": request.app.url_path_for("apps.create")}
 
 
-class DuplicateAppIdError(ValueError):
+class AppFormError(ValueError):
+    """The app form was refused; the message is what the form's error box shows."""
+
+
+class DuplicateAppIdError(AppFormError):
     """An app with this app_id already exists."""
+
+
+def _form_message(error: ValidationError) -> str:
+    """The refused fields and why, without echoing the submitted values."""
+    return "; ".join(
+        f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}"
+        for e in error.errors(include_input=False)
+    )
+
+
+def _create_form(
+    name: str, app_id: str, organization: str | None, description: str | None
+) -> AppCreate:
+    """The New App form as a validated DTO; AppFormError names what the form got wrong."""
+    try:
+        return AppCreate(
+            name=name,
+            app_id=app_id,
+            organization=organization,
+            description=description,
+        )
+    except ValidationError as exc:
+        raise AppFormError(_form_message(exc)) from exc
+
+
+def _update_form(
+    name: str | None,
+    organization: str | None,
+    description: str | None,
+    is_active: bool,
+) -> AppUpdate:
+    """The edit form as a validated DTO, built in one call: a field the form left out stays unset
+    (unchanged); AppFormError names what the form got wrong."""
+    fields: dict[str, str | bool] = {"is_active": is_active}
+    for field, value in (
+        ("name", name),
+        ("organization", organization),
+        ("description", description),
+    ):
+        if value is not None:
+            fields[field] = value
+    try:
+        return AppUpdate.model_validate(fields)
+    except ValidationError as exc:
+        raise AppFormError(_form_message(exc)) from exc
 
 
 class AppsViewService:
@@ -129,23 +179,17 @@ class AppsViewService:
         organization: str | None,
         description: str | None,
     ) -> str:
-        """Create the app; returns the toast message. Raises DuplicateAppIdError."""
+        """Create the app; returns the toast message. Raises AppFormError (DuplicateAppIdError
+        when the app_id is taken)."""
         with create_service_span("AppsViewService", "create", app_id=app_id):
-            held = await self._core.get_app_by_app_id_including_deleted(app_id)
-            if held is not None and held.deleted_at is not None:
-                raise DuplicateAppIdError(
-                    f'App ID "{app_id}" belongs to a deleted app and cannot be reused'
-                )
-            if held is not None:
+            data = _create_form(name, app_id, organization, description)
+            if await self._core.create_app(data) is None:
+                held = await self._core.get_app_by_app_id_including_deleted(app_id)
+                if held is not None and held.deleted_at is not None:
+                    raise DuplicateAppIdError(
+                        f'App ID "{app_id}" belongs to a deleted app and cannot be reused'
+                    )
                 raise DuplicateAppIdError(f'App ID "{app_id}" already exists')
-            await self._core.create_app(
-                AppCreate(
-                    name=name,
-                    app_id=app_id,
-                    organization=organization,
-                    description=description,
-                )
-            )
             return f"App '{name}' created"
 
     async def update(
@@ -156,20 +200,14 @@ class AppsViewService:
         description: str | None,
         is_active_checked: bool,
     ) -> str:
-        """Apply the edit form; returns the toast message.
+        """Apply the edit form; returns the toast message. Raises AppFormError.
 
         The Active toggle is a checkbox, which a browser OMITS when unchecked: absent means
         False, never "leave unchanged" (LUXANALYTI-63: a None here wrote NULL into a NOT NULL
         column, so an app could not be deactivated).
         """
         with create_service_span("AppsViewService", "update", app_id=app_id):
-            update = AppUpdate(is_active=is_active_checked)
-            if name is not None:
-                update.name = name
-            if organization is not None:
-                update.organization = organization
-            if description is not None:
-                update.description = description
+            update = _update_form(name, organization, description, is_active_checked)
             app = await self._core.update_app(app_id, update)
             if app is None:
                 raise HTTPException(404, "App not found")
