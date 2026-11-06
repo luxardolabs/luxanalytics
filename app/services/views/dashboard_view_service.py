@@ -12,11 +12,12 @@ from typing import Any
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit
 from uuid import UUID
 
-from fastapi import HTTPException, Query, Request
+from fastapi import HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import build_pagination, skip_limit
+from app.core.query_params import TextFilter
 from app.core.safe_redirect import safe_redirect_target
 from app.core.tracing import create_service_span
 from app.schemas.event_schema import EventInDB
@@ -38,7 +39,7 @@ EVENTS_PER_PAGE = 50
 Context = dict[str, Any]
 
 
-def selected_app_id(request: Request, app_id: str | None = Query(None)) -> str | None:
+def selected_app_id(request: Request, app_id: TextFilter = None) -> str | None:
     """The app a dashboard page is scoped to: ?app_id= first, then the nav selector's cookie."""
     if app_id:
         return app_id

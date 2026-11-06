@@ -1,11 +1,11 @@
 """Dashboard pages + HTMX partials. HTTP only: each route renders the context its view method builds."""
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
-from app.core.query_params import Hours, Page
+from app.core.query_params import Hours, Page, PathText, TextFilter
 from app.db.database import get_db
 from app.services.views.dashboard_view_service import (
     DashboardViewService,
@@ -111,7 +111,7 @@ async def events_page(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    event_name: str | None = Query(None),
+    event_name: TextFilter = None,
     hours: Hours = 24,
     page: Page = 1,
 ) -> Response:
@@ -128,8 +128,8 @@ async def events_content(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
-    event_name: str | None = Query(None),
-    search_q: str | None = Query(None),
+    event_name: TextFilter = None,
+    search_q: TextFilter = None,
     hours: Hours = 24,
     page: Page = 1,
 ) -> Response:
@@ -309,7 +309,7 @@ async def explorer_page(
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: Hours = 24,
-    event_name: str | None = Query(None),
+    event_name: TextFilter = None,
 ) -> Response:
     context = await DashboardViewService(db, request).explorer_context(
         app_id, hours, event_name
@@ -325,7 +325,7 @@ async def explorer_content(
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: Hours = 24,
-    event_name: str | None = Query(None),
+    event_name: TextFilter = None,
 ) -> Response:
     context = await DashboardViewService(db, request).explorer_context(
         app_id, hours, event_name
@@ -359,7 +359,7 @@ async def event_detail_panel(
 )
 async def key_deep_dive_panel(
     request: Request,
-    key_name: str,
+    key_name: PathText,
     db: AsyncSession = Depends(get_db, scope="function"),
     app_id: str | None = Depends(selected_app_id),
     hours: Hours = 24,
@@ -378,7 +378,9 @@ async def key_deep_dive_panel(
     name="dashboard.users.profile_panel",
 )
 async def user_profile_panel(
-    request: Request, user_id: str, db: AsyncSession = Depends(get_db, scope="function")
+    request: Request,
+    user_id: PathText,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """User profile slider panel."""
     context = await DashboardViewService(db, request).user_profile_context(user_id)
@@ -394,7 +396,7 @@ async def user_profile_panel(
 )
 async def session_detail_panel(
     request: Request,
-    session_id: str,
+    session_id: PathText,
     db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Session detail slider panel."""
