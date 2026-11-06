@@ -1,13 +1,14 @@
 {
   "guard": "luxlint",
-  "guard_version": "0.70.1",
+  "guard_version": "0.74.0",
   "repo": "/repo",
   "source": [
     "app",
     "tests",
     "alembic",
     "scripts",
-    "conftest.py"
+    "conftest.py",
+    "luxarch_test_db"
   ],
   "rules": [
     {
@@ -67,19 +68,49 @@
       "deferred": false
     },
     {
-      "rule": "lint.ruff",
+      "rule": "secret.gitleaks_allow_live",
       "status": "PASS",
-      "since": "0.1.0",
+      "since": "0.71.0",
       "violations": 0,
       "sites": [],
       "deferred": false
     },
     {
-      "rule": "lint.format",
-      "status": "PASS",
+      "rule": "lint.ruff",
+      "status": "FAIL",
       "since": "0.1.0",
-      "violations": 0,
-      "sites": [],
+      "violations": 3,
+      "sites": [
+        {
+          "path": "tests/test_settings.py",
+          "line": 64,
+          "detail": "SIM300 Yoda condition detected"
+        },
+        {
+          "path": "tests/test_settings.py",
+          "line": 123,
+          "detail": "SIM300 Yoda condition detected"
+        },
+        {
+          "path": "tests/test_settings.py",
+          "line": 136,
+          "detail": "SIM300 Yoda condition detected"
+        }
+      ],
+      "deferred": false
+    },
+    {
+      "rule": "lint.format",
+      "status": "FAIL",
+      "since": "0.1.0",
+      "violations": 1,
+      "sites": [
+        {
+          "path": "app/core/config.py",
+          "line": null,
+          "detail": "would be reformatted"
+        }
+      ],
       "deferred": false
     },
     {
@@ -188,13 +219,13 @@
     }
   ],
   "summary": {
-    "PASS": 22,
-    "FAIL": 0,
+    "PASS": 21,
+    "FAIL": 2,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 0
   },
   "mypy": "separate: `luxlint --mypy` ([mypy].baseline ratchet)",
-  "commit": "511f3ec3297d26eabfd92afdcafcb0422e68ed3e",
-  "generated_at": "2026-10-29T13:01:37Z"
+  "commit": "2b279f0bbf116b94a8c08797d5de3e8f36eebfa3",
+  "generated_at": "2026-11-06T18:58:18Z"
 }

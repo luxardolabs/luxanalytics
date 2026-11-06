@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.329.2",
+  "guard_version": "0.346.0",
   "repo": "/repo",
   "targets": [
     {
@@ -1813,13 +1813,13 @@
         },
         {
           "rule": "fw.urls_from_route_names",
-          "status": "FAIL",
+          "status": "PASS",
           "since": "0.297.0",
-          "violations": 3,
+          "violations": 0,
           "deferred": false,
           "inert": false,
           "inert_reason": "",
-          "fix": "Build every link to an app route from the route's NAME, in the view service: `request.app.url_path_for(\"<area>.<entity>.<action>\", **params)` (a relative path; `request.url_for` is absolute and carries the internal scheme and host behind a proxy). Put the finished string on the view model and render `{{ item.urls.detail }}`. A redirect, an `HX-Redirect` header and a path comparison resolve the name the same way. JavaScript cannot resolve a name: render the URL into the markup (an `hx-*` attribute, or `data-url` read as `el.dataset.url`); a nav or config file lists route NAMES, resolved in the view. Code with no request (a job's email, a device payload built in core) resolves the name through `luxarch --emit route-urls`: `absolute_url(settings.base_url, <name>, **params)`. Name the routes first (fw.route_names_unique). While the literals burn down, `luxarch --emit route-links` is the runtime net: it fails on any template link the live route table does not serve. See --playbook url-in-view.",
+          "fix": "",
           "example": ""
         },
         {
@@ -1848,6 +1848,50 @@
           "rule": "fw.no_concurrent_session_use",
           "status": "PASS",
           "since": "0.328.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.js_attributes_take_json",
+          "status": "PASS",
+          "since": "0.340.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.settings_secrets_required",
+          "status": "PASS",
+          "since": "0.341.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.router_modules_mounted",
+          "status": "PASS",
+          "since": "0.343.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
+          "rule": "fw.stylesheet_compiled",
+          "status": "PASS",
+          "since": "0.344.0",
           "violations": 0,
           "deferred": false,
           "inert": false,
@@ -2000,8 +2044,8 @@
         }
       ],
       "summary": {
-        "PASS": 153,
-        "FAIL": 1,
+        "PASS": 158,
+        "FAIL": 0,
         "XFAIL": 0,
         "XPASS": 0,
         "INERT": 27
@@ -2102,6 +2146,28 @@
         "rule": "repo.dev_tools_not_in_production",
         "status": "PASS",
         "since": "0.243.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
+        "rule": "repo.runtime_user_cannot_write_code",
+        "status": "PASS",
+        "since": "0.334.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
+        "rule": "repo.build_context_hygiene",
+        "status": "PASS",
+        "since": "0.339.0",
         "violations": 0,
         "deferred": false,
         "inert": false,
@@ -2320,13 +2386,13 @@
       },
       {
         "rule": "repo.agent_instructions_resolve",
-        "status": "PASS",
+        "status": "FAIL",
         "since": "0.280.0",
-        "violations": 0,
+        "violations": 1,
         "deferred": false,
         "inert": false,
         "inert_reason": "",
-        "fix": "",
+        "fix": "repoint each dead link at the file it meant (the finding names same-named files, any case), or delete the sentence if what it pointed at is gone; fix a `luxarch --doc` / `--playbook` name against `luxarch --docs`. An instruction file is the one document every agent reads and nothing else validates.",
         "example": ""
       },
       {
@@ -2572,6 +2638,28 @@
         "example": ""
       },
       {
+        "rule": "repo.compose_oom_ranked",
+        "status": "PASS",
+        "since": "0.343.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
+        "rule": "repo.compose_restarts_after_kill",
+        "status": "PASS",
+        "since": "0.343.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
         "rule": "repo.compose_up_selects_services",
         "status": "PASS",
         "since": "0.264.0",
@@ -2760,20 +2848,20 @@
       }
     ],
     "summary": {
-      "PASS": 67,
-      "FAIL": 0,
+      "PASS": 70,
+      "FAIL": 1,
       "XFAIL": 0,
       "XPASS": 0,
       "INERT": 1
     }
   },
   "summary": {
-    "PASS": 220,
+    "PASS": 228,
     "FAIL": 1,
     "XFAIL": 0,
     "XPASS": 0,
     "INERT": 28
   },
-  "commit": "511f3ec3297d26eabfd92afdcafcb0422e68ed3e",
-  "generated_at": "2026-10-29T13:01:37Z"
+  "commit": "2b279f0bbf116b94a8c08797d5de3e8f36eebfa3",
+  "generated_at": "2026-11-06T18:58:18Z"
 }
