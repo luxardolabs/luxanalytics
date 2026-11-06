@@ -75,8 +75,10 @@ def _batch(count: int, device_id: str | None = "device-1") -> bytes:
     return json.dumps({"events": [_one(device_id) for _ in range(count)]}).encode()
 
 
-def _signed(body: bytes, key_id: str) -> dict[str, str]:
-    timestamp = str(int(time.time()))
+def _signed(body: bytes, key_id: str, seconds_ago: int = 0) -> dict[str, str]:
+    """A signed request; `seconds_ago` back-dates it, so two requests of one body sign differently
+    (an identical signature is a replay, which spends no budget)."""
+    timestamp = str(int(time.time()) - seconds_ago)
     secret = settings.hmac_keys_dict[key_id]
     signature = hmac.new(
         secret.encode(), body + timestamp.encode(), hashlib.sha256
@@ -348,7 +350,7 @@ async def test_signed_stats_reads_are_limited_per_app(
             r = await ac.get(
                 "/api/v1/events/stats",
                 headers={
-                    **_signed(b"", sample_app.app_id),
+                    **_signed(b"", sample_app.app_id, seconds_ago=i),
                     "X-Forwarded-For": f"203.0.113.{i + 1}",
                 },
             )

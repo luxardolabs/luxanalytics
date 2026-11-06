@@ -2,12 +2,15 @@ import hashlib
 import hmac
 import logging
 import time
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.hmac_replay import claim_signature, release_signature
 from app.core.rate_limiter import enforce_app_rate_limit
 from app.db.database import get_db
 from app.services.core.app_core_service import AppCoreService
@@ -64,9 +67,13 @@ def verify_hmac_signature(
 
 async def verify_hmac_app(
     app_id: Annotated[str, Depends(verify_hmac_signature)],
+    x_signature: Annotated[str, Header(alias="X-HMAC-Signature")],
 ) -> str:
-    """A verified HMAC key, counted against its app's rate limit (the stats read)."""
-    await enforce_app_rate_limit(app_id)
+    """A verified HMAC key, counted against its app's rate limit (the stats read). A signature
+    already seen inside its window is a replay: it is answered like the first use but spends no
+    budget."""
+    if await claim_signature(x_signature):
+        await enforce_app_rate_limit(app_id)
     return app_id
 
 
@@ -85,3 +92,28 @@ async def verify_hmac_ingest(
         )
         raise HTTPException(status_code=403, detail="App is inactive")
     return app_id
+
+
+@dataclass(frozen=True)
+class HmacIngest:
+    """An HMAC ingest that passed authentication: the app, and whether this signature was already
+    used inside its window (the request is a replay, to be answered but not processed)."""
+
+    app_id: str
+    replayed: bool
+
+
+async def claim_hmac_ingest(
+    app_id: Annotated[str, Depends(verify_hmac_ingest)],
+    x_signature: Annotated[str, Header(alias="X-HMAC-Signature")],
+) -> AsyncIterator[HmacIngest]:
+    """Claim the request's signature once its app may ingest. A request that then fails gives the
+    claim back, so a client retrying the same signed request after a 4xx or 5xx is not mistaken for
+    a replay of one that stored nothing."""
+    first_use = await claim_signature(x_signature)
+    try:
+        yield HmacIngest(app_id=app_id, replayed=not first_use)
+    except Exception:
+        if first_use:
+            await release_signature(x_signature)
+        raise
