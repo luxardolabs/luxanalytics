@@ -185,7 +185,7 @@ The values that matter in `.env.prod`:
 - `REGISTRY=ghcr.io` and `TAG=<a released version>`; never `latest`.
 - `DEPLOY_ENV=prod`, `POSTGRES_VOLUME=luxanalytics-postgres-data`, `REDIS_VOLUME=luxanalytics-redis-data`; `COMPOSE_PROFILES=backup` adds the daily database dump into `./backups`.
 - `POSTGRES_PASSWORD`, and `DATABASE_URL=postgresql+asyncpg://luxanalytics:<that password, percent-encoded>@luxanalytics_db:5432/luxanalytics`. Encode `@` as `%40` and a literal `%` as `%25` (also `:`, `/`, `?` and `#`); a raw `%40` is read as `@`, which differs from `POSTGRES_PASSWORD`.
-- `ENVIRONMENT=production`, `SECRET_KEY` (32+ characters), `DASHBOARD_PASSWORD` (12+ characters, not a default), `DASHBOARD_SESSION_SECRET` (32+ characters; unset, every restart signs everyone out), `EXTERNAL_URL=https://<your host>`. Startup refuses an unsafe production configuration and says which setting is wrong.
+- `ENVIRONMENT=production`, `SECRET_KEY` (32+ characters), `DASHBOARD_PASSWORD` (12+ characters, not a default), `DASHBOARD_SESSION_SECRET` (required, 32+ characters), `EXTERNAL_URL=https://<your host>`. Startup refuses an unsafe production configuration and says which setting is wrong.
 - Leave the commented keys commented unless you change one: a blank value overrides the default.
 - Release 2026.10.0 also requires `DATABASE_URL_SYNC` (any value; nothing reads it). The template sets it, and later releases ignore it.
 

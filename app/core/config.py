@@ -268,15 +268,20 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def production_is_safe(self) -> Settings:
-        """Production refuses to start on a setting that is only safe in development
-        (LUXANALYTI-22): a guessable dashboard password, DEBUG (it serves /docs and /openapi.json),
-        or no usable https EXTERNAL_URL (DSNs are built from it)."""
+        """Production refuses to start on a setting that is only safe in development: a missing
+        DASHBOARD_SESSION_SECRET (a per-process key signs every restart out and splits workers),
+        a guessable dashboard password, DEBUG (it serves /docs and /openapi.json), or no usable
+        https EXTERNAL_URL (DSNs are built from it)."""
         if not self.is_production:
             return self
         if _guessable(self.DASHBOARD_PASSWORD, self.DASHBOARD_USERNAME):
             raise ValueError(
                 "DASHBOARD_PASSWORD is a default or guessable value in production "
                 f"(it needs {MIN_PRODUCTION_PASSWORD}+ characters)"
+            )
+        if not self.DASHBOARD_SESSION_SECRET:
+            raise ValueError(
+                "DASHBOARD_SESSION_SECRET is required in production (32+ characters)"
             )
         if self.DEBUG:
             raise ValueError("DEBUG must be false in production")

@@ -20,6 +20,7 @@ SAFE = {
     "EXTERNAL_URL": "https://analytics.example.com",
     "DASHBOARD_USERNAME": "admin",
     "DASHBOARD_PASSWORD": "a-long-random-production-password",
+    "DASHBOARD_SESSION_SECRET": "k" * 40,
 }
 
 
@@ -55,15 +56,25 @@ def test_a_short_or_blank_session_signing_key_is_refused(secret: str) -> None:
     assert "short-secret-value" not in str(refused.value)
 
 
-@pytest.mark.parametrize(
-    ("secret", "stored"), [(None, None), ("", None), ("s" * 32, "s" * 32)]
-)
-def test_an_unset_empty_or_long_session_signing_key_starts(
-    secret: str | None, stored: str | None
+@pytest.mark.parametrize("secret", [None, ""])
+def test_production_refuses_an_unset_or_empty_session_signing_key(
+    secret: str | None,
 ) -> None:
-    loaded = _settings(DASHBOARD_SESSION_SECRET=secret)
+    with pytest.raises(ValidationError, match="DASHBOARD_SESSION_SECRET"):
+        _settings(DASHBOARD_SESSION_SECRET=secret)
 
-    assert stored == loaded.DASHBOARD_SESSION_SECRET
+
+@pytest.mark.parametrize("secret", [None, ""])
+def test_development_starts_without_a_session_signing_key(secret: str | None) -> None:
+    loaded = _settings(ENVIRONMENT="dev", DASHBOARD_SESSION_SECRET=secret)
+
+    assert loaded.DASHBOARD_SESSION_SECRET is None
+
+
+def test_a_long_session_signing_key_starts() -> None:
+    assert _settings(DASHBOARD_SESSION_SECRET="s" * 32).DASHBOARD_SESSION_SECRET == (
+        "s" * 32
+    )
 
 
 @pytest.mark.parametrize(

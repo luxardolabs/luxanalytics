@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_session_secret() -> str:
-    """Get or generate session secret."""
+    """The configured session secret; a development start without one gets a random key per process.
+    Production refuses to start without it (Settings.production_is_safe)."""
     if settings.DASHBOARD_SESSION_SECRET:
         return settings.DASHBOARD_SESSION_SECRET
 
-    # Generate a random secret if not configured
     return secrets.token_urlsafe(32)
 
 
