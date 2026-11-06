@@ -1,3 +1,4 @@
+import re
 import string
 import unicodedata
 from importlib.metadata import PackageNotFoundError
@@ -14,6 +15,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from redis import ConnectionPool
 from redis.asyncio import BlockingConnectionPool
 from redis.exceptions import RedisError
 from sqlalchemy.engine import make_url
@@ -27,6 +29,21 @@ _STR_DICT = TypeAdapter(dict[str, str], config=ConfigDict(hide_input_in_errors=T
 # names a socket differently from redis-py, so no socket form works for both.
 _REDIS_URL_PREFIXES = ("redis://", "rediss://")
 _STR_LIST = TypeAdapter(list[str], config=ConfigDict(hide_input_in_errors=True))
+
+
+def _blank(secret: str) -> bool:
+    """Nothing but whitespace, control or invisible format characters: a key anyone can guess."""
+    return not "".join(
+        c for c in secret if unicodedata.category(c) not in {"Cc", "Cf"}
+    ).strip()
+
+
+def _stray_at(url: str) -> bool:
+    """An `@` beyond the one that ends the credentials: a password's unencoded `@`."""
+    after_scheme = url.partition("://")[2]
+    authority = re.split(r"[/?#]", after_scheme, maxsplit=1)[0]
+    ats = after_scheme.count("@")
+    return ats > 1 or ats != authority.count("@")
 
 
 def _guessable(password: str, username: str) -> bool:
@@ -178,10 +195,12 @@ class Settings(BaseSettings):
         if not v.startswith(_REDIS_URL_PREFIXES):
             raise ValueError("REDIS_URL must be a redis:// or rediss:// URL")
         try:
-            # The client's own parser and constructor, so a form redis-py refuses is refused here.
+            # Each client's own parser and constructor: the app's async pool, and the sync pool
+            # slowapi's limiter opens, which falls back to per-process counts if it cannot connect.
             pool = BlockingConnectionPool.from_url(v)
             _ = pool.connection_class(**pool.connection_kwargs)
-        except ValueError, TypeError, RedisError:
+            _ = ConnectionPool.from_url(v).make_connection()
+        except AttributeError, ValueError, TypeError, RedisError:
             raise ValueError("REDIS_URL is not a readable URL") from None
         return v
 
@@ -189,13 +208,13 @@ class Settings(BaseSettings):
     @classmethod
     def database_url_readable(cls, v: str) -> str:
         """A URL SQLAlchemy cannot read (an unencoded `@` or `:` in the password) crashes the import
-        with part of the password in its traceback, and an unencoded `@` can parse with the rest of
-        the password as the host; refused here, the log names only the setting."""
+        with part of the password in its traceback, and an unencoded `@` can parse with part of the
+        password as the host, database or query; refused here, the log names only the setting."""
         try:
-            host = make_url(v).host or ""
+            readable = not _stray_at(v) and bool(make_url(v))
         except ArgumentError, ValueError:
-            host = "@"
-        if "@" in host:
+            readable = False
+        if not readable:
             raise ValueError(
                 "DATABASE_URL is not a readable URL (percent-encode its password)"
             )
@@ -208,7 +227,7 @@ class Settings(BaseSettings):
         length is a key anyone can guess."""
         if v == "":
             return None
-        if isinstance(v, str) and not v.strip():
+        if isinstance(v, str) and _blank(v):
             raise ValueError("DASHBOARD_SESSION_SECRET must not be blank")
         return v
 
@@ -229,7 +248,7 @@ class Settings(BaseSettings):
             raise ValueError(
                 'HMAC_KEYS must be a JSON object of {"<key id>": "<secret>"}'
             ) from None
-        if not all(secret.strip() for secret in keys.values()):
+        if any(_blank(secret) for secret in keys.values()):
             raise ValueError("HMAC_KEYS must not hold a blank secret")
         return self
 

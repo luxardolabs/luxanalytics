@@ -196,6 +196,12 @@ def test_an_unreadable_database_url_is_refused_without_printing_it() -> None:
     [
         "postgresql+asyncpg://u:pw@tail-secret@h:5432/d",
         "postgresql+asyncpg://u:pw@tail-secret@h/d",
+        "postgresql+asyncpg://u:pw@tail-secret/w0rd@h:5432/d",
+        "postgresql+asyncpg://u:pw@tail-secret?w0rd@h:5432/d",
+        "postgresql+asyncpg://u:pw@tail-secret:1234/w0rd@h:5432/d",
+        "postgresql+asyncpg://u:pw@[tail-secret]@h:5432/d",
+        "postgresql+asyncpg://tail-secret/x:more@h:5432/d",
+        "postgresql+asyncpg://u:1234?tail-secret@h:5432/d",
     ],
 )
 def test_an_unencoded_at_in_the_database_password_is_refused(url: str) -> None:
@@ -203,6 +209,43 @@ def test_an_unencoded_at_in_the_database_password_is_refused(url: str) -> None:
         _settings(DATABASE_URL=url)
 
     assert "tail-secret" not in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql+asyncpg://u:p%40ss%2Fword@h:5432/d",
+        "postgresql+asyncpg://u@h:5432/d",
+        "postgresql+asyncpg://h:5432/d",
+        "postgresql+asyncpg://u:p@[::1]:5432/d",
+        "postgresql+asyncpg://u:p@/d?host=/var/run/postgresql",
+    ],
+)
+def test_a_database_url_with_its_at_in_the_authority_starts(url: str) -> None:
+    assert url == _settings(DATABASE_URL=url).DATABASE_URL
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["timeout=1", "queue_class=x", "retry=3", "maint_notifications_config=x"],
+)
+def test_a_redis_url_either_client_cannot_use_is_refused_by_name(query: str) -> None:
+    with pytest.raises(ValidationError, match="REDIS_URL") as refused:
+        _settings(REDIS_URL=f"redis://:redis-secret@h:6379/0?{query}")
+
+    assert "redis-secret" not in str(refused.value)
+
+
+@pytest.mark.parametrize("escaped", ["\\u200b", "\\ufeff", "\\u00ad", "\\u0000"])
+def test_an_invisible_hmac_secret_is_blank(escaped: str) -> None:
+    with pytest.raises(ValidationError, match="HMAC_KEYS"):
+        _settings(HMAC_KEYS='{"app": "' + escaped + '"}')
+
+
+@pytest.mark.parametrize("char", ["​", "﻿", "­", "\x01"])
+def test_an_invisible_session_secret_is_blank(char: str) -> None:
+    with pytest.raises(ValidationError, match="DASHBOARD_SESSION_SECRET"):
+        _settings(DASHBOARD_SESSION_SECRET=char * 40)
 
 
 def test_a_percent_encoded_database_password_starts() -> None:
