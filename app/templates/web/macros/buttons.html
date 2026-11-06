@@ -340,8 +340,11 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
        Use alpine_click for Alpine.js @click handlers (e.g., "show = false; ...")
        Default: onclick="closeModal('panel-container')" if neither provided
     #}
-    {% set effective_onclick = onclick if onclick else ("closeModal('panel-container')" if not alpine_click else None) %}
-    {{ button('', variant='icon-muted', icon_left='x-mark', onclick=effective_onclick, alpine_click=alpine_click, title=title, icon_size='w-6 h-6', extra_classes=extra_classes) }}
+    {% if onclick or alpine_click %}
+    {{ button('', variant='icon-muted', icon_left='x-mark', onclick=onclick, alpine_click=alpine_click, title=title, icon_size='w-6 h-6', extra_classes=extra_classes) }}
+    {% else %}
+    {{ button('', variant='icon-muted', icon_left='x-mark', onclick="closeModal('panel-container')", title=title, icon_size='w-6 h-6', extra_classes=extra_classes) }}
+    {% endif %}
 {% endmacro %}
 
 
@@ -374,10 +377,12 @@ Examples: eye, trash, plus, check, pencil-square, exclamation-triangle, bell, ke
 } %}
 <button type="button"
         x-data="{ copied: false }"
-        @click="navigator.clipboard.writeText(document.getElementById('{{ target_id }}').{% if use_inner_text %}innerText{% else %}value{% endif %}).then(() => { copied = true; setTimeout(() => copied = false, {{ timeout }}); })"
+        data-copy-target="{{ target_id }}"
+        data-copy-timeout="{{ timeout }}"
+        @click="navigator.clipboard.writeText(document.getElementById($el.dataset.copyTarget).{% if use_inner_text %}innerText{% else %}value{% endif %}).then(() => { copied = true; setTimeout(() => copied = false, Number($el.dataset.copyTimeout)); })"
         :class="copied ? 'bg-green-500 text-white shadow-[0_4px_20px_rgba(22,163,74,0.3)]' : 'bg-brand-500 text-slate-900 shadow-[0_4px_20px_rgba(255,165,0,0.3)] hover:shadow-[0_0_40px_rgba(255,165,0,0.6)] hover:-translate-y-0.5'"
         class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-offset-2 active:translate-y-0 {{ size_classes[size] }} {{ extra_classes }}">
     {{ icon('clipboard-document', 'w-4 h-4') }}
-    <span x-text="copied ? '{{ success_text }}' : '{{ text }}'">{{ text }}</span>
+    <span data-label="{{ text }}" data-copied-label="{{ success_text }}" x-text="copied ? $el.dataset.copiedLabel : $el.dataset.label">{{ text }}</span>
 </button>
 {% endmacro %}

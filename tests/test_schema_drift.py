@@ -1,4 +1,4 @@
-# luxarch:schema-drift asserter v7 — DO NOT edit the marker line above.
+# luxarch:schema-drift asserter v8 — DO NOT edit the marker line above.
 #
 # WHY THIS FILE EXISTS
 # The guards are STATIC — luxarch/luxlint/luxaudit read files; none of them ever opens your database.
@@ -54,7 +54,10 @@ from __future__ import annotations
 
 import importlib
 import os
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy import Connection, MetaData
 
 import pytest
 
@@ -85,10 +88,17 @@ def _load(path: str) -> object:
     return obj
 
 
-def _metadata(obj: object) -> object:
-    return getattr(
-        obj, "metadata", obj
-    )  # a declarative Base has .metadata; a MetaData is itself
+def _metadata(obj: object) -> MetaData:
+    from sqlalchemy import MetaData
+
+    # A declarative Base carries its MetaData as `.metadata`; a MetaData stands for itself.
+    found = getattr(obj, "metadata", obj)
+    if isinstance(found, MetaData):
+        return found
+    raise TypeError(
+        f"{METADATA_IMPORT!r} resolves to a {type(found).__name__}: point METADATA_IMPORT at the "
+        "declarative Base, or at its MetaData"
+    )
 
 
 def _url(obj: object) -> str:
@@ -112,22 +122,24 @@ def _same_database(a: str, b: str) -> bool:
     return key(a) == key(b)
 
 
-def _flatten(diffs: list[Any]) -> list[Any]:
-    # compare_metadata returns a list whose entries are either an op-tuple or a LIST of op-tuples.
-    out: list[Any] = []
+def _flatten(diffs: list[object]) -> list[tuple[object, ...]]:
+    # compare_metadata returns a list whose entries are either an op-tuple or a LIST of op-tuples. An
+    # entry of any other shape is kept, as a one-item op, so it is still judged by its name.
+    out: list[tuple[object, ...]] = []
     for d in diffs:
-        out.extend(d) if isinstance(d, list) else out.append(d)
+        for op in d if isinstance(d, list) else [d]:
+            out.append(op if isinstance(op, tuple) else (op,))
     return out
 
 
-def _compare_sync(sync_conn, metadata) -> list[Any]:  # type: ignore[no-untyped-def]
+def _compare_sync(sync_conn: Connection, metadata: MetaData) -> list[object]:
     from alembic.autogenerate import compare_metadata
     from alembic.migration import MigrationContext
 
     return list(compare_metadata(MigrationContext.configure(sync_conn), metadata))
 
 
-def _diff(url: str, metadata: object) -> list[Any]:
+def _diff(url: str, metadata: MetaData) -> list[object]:
     """Build a short-lived engine from `url`, diff, dispose — the engine's whole lifecycle stays inside
     this call (and, for async, inside one asyncio.run), so there is no shared pool and no NullPool."""
     from sqlalchemy import make_url
@@ -137,7 +149,7 @@ def _diff(url: str, metadata: object) -> list[Any]:
 
         from sqlalchemy.ext.asyncio import create_async_engine
 
-        async def _run() -> list[Any]:
+        async def _run() -> list[object]:
             engine = create_async_engine(url)
             try:
                 async with engine.connect() as conn:

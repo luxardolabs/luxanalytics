@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     DB_POOL_RESET_ON_RETURN: str = "rollback"
 
     # Security
-    SECRET_KEY: str
+    SECRET_KEY: str = Field(min_length=32)
     HMAC_KEYS: str = "{}"
 
     # CORS + Hosts
@@ -217,7 +217,11 @@ class Settings(BaseSettings):
     # LUXANALYTI-85) is ignored from a `.env` file exactly as it already is from the environment,
     # so a config written for an older release still starts this one.
     model_config = SettingsConfigDict(
-        env_file=".env", case_sensitive=True, extra="ignore"
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+        # A refused value can be a secret, and the refusal goes to the startup log.
+        hide_input_in_errors=True,
     )
 
 

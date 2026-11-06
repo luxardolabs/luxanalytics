@@ -49,7 +49,8 @@ RUN apt-get update \
     && python -m pip uninstall -y pip
 
 ENV VIRTUAL_ENV=/opt/venv \
-    PATH=/opt/venv/bin:$PATH
+    PATH=/opt/venv/bin:$PATH \
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
@@ -60,7 +61,9 @@ COPY --from=css /build/app/static/css/app.css /app/app/static/css/app.css
 COPY alembic ./alembic
 COPY alembic.ini ./
 
-RUN useradd -m -u 1000 luxanalytics && chown -R luxanalytics:luxanalytics /app
+# The code stays root-owned: the runtime user reads it and can rewrite none of it. The app writes
+# nothing to disk (logs go to stdout), so it owns no directory here.
+RUN useradd -m -u 1000 luxanalytics
 USER luxanalytics
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

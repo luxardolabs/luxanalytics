@@ -11,6 +11,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.main import app as served_app
+from app.services.views.dashboard_view_service import DashboardViewService
 from tests.test_auth_session import _login
 
 END_USER = "alice.smith@example.com"
@@ -62,6 +63,27 @@ async def test_a_signed_in_request_is_logged_by_its_route_template(
     completed = [r for r in caplog.records if r.getMessage() == "Request completed"]
     assert completed
     assert vars(completed[-1])["route"] == "/dashboard/user/{user_id}"
+
+
+@pytest.mark.db
+async def test_an_unhandled_500_is_logged_by_its_route_template(
+    client: AsyncClient,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fails(self: DashboardViewService, user_id: str) -> None:
+        raise RuntimeError("the view failed")
+
+    monkeypatch.setattr(DashboardViewService, "user_profile_context", fails)
+    await _login(client, "198.51.100.102")
+
+    with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
+        await client.get(f"/dashboard/user/{END_USER}")
+
+    errors = [r for r in caplog.records if r.getMessage() == "unhandled_exception"]
+    assert len(errors) == 1
+    assert vars(errors[0])["route"].endswith("/user/{user_id}")
+    assert END_USER not in str(vars(errors[0]))
 
 
 def test_uvicorns_access_log_is_off() -> None:

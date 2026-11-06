@@ -1,4 +1,4 @@
-# luxarch:pagination asset v1 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit pagination`.
+# luxarch:pagination asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit pagination`.
 # luxarch:pagination helper v1 - DO NOT edit the marker line above (fw.view_pagination finds it).
 """The canonical pagination state + URL helper. `luxarch --emit pagination`.
 
@@ -23,18 +23,40 @@ primitive. Guards before an emit is backwards; this closes it.
 1. **Page arithmetic happens exactly once.** Not in the view, not in the template, not per caller —
    here, in `build_pagination`. A `total_pages` computed in two places disagrees at some boundary,
    and the off-by-one shows up as an empty last page.
-2. **Every table URL is built by one function.** A sort link and a page link that each concatenate
+2. **A page past the end shows the last page, never an empty table under a nonzero total.** The
+   offset is read before the count is known, so `fetch_page` owns the round trip: when the rows
+   come back empty at a page past the end, it reads the last page instead (a second query, only
+   then).
+3. **Every table URL is built by one function.** A sort link and a page link that each concatenate
    their own query string will drop each other's state: sort, and the filters vanish; page, and the
    sort resets. That bug is invisible in review and obvious to a user on click two.
 """
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
+from typing import Protocol, TypeVar
 from urllib.parse import urlencode
 
 # The page size every table defaults to. Override per call, not per repo-fork of this file.
 DEFAULT_PER_PAGE = 25
+# The largest OFFSET and LIMIT a database takes (a signed 64-bit integer). `page` and `per_page`
+# arrive from a query string, and `?page=2**62` past this is a driver error, a 500, not a page.
+_MAX_ROWS = 2**63 - 1
+
+_Row_co = TypeVar("_Row_co", covariant=True)
+_Row = TypeVar("_Row")
+
+
+class PageFetch(Protocol[_Row_co]):
+    """The crud read `fetch_page` drives: the fleet's paginated crud signature,
+    `(*, skip, limit) -> tuple[rows, total]` (`fw.crud_paginated_signature`), with the rest of its
+    arguments bound (`functools.partial(crud.list_items, db, sort_by=sort_by)`)."""
+
+    def __call__(
+        self, *, skip: int, limit: int
+    ) -> Awaitable[tuple[Sequence[_Row_co], int]]: ...
 
 
 @dataclass(frozen=True)
@@ -84,9 +106,10 @@ def build_pagination(
 
     Clamps defensively rather than trusting its inputs, because `page` arrives from a query string:
     a negative page, a page past the end, or a zero `per_page` are all reachable from a URL a user
-    can edit. Each would otherwise surface as an empty table or a division error.
+    can edit. Each would otherwise surface as an empty table or a division error. It clamps the
+    state, not the offset the rows were already read at: `fetch_page` re-reads those.
     """
-    per_page = max(1, per_page)
+    per_page = min(max(1, per_page), _MAX_ROWS)
     total = max(0, total)
     total_pages = max(1, -(-total // per_page))  # ceil without float rounding
     page = min(max(1, page), total_pages)
@@ -109,9 +132,30 @@ def skip_limit(page: int, per_page: int = DEFAULT_PER_PAGE) -> tuple[int, int]:
     """`(skip, limit)` for the crud call — the fleet's paginated crud signature is
     `(*, skip, limit) -> tuple[list[...], int]` (`fw.crud_paginated_signature`). Kept here so the
     offset is derived from the same clamped arithmetic as the state, not recomputed at the call site.
+    Both stay within what a database takes: a page past that reads as a page past the end.
+    `fetch_page` calls it; a view calls `fetch_page`.
     """
-    per_page = max(1, per_page)
-    return (max(1, page) - 1) * per_page, per_page
+    per_page = min(max(1, per_page), _MAX_ROWS)
+    page = min(max(1, page), (_MAX_ROWS - per_page) // per_page + 1)
+    return (page - 1) * per_page, per_page
+
+
+async def fetch_page(
+    fetch: PageFetch[_Row], *, page: int, per_page: int = DEFAULT_PER_PAGE
+) -> tuple[list[_Row], PaginationState]:
+    """One page of rows and its state: `rows, pagination = await fetch_page(partial(crud.list_items,
+    db), page=page)`. The ONE chain a view runs (skip_limit, the crud read, build_pagination), so a
+    page past the end shows the last page under its own pager rather than an empty table under a
+    nonzero total. The second read happens only for a page past the end.
+    """
+    skip, limit = skip_limit(page, per_page)
+    rows, total = await fetch(skip=skip, limit=limit)
+    state = build_pagination(page=page, total=total, per_page=per_page)
+    if not rows and total > 0 and state.page < max(1, page):
+        skip, limit = skip_limit(state.page, per_page)
+        rows, total = await fetch(skip=skip, limit=limit)
+        state = build_pagination(page=state.page, total=total, per_page=per_page)
+    return list(rows), state
 
 
 def paginated_url(

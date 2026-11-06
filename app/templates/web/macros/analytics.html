@@ -29,14 +29,15 @@ Usage:
     (8760, '1Y'),
     (0, 'All'),
 ] %}
-<div class="flex gap-1" x-data="{ selected: {{ current_hours }} }">
+<div class="flex gap-1" data-selected="{{ current_hours }}" x-data="{ selected: Number($el.dataset.selected) }">
     {% for hours, label in periods %}
     <button type="button"
             class="px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-200"
-            :class="selected === {{ hours }}
+            data-hours="{{ hours }}"
+            :class="selected === Number($el.dataset.hours)
                 ? 'bg-brand-500 text-slate-900 shadow-glow'
                 : 'bg-surface-10/50 text-slate-500 hover:bg-surface-20 hover:text-fg'"
-            @click="selected = {{ hours }}"
+            @click="selected = Number($el.dataset.hours)"
             hx-get="{{ base_url }}?hours={{ hours }}{{ extra_params }}"
             hx-target="{{ hx_target }}"
             hx-swap="innerHTML">

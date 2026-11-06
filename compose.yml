@@ -11,6 +11,7 @@ services:
     image: postgres:16-alpine
     container_name: luxanalytics_db
     restart: unless-stopped
+    oom_score_adj: -500
     environment:
       POSTGRES_USER: luxanalytics
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.<env>}
@@ -46,6 +47,7 @@ services:
     image: redis:7-alpine
     container_name: luxanalytics_redis
     restart: unless-stopped
+    oom_score_adj: -500
     volumes:
       - luxanalytics_redis_data:/data
     healthcheck:
@@ -60,6 +62,7 @@ services:
     image: ${REGISTRY:?set REGISTRY in .env.<env>}/luxardolabs/luxanalytics:${TAG:?make dev-deploy / make prod-deploy pins TAG in .env.<env>}
     container_name: luxanalytics_app
     restart: unless-stopped
+    oom_score_adj: -500
     env_file:
       - .env.${DEPLOY_ENV:?set DEPLOY_ENV (dev|prod) in .env.<env>}
     expose:
@@ -84,6 +87,7 @@ services:
     container_name: luxanalytics_nginx
     profiles: ["dev"]
     restart: unless-stopped
+    oom_score_adj: -500
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
@@ -104,6 +108,7 @@ services:
     container_name: luxanalytics_backup
     profiles: ["backup"]
     restart: unless-stopped
+    oom_score_adj: -500
     depends_on:
       luxanalytics_db:
         condition: service_healthy
@@ -130,6 +135,7 @@ services:
   db-test:
     image: postgres:16-alpine
     profiles: ["test"]
+    oom_score_adj: 500
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
@@ -146,6 +152,7 @@ services:
   redis-test:
     image: redis:7-alpine
     profiles: ["test"]
+    oom_score_adj: 500
     tmpfs:
       - /data
     healthcheck:

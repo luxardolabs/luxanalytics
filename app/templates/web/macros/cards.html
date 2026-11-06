@@ -33,8 +33,9 @@
 {% set colors = color_map.get(color, color_map.brand) %}
 <div class="group bg-surface-10 rounded-xl border border-surface-20 p-6 transition-all duration-300 cursor-default"
      style="box-shadow: 0 4px 20px rgba({{ colors.rgb }}, 0.08);"
-     onmouseenter="this.style.boxShadow='0 8px 40px rgba({{ colors.rgb }}, 0.2)'; this.style.borderColor='rgba({{ colors.rgb }}, 0.3)'"
-     onmouseleave="this.style.boxShadow='0 4px 20px rgba({{ colors.rgb }}, 0.08)'; this.style.borderColor='rgba(51, 65, 85, 0.5)'">
+     data-rgb="{{ colors.rgb }}"
+     onmouseenter="this.style.boxShadow='0 8px 40px rgba(' + this.dataset.rgb + ', 0.2)'; this.style.borderColor='rgba(' + this.dataset.rgb + ', 0.3)'"
+     onmouseleave="this.style.boxShadow='0 4px 20px rgba(' + this.dataset.rgb + ', 0.08)'; this.style.borderColor='rgba(51, 65, 85, 0.5)'">
     <div class="flex items-center">
         <div class="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center {{ colors.icon_bg }}">
             {{ icon(icon_name, class='w-7 h-7 ' ~ colors.text) }}

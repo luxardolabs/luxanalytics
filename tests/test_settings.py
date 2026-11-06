@@ -9,7 +9,7 @@ from app.core.config import Settings
 
 REQUIRED = {
     "DATABASE_URL": "postgresql+asyncpg://u:p@h/d",
-    "SECRET_KEY": "s",
+    "SECRET_KEY": "s" * 32,
     "ALLOWED_HOSTS": "analytics.example.com",
 }
 SAFE = {
@@ -28,6 +28,19 @@ def _settings(**overrides: object) -> Settings:
 
 def test_a_safe_production_configuration_starts() -> None:
     assert _settings().ENVIRONMENT == "production"
+
+
+@pytest.mark.parametrize("secret_key", ["", "short-secret-value", "s" * 31])
+def test_an_empty_or_short_secret_key_is_refused(secret_key: str) -> None:
+    with pytest.raises(ValidationError, match="SECRET_KEY"):
+        _settings(SECRET_KEY=secret_key)
+
+
+def test_a_refused_setting_does_not_print_its_value() -> None:
+    with pytest.raises(ValidationError) as refused:
+        _settings(SECRET_KEY="short-secret-value")
+
+    assert "short-secret-value" not in str(refused.value)
 
 
 @pytest.mark.parametrize("password", ["admin", "changeme", "ChangeMe", "password"])

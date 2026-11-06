@@ -1,14 +1,11 @@
-.git
+**/.git
 .gitignore
 README.md
 Dockerfile
 .dockerignore
-.env
 .pytest_cache
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+**/__pycache__/
+**/*.py[cod]
 .Python
 env
 venv
@@ -30,9 +27,16 @@ coverage.xml
 *~
 test.db
 
-# Secrets, private topology and data never enter the build context
+# Secrets, private topology and data never enter the build context, at any depth
 # (luxarch --doc FLEET-BUILD-DEPLOY-STANDARD, "Clean-clone build readiness").
-.env.*
+**/.env
+**/.env.*
+**/*.env
+**/*credentials.json
+**/*.pem
+**/id_rsa*
+**/id_ecdsa*
+**/id_ed25519*
 !.env.example
 Makefile.local
 deploy/
@@ -41,4 +45,3 @@ backups/
 *.sql.gz
 *.dump
 node_modules/
-.git/

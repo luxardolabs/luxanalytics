@@ -227,7 +227,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         try:
             rejection, ip_metadata = await self._redis_decision(request, client_ip)
         except Exception:
-            logger.debug(
+            logger.warning(
                 "Redis rate limiting failed, using in-memory fallback", exc_info=True
             )
             rejection, ip_metadata = await self._memory_decision(client_ip), {}

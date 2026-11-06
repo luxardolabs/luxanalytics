@@ -55,8 +55,9 @@
 {% set config = variant_config.get(variant, variant_config.brand) %}
 <div class="rounded-xl border {{ config.border }} p-4 {{ config.bg }} transition-all duration-300"
      style="box-shadow: 0 2px 10px rgba({{ config.rgb }}, 0.05);"
-     onmouseenter="this.style.boxShadow='0 4px 25px rgba({{ config.rgb }}, 0.15)'; this.style.borderColor='rgba({{ config.rgb }}, 0.4)'"
-     onmouseleave="this.style.boxShadow='0 2px 10px rgba({{ config.rgb }}, 0.05)'; this.style.borderColor=''">
+     data-rgb="{{ config.rgb }}"
+     onmouseenter="this.style.boxShadow='0 4px 25px rgba(' + this.dataset.rgb + ', 0.15)'; this.style.borderColor='rgba(' + this.dataset.rgb + ', 0.4)'"
+     onmouseleave="this.style.boxShadow='0 2px 10px rgba(' + this.dataset.rgb + ', 0.05)'; this.style.borderColor=''">
     <div class="flex">
         <div class="flex-shrink-0">
             {{ icon(icon_name, 'h-5 w-5 ' + config.icon_color) }}
