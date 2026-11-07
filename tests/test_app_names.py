@@ -49,6 +49,38 @@ async def test_renaming_an_app_to_blank_is_a_form_error(
 
 
 @pytest.mark.db
+async def test_one_app_stored_with_an_empty_name_does_not_take_down_the_list_or_export(
+    dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
+) -> None:
+    db.add(
+        App(
+            id=uuid4(),
+            public_id=uuid4().hex,
+            project_id=str(uuid4().int)[:16],
+            app_id="empty_name_row",
+            name="",
+            is_active=True,
+            app_metadata={},
+        )
+    )
+    await db.flush()
+
+    listing = await dashboard_client.get("/apps/list")
+    assert listing.status_code == 200
+    assert sample_app.app_id in listing.text
+    assert "empty_name_row" in listing.text
+    export = await dashboard_client.get("/apps/export/json")
+    assert export.status_code == 200
+    assert "empty_name_row" in export.text
+    assert (await dashboard_client.get("/apps/empty_name_row/edit")).status_code == 200
+
+    renamed = await dashboard_client.put(
+        "/apps/empty_name_row", data={"name": "Named now", "is_active": "on"}
+    )
+    assert renamed.status_code == 200
+
+
+@pytest.mark.db
 async def test_an_app_already_stored_with_a_blank_name_stays_listed_and_editable(
     dashboard_client: AsyncClient, db: AsyncSession
 ) -> None:

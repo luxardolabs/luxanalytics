@@ -62,8 +62,11 @@ class AppEditForm(BaseModel):
 
 
 class AppRow(AppBase):
-    """An app's stored columns, read from the ORM row (no derived fields)."""
+    """An app's stored columns, read from the ORM row (no derived fields). A stored row is always
+    readable: the name carries no length rule here (the write models hold them), so one row with
+    an empty name cannot fail the list, the export or a panel."""
 
+    name: str
     id: UUID
     public_id: str
     project_id: str
