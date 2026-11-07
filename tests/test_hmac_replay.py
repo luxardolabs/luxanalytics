@@ -479,3 +479,48 @@ async def test_a_non_ascii_signature_is_refused_not_a_500(
     response = await server.post("/api/v1/events/", content=body, headers=headers)
 
     assert response.status_code == 403
+
+
+class _HungRedis:
+    async def exists(self, *_: object) -> int:
+        await asyncio.sleep(30)
+        return 0
+
+    async def set(self, *_: object, **__: object) -> bool:
+        await asyncio.sleep(30)
+        return True
+
+
+async def test_a_hung_redis_costs_the_check_and_the_mark_a_fraction_of_a_second(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def hung_client() -> _HungRedis:
+        return _HungRedis()
+
+    monkeypatch.setattr(hmac_replay, "get_redis_client", hung_client)
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+
+    with caplog.at_level(logging.ERROR):
+        assert await hmac_replay.signature_is_marked("key", "sig") is False
+        await hmac_replay.mark_signature("key", "sig")
+
+    assert loop.time() - started < 1
+    assert "HMAC replay check failed" in caplog.text
+    assert "HMAC replay mark failed" in caplog.text
+
+
+async def test_a_redis_client_that_hangs_on_connect_costs_a_fraction_of_a_second(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def connecting() -> None:
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(hmac_replay, "get_redis_client", connecting)
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+
+    assert await hmac_replay.signature_is_marked("key", "sig") is False
+    await hmac_replay.mark_signature("key", "sig")
+
+    assert loop.time() - started < 1

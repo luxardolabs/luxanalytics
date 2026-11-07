@@ -9,6 +9,7 @@ The worst case is a duplicate row (a crash between the commit and the mark, or t
 requests in flight together), never a lost event. Redis being unreachable or not configured fails
 open on both the read and the write: every request is processed, as the rate limiter does."""
 
+import asyncio
 import logging
 
 from redis.exceptions import RedisError
@@ -17,6 +18,10 @@ from app.core.config import settings
 from app.core.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
+
+# How long the check and the mark each wait on Redis. A hung Redis then fails open at this cost per
+# signed request, rather than the client's 5 s, and asyncio.timeout's TimeoutError is an OSError.
+REDIS_WAIT_SECONDS = 0.25
 
 
 def _key(key_id: str, signature: str) -> str:
@@ -33,11 +38,12 @@ def _ttl_seconds() -> int:
 
 async def signature_is_marked(key_id: str, signature: str) -> bool:
     """True when a request with this signature was already stored inside its window."""
-    redis_client = await get_redis_client()
-    if redis_client is None:
-        return False
     try:
-        return bool(await redis_client.exists(_key(key_id, signature)))
+        async with asyncio.timeout(REDIS_WAIT_SECONDS):
+            redis_client = await get_redis_client()
+            if redis_client is None:
+                return False
+            return bool(await redis_client.exists(_key(key_id, signature)))
     except RedisError, OSError:
         # swallowed-exceptions: handled, not dropped: an unreachable Redis fails open (logged).
         logger.exception("HMAC replay check failed")
@@ -46,11 +52,12 @@ async def signature_is_marked(key_id: str, signature: str) -> bool:
 
 async def mark_signature(key_id: str, signature: str) -> None:
     """Remember that the request with this signature was stored."""
-    redis_client = await get_redis_client()
-    if redis_client is None:
-        return
     try:
-        await redis_client.set(_key(key_id, signature), "1", ex=_ttl_seconds())
+        async with asyncio.timeout(REDIS_WAIT_SECONDS):
+            redis_client = await get_redis_client()
+            if redis_client is None:
+                return
+            await redis_client.set(_key(key_id, signature), "1", ex=_ttl_seconds())
     except RedisError, OSError:
         # swallowed-exceptions: handled, not dropped: the request was stored; its replay will be too.
         logger.exception("HMAC replay mark failed")
