@@ -242,8 +242,9 @@ async def test_switching_app_redirects_to_the_same_page_without_its_app_id(
         },
     )
     assert response.status_code == 204
-    # Same page and filters, but no app_id to override the cookie that now names other_app.
-    assert response.headers["hx-redirect"] == "/dashboard/events?hours=24&page=2"
+    # Same page and filters, but no app_id to override the cookie that now names other_app, and
+    # no page number: the other app's list starts at its first page.
+    assert response.headers["hx-redirect"] == "/dashboard/events?hours=24"
     assert "analytics_app_id=other_app" in response.headers["set-cookie"]
 
 

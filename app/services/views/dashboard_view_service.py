@@ -8,6 +8,7 @@ nothing. Architecture: Router -> DashboardViewService -> AnalyticsCoreService ->
 
 import html
 from collections.abc import Iterable
+from functools import partial
 from typing import Any
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 from uuid import UUID
@@ -16,7 +17,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.pagination import build_pagination, skip_limit
+from app.core.pagination import build_pagination, fetch_page
 from app.core.query_params import TextFilter
 from app.core.safe_redirect import safe_redirect_target
 from app.core.tracing import create_service_span
@@ -56,12 +57,15 @@ def selected_app_id(request: Request, app_id: TextFilter = None) -> str | None:
 
 def switch_app_response(request: Request, current_url: str, app_id: str) -> Response:
     """The nav app selector's answer: set (or clear) the app cookie, and send htmx back to the page
-    it was on (HX-Current-URL) minus any ?app_id=, which would override the new cookie.
+    it was on (HX-Current-URL) minus any ?app_id= (which would override the new cookie) and ?page=
+    (the old app's page number).
     Server-driven; no reload in the client (luxarch --playbook hypermedia)."""
     overview = request.app.url_path_for("dashboard.overview.page")
     current = urlsplit(current_url)
     path = current.path if current.path.startswith("/") else overview
-    query = [(k, v) for k, v in parse_qsl(current.query) if k != "app_id"]
+    # An explicit ?app_id= would override the new cookie, and the page number belongs to the
+    # list of the app being left: the new app starts on its first page.
+    query = [(k, v) for k, v in parse_qsl(current.query) if k not in ("app_id", "page")]
     target = safe_redirect_target(
         f"{path}?{urlencode(query)}" if query else path, overview
     )
@@ -282,16 +286,15 @@ class DashboardViewService:
                     page=1, total=len(events), per_page=SEARCH_LIMIT
                 )
             else:
-                skip, limit = skip_limit(page, EVENTS_PER_PAGE)
-                events, total = await self._core.get_filtered_events(
-                    skip=skip,
-                    limit=limit,
-                    app_id=app_id,
-                    event_name=event_name,
-                    hours=hours,
-                )
-                pagination = build_pagination(
-                    page=page, total=total, per_page=EVENTS_PER_PAGE
+                events, pagination = await fetch_page(
+                    partial(
+                        self._core.get_filtered_events,
+                        app_id=app_id,
+                        event_name=event_name,
+                        hours=hours,
+                    ),
+                    page=page,
+                    per_page=EVENTS_PER_PAGE,
                 )
             # The App column only when the list spans every app.
             columns: list[str | dict[str, str]] = [] if app_id else ["App"]
