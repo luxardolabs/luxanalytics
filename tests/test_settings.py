@@ -489,3 +489,38 @@ def test_a_dotenv_file_with_a_retired_key_still_loads(tmp_path: Path) -> None:
     env.write_text("\n".join(lines) + "\n")
     # EXTERNAL_URL: a key only the file sets (the suite's environment sets the database URL).
     assert SAFE["EXTERNAL_URL"] == Settings(_env_file=env).EXTERNAL_URL
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://u:tail-secret@collector.example.com:4318",
+        "http://tail-secret@collector.example.com:4318",
+        "https://:tail-secret@collector.example.com",
+        "https://u:tail-secret@[::1]:4318/v1/traces",
+    ],
+)
+def test_an_otlp_endpoint_with_userinfo_is_refused_without_printing_it(
+    url: str,
+) -> None:
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_ENDPOINT") as refused:
+        _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url)
+
+    assert "tail-secret" not in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://otel-collector:4318",
+        "https://collector.example.com",
+        "http://[::1]:4318/v1/traces",
+        "https://collector.example.com:4318/prefix?x=1",
+    ],
+)
+def test_an_otlp_endpoint_without_userinfo_starts(url: str) -> None:
+    assert url == _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url).OTEL_EXPORTER_OTLP_ENDPOINT
+
+
+def test_no_otlp_endpoint_starts() -> None:
+    assert _settings().OTEL_EXPORTER_OTLP_ENDPOINT is None

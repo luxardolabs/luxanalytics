@@ -267,6 +267,23 @@ class Settings(BaseSettings):
             raise ValueError("REDIS_URL is not a readable URL") from None
         return v
 
+    @field_validator("OTEL_EXPORTER_OTLP_ENDPOINT")
+    @classmethod
+    def otlp_endpoint_without_userinfo(cls, v: str | None) -> str | None:
+        """Credentials in the collector URL reach the exporter's log lines and the environment;
+        refused here, the log names only the setting. Credentials go in OTEL_EXPORTER_OTLP_HEADERS."""
+        if not v:
+            return v
+        try:
+            has_userinfo = "@" in urlparse(v).netloc
+        except ValueError:
+            has_userinfo = True
+        if has_userinfo:
+            raise ValueError(
+                "OTEL_EXPORTER_OTLP_ENDPOINT must not carry credentials in the URL"
+            )
+        return v
+
     @field_validator("DATABASE_URL")
     @classmethod
     def database_url_readable(cls, v: str) -> str:
