@@ -88,8 +88,8 @@ async def app_detail_panel(
 @router.post("/", response_class=HTMLResponse, name="apps.create")
 async def create_app(
     request: Request,
-    name: str = Form(...),
-    app_id: str = Form(...),
+    name: str = Form(""),
+    app_id: str = Form(""),
     organization: str | None = Form(None),
     description: str | None = Form(None),
     db: AsyncSession = Depends(get_db, scope="function"),

@@ -46,6 +46,24 @@ async def test_create_with_an_overlong_organization_is_a_form_error(
 
 
 @pytest.mark.db
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"name": "", "app_id": "blank_name"},
+        {"name": "ok", "app_id": ""},
+        {"name": "", "app_id": ""},
+        {"app_id": "no_name"},
+        {"name": "no_app_id"},
+    ],
+)
+async def test_a_blank_or_missing_required_create_field_lands_in_the_form_box(
+    dashboard_client: AsyncClient, data: dict[str, str]
+) -> None:
+    response = await dashboard_client.post("/apps/", data=data)
+    _assert_form_error(response)
+
+
+@pytest.mark.db
 async def test_losing_the_duplicate_app_id_race_is_the_already_exists_error(
     dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
 ) -> None:
