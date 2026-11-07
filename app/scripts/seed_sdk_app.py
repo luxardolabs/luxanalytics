@@ -24,14 +24,14 @@ class NotADevEnvironment(RuntimeError):
 
 
 async def ensure_sdk_app(db: AsyncSession) -> AppRow:
-    """The `sdk-integration` app, created or reactivated as needed; ids stable across runs."""
+    """The `sdk-integration` app, created, restored or reactivated as needed; ids stable across runs."""
     # A test app must never be minted on prod.
     if settings.is_production:
         raise NotADevEnvironment(
             f"refusing to seed {SDK_APP_ID!r} in ENVIRONMENT={settings.ENVIRONMENT!r}"
         )
     core = AppCoreService(db)
-    app = await core.get_app_by_app_id(SDK_APP_ID)
+    app = await core.get_app_by_app_id_including_deleted(SDK_APP_ID)
     if app is None:
         return await core.create_app(
             AppCreate(
@@ -41,6 +41,10 @@ async def ensure_sdk_app(db: AsyncSession) -> AppRow:
                 description="Swift SDK integration tests against dev; disposable data.",
             )
         )
+    if app.deleted_at is not None:
+        restored = await core.restore_app(SDK_APP_ID)
+        if restored is not None:
+            return restored
     if not app.is_active:
         updated = await core.update_app(SDK_APP_ID, AppUpdate(is_active=True))
         if updated is not None:

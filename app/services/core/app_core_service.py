@@ -91,6 +91,14 @@ class AppCoreService:
             await app_crud.soft_delete(self.db, app)
             return True
 
+    async def restore_app(self, app_id: str) -> AppRow | None:
+        """Bring a deleted app back, active; None when no app holds this app_id."""
+        with create_service_span("AppCoreService", "restore_app", app_id=app_id):
+            app = await app_crud.get_by_app_id_including_deleted(self.db, app_id)
+            if app is None:
+                return None
+            return AppRow.model_validate(await app_crud.restore(self.db, app))
+
     async def search_apps(self, query: str) -> list[AppRow]:
         with create_service_span("AppCoreService", "search_apps"):
             if not query:

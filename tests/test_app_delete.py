@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.app_model import App
 from app.models.event_model import Event
+from app.scripts.seed_sdk_app import SDK_APP_ID, ensure_sdk_app
+from app.services.core.app_core_service import AppCoreService
 from tests.test_apps_web import _login
 from tests.test_auth import _signed_hmac_post
 from tests.test_ingest_http import EVENT, PROJECT, _dsn_auth
@@ -37,7 +39,7 @@ async def test_a_deleted_apps_id_cannot_be_registered_again(
         "/apps/", data={"name": "Someone else", "app_id": sample_app.app_id}
     )
     assert again.status_code == 400
-    assert "already exists" in again.text
+    assert "deleted app" in again.text
     # The events stay, held by the deleted app's row.
     assert await _event_count(db, sample_app.app_id) == kept
     rows = await db.execute(select(App).where(App.app_id == sample_app.app_id))
@@ -105,3 +107,16 @@ async def test_deleting_an_app_refuses_dsn_ingest(
     assert by_project.status_code == 404
     assert by_public_id.status_code == 401
     assert await _event_count(db, sample_app.app_id) == 0
+
+
+@pytest.mark.db
+async def test_the_seed_restores_a_deleted_sdk_app(db: AsyncSession) -> None:
+    core = AppCoreService(db)
+    created = await ensure_sdk_app(db)
+    assert await core.delete_app(SDK_APP_ID)
+
+    restored = await ensure_sdk_app(db)
+
+    assert restored.deleted_at is None
+    assert restored.is_active
+    assert (restored.id, restored.public_id) == (created.id, created.public_id)

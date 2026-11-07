@@ -131,7 +131,12 @@ class AppsViewService:
     ) -> str:
         """Create the app; returns the toast message. Raises DuplicateAppIdError."""
         with create_service_span("AppsViewService", "create", app_id=app_id):
-            if await self._core.get_app_by_app_id_including_deleted(app_id):
+            held = await self._core.get_app_by_app_id_including_deleted(app_id)
+            if held is not None and held.deleted_at is not None:
+                raise DuplicateAppIdError(
+                    f'App ID "{app_id}" belongs to a deleted app and cannot be reused'
+                )
+            if held is not None:
                 raise DuplicateAppIdError(f'App ID "{app_id}" already exists')
             await self._core.create_app(
                 AppCreate(

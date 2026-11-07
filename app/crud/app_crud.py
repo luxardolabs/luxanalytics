@@ -63,6 +63,12 @@ class AppCRUD:
         app.soft_delete()
         await db.flush()
 
+    async def restore(self, db: AsyncSession, app: App) -> App:
+        """Bring a deleted app back, active, with its app_id and events as they were."""
+        app.deleted_at = None
+        app.is_active = True
+        return await self.update(db, app)
+
     async def search(self, db: AsyncSession, query_str: str) -> list[App]:
         pattern = f"%{query_str}%"
         result = await db.execute(
