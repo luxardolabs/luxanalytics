@@ -236,6 +236,94 @@ def test_a_redis_url_either_client_cannot_use_is_refused_by_name(query: str) -> 
     assert "redis-secret" not in str(refused.value)
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "encoding=x",
+        "encoding_errors=%00",
+        "socket_timeout=nan",
+        "socket_timeout=inf",
+        "socket_timeout=-1",
+        "socket_connect_timeout=nan",
+        "credential_provider=x",
+        "redis_connect_func=x",
+        "event_dispatcher=x",
+        "socket_keepalive_options=x",
+        "socket_type=x",
+        "socket_read_size=-1",
+        "ssl_min_version=3",
+        "client_name=two%20words",
+        "protocol=5",
+        "%73ocket_type=x",
+    ],
+)
+def test_a_redis_option_outside_the_known_usable_ones_is_refused(query: str) -> None:
+    with pytest.raises(ValidationError, match="REDIS_URL"):
+        _settings(REDIS_URL=f"rediss://h:6379/0?{query}")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "redis://:pw@tail-secret/rest@h:6379/0",
+        "redis://:pw@tail-secret?rest@h:6379/0",
+        "redis://:pw@tail-secret#rest@h:6379/0",
+        "redis://:pw@tail-secret:1234/rest@h:6379/0",
+        "redis://:1234/tail-secret@h:6379/0",
+        "redis://u:1234/tail-secret@h:6379/0",
+    ],
+)
+def test_a_redis_password_with_an_at_past_the_authority_is_refused(url: str) -> None:
+    with pytest.raises(ValidationError, match="REDIS_URL") as refused:
+        _settings(REDIS_URL=url)
+
+    assert "tail-secret" not in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "redis://h:6379/0",
+        "redis://:p@ss@h:6379/0",
+        "rediss://appuser:p%40ss@h:6380/0?ssl_ca_certs=/ca.pem&ssl_check_hostname=true",
+        "rediss://h:6380/0?ssl_cert_reqs=required&ssl_certfile=/c.pem&ssl_keyfile=/k.pem",
+        "redis://h:6379/0?socket_timeout=5&client_name=lux&health_check_interval=30",
+        "redis://h:6379/0?socket_connect_timeout=0.5&protocol=3&db=2",
+    ],
+)
+def test_a_usable_redis_url_starts(url: str) -> None:
+    assert url == _settings(REDIS_URL=url).REDIS_URL
+
+
+INVISIBLE = ["̀", "͏", "️", "⃝", "឴", "ᅟ", "ㅤ", "ﾠ", "⠀"]
+
+
+@pytest.mark.parametrize("char", INVISIBLE)
+def test_a_secret_of_marks_and_fillers_is_blank(char: str) -> None:
+    with pytest.raises(ValidationError, match="DASHBOARD_SESSION_SECRET"):
+        _settings(DASHBOARD_SESSION_SECRET=char * 40)
+    with pytest.raises(ValidationError, match="HMAC_KEYS"):
+        _settings(HMAC_KEYS='{"app": "' + char * 8 + '"}')
+
+
+@pytest.mark.parametrize("padding", ["̀", "ㅤ", "\x01"])
+def test_a_default_password_padded_with_invisible_characters_is_guessable(
+    padding: str,
+) -> None:
+    with pytest.raises(ValidationError, match="DASHBOARD_PASSWORD"):
+        _settings(ENVIRONMENT="production", DASHBOARD_PASSWORD="admin" + padding * 7)
+
+
+def test_a_visible_secret_with_marks_starts() -> None:
+    secret = "kéy-" * 10
+    assert secret == _settings(DASHBOARD_SESSION_SECRET=secret).DASHBOARD_SESSION_SECRET
+
+
+def test_a_refused_database_url_names_the_whole_url_not_the_password() -> None:
+    with pytest.raises(ValidationError, match="percent-encode reserved characters"):
+        _settings(DATABASE_URL="postgresql+asyncpg://u:p@h/d?application_name=a@b")
+
+
 @pytest.mark.parametrize("escaped", ["\\u200b", "\\ufeff", "\\u00ad", "\\u0000"])
 def test_an_invisible_hmac_secret_is_blank(escaped: str) -> None:
     with pytest.raises(ValidationError, match="HMAC_KEYS"):

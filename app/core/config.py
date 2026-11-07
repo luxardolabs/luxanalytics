@@ -1,10 +1,12 @@
+import math
 import re
 import string
 import unicodedata
+from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 from pydantic import (
     ConfigDict,
@@ -29,27 +31,76 @@ _STR_DICT = TypeAdapter(dict[str, str], config=ConfigDict(hide_input_in_errors=T
 # names a socket differently from redis-py, so no socket form works for both.
 _REDIS_URL_PREFIXES = ("redis://", "rediss://")
 _STR_LIST = TypeAdapter(list[str], config=ConfigDict(hide_input_in_errors=True))
+_INVISIBLE_CATEGORIES = {"Cc", "Cf", "Cn", "Co", "Cs", "Me", "Mn"}
+_FILLERS = {"ᅟ", "ᅠ", "⠀", "ㅤ", "ﾠ", "￼"}
+
+
+def _visible(text: str) -> str:
+    """The text without what renders as nothing: controls, format characters, unassigned and
+    private code points, combining marks and the blank fillers. Whitespace stays."""
+    return "".join(
+        c
+        for c in text
+        if c in string.whitespace
+        or (unicodedata.category(c) not in _INVISIBLE_CATEGORIES and c not in _FILLERS)
+    )
 
 
 def _blank(secret: str) -> bool:
-    """Nothing but whitespace, control or invisible format characters: a key anyone can guess."""
-    return not "".join(
-        c for c in secret if unicodedata.category(c) not in {"Cc", "Cf"}
-    ).strip()
+    """Nothing but whitespace and invisible characters: a key anyone can guess."""
+    return not _visible(secret).strip()
+
+
+def _split_after_authority(url: str) -> tuple[str, str]:
+    """The URL after its scheme, split at the first of `/ ? #`: (authority, the rest)."""
+    after_scheme = url.partition("://")[2]
+    authority = re.split(r"[/?#]", after_scheme, maxsplit=1)[0]
+    return authority, after_scheme[len(authority) :]
 
 
 def _stray_at(url: str) -> bool:
     """An `@` beyond the one that ends the credentials: a password's unencoded `@`."""
-    after_scheme = url.partition("://")[2]
-    authority = re.split(r"[/?#]", after_scheme, maxsplit=1)[0]
-    ats = after_scheme.count("@")
-    return ats > 1 or ats != authority.count("@")
+    authority, rest = _split_after_authority(url)
+    return authority.count("@") > 1 or "@" in rest
+
+
+def _positive_number(value: str) -> bool:
+    try:
+        number = float(value)
+    except ValueError:
+        return False
+    return math.isfinite(number) and number > 0
+
+
+# The URL options the app's Redis clients can use. Each client takes any other query name as a
+# constructor argument, and many of those construct and then fail on first use: on the async client
+# as a 500 on every ingest and /health, on the limiter's sync client as a silent per-process count.
+_REDIS_URL_OPTIONS: dict[str, Callable[[str], bool]] = {
+    "db": str.isdecimal,
+    "socket_timeout": _positive_number,
+    "socket_connect_timeout": _positive_number,
+    "health_check_interval": _positive_number,
+    "client_name": lambda v: re.fullmatch(r"[!-~]+", v) is not None,
+    "protocol": {"2", "3"}.__contains__,
+    "ssl_cert_reqs": {"none", "optional", "required"}.__contains__,
+    "ssl_check_hostname": {"true", "false"}.__contains__,
+    "ssl_ca_certs": bool,
+    "ssl_certfile": bool,
+    "ssl_keyfile": bool,
+}
+
+
+def _redis_options_usable(url: str) -> bool:
+    return all(
+        name in _REDIS_URL_OPTIONS and _REDIS_URL_OPTIONS[name](value)
+        for name, value in parse_qsl(urlparse(url).query, keep_blank_values=True)
+    )
 
 
 def _guessable(password: str, username: str) -> bool:
     """A default or the username, bare or padded: "admin1234567" and "password!!!!" are as
-    guessable as "admin". Invisible format characters (zero-width spaces) do not count."""
-    visible = "".join(c for c in password if unicodedata.category(c) != "Cf")
+    guessable as "admin". Invisible characters do not count."""
+    visible = _visible(password)
     core = visible.lower().strip(string.digits + string.punctuation + string.whitespace)
     return len(visible.strip()) < MIN_PRODUCTION_PASSWORD or core in {
         *WEAK_PASSWORDS,
@@ -194,7 +245,13 @@ class Settings(BaseSettings):
             return v
         if not v.startswith(_REDIS_URL_PREFIXES):
             raise ValueError("REDIS_URL must be a redis:// or rediss:// URL")
+        if "@" in _split_after_authority(v)[1]:
+            raise ValueError(
+                "REDIS_URL is not a readable URL (percent-encode its password)"
+            )
         try:
+            if not _redis_options_usable(v):
+                raise ValueError("unusable option")
             # Each client's own parser and constructor: the app's async pool, and the sync pool
             # slowapi's limiter opens, which falls back to per-process counts if it cannot connect.
             pool = BlockingConnectionPool.from_url(v)
@@ -216,7 +273,7 @@ class Settings(BaseSettings):
             readable = False
         if not readable:
             raise ValueError(
-                "DATABASE_URL is not a readable URL (percent-encode its password)"
+                "DATABASE_URL is not a readable URL (percent-encode reserved characters)"
             )
         return v
 
