@@ -10,7 +10,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from ipaddress import IPv6Address, ip_address, ip_network
+from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from typing import Any
 
 import redis.asyncio as redis
@@ -404,17 +404,39 @@ _app_event_ceiling = RateLimiter(
 )
 
 
+# IPv6 prefixes whose low 32 bits are an IPv4 client's address: the NAT64 well-known prefix
+# (RFC 6052), SIIT's IPv4-translated form (RFC 2765) and the deprecated IPv4-compatible form.
+_IPV4_IN_LOW_BITS = (
+    ip_network("64:ff9b::/96"),
+    ip_network("::ffff:0:0:0/96"),
+    ip_network("::/96"),
+)
+
+
+def _embedded_ipv4(address: IPv6Address) -> IPv4Address | None:
+    """The IPv4 client an IPv6 address carries (IPv4-mapped, Teredo, or one of the translator
+    forms above), or None for a native IPv6 address."""
+    if address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+    if address.teredo is not None:
+        return address.teredo[1]
+    if any(address in prefix for prefix in _IPV4_IN_LOW_BITS):
+        return IPv4Address(int(address) & 0xFFFFFFFF)
+    return None
+
+
 def _address_identifier(client_ip: str) -> str:
-    """One budget per client: an IPv4 address (an IPv4-mapped IPv6 one included), or an IPv6
-    address's /64, which one host or subscriber holds whole and could otherwise spread a flood
-    over."""
+    """One budget per client: an IPv4 address (the one an IPv6 address carries included: mapped,
+    translated or tunnelled), or a native IPv6 address's /64, which one host or subscriber holds
+    whole and could otherwise spread a flood over."""
     try:
         address = ip_address(client_ip)
     except ValueError:
         return client_ip
     if isinstance(address, IPv6Address):
-        if address.ipv4_mapped is not None:
-            return str(address.ipv4_mapped)
+        embedded = _embedded_ipv4(address)
+        if embedded is not None:
+            return str(embedded)
         return str(ip_network(f"{address}/64", strict=False))
     return str(address)
 
