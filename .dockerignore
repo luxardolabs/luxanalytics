@@ -1,7 +1,10 @@
-# What the shipped image copies from app/ and alembic/ is an allowlist: a stray dump, key or env file
-# has no way in, whatever it is called. tests/test_dockerignore.py matches every file under app/ and
-# alembic/ against these patterns and fails on one that does not ship (the change_logs and
-# release_notes .md files excepted), since a file left out only goes missing at run time.
+# What the shipped image copies from app/ and alembic/ is an allowlist by file name and type: a file
+# ships when a `!` pattern below names its type and place, wherever it is and whatever its directory
+# is called (`app/.aws/c.py` ships; `app/.aws/c.txt` does not). A directory whose own name matches a
+# pattern (`app/foo.py/`) lets everything inside it through. tests/test_dockerignore.py matches every
+# file and directory under app/ and alembic/ against these patterns as BuildKit does: it fails on a
+# file that does not ship (the change_logs and release_notes .md files excepted), since a file left
+# out only goes missing at run time, and on a directory named like an allowed type.
 app/**
 !app/**/*.py
 !app/templates/**/*.html

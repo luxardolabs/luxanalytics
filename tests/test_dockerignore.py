@@ -51,7 +51,7 @@ def _pattern_regex(pattern: str) -> re.Pattern[str]:
         else:
             out += re.escape(char)
         i += 1
-    return re.compile(f"^{out}$")
+    return re.compile(out, re.DOTALL)
 
 
 def _rules(text: str) -> Rules:
@@ -67,13 +67,34 @@ def _rules(text: str) -> Rules:
 
 
 def _ships(path: str, rules: Rules) -> bool:
-    """True when the image's build context holds the file at `path`."""
-    parts = path.split("/")
-    candidates = ["/".join(parts[:n]) for n in range(1, len(parts) + 1)]
+    """True when the image's build context holds the file at `path`.
+
+    The way BuildKit walks it (moby's `MatchesUsingParentResults`): each directory from the root
+    down is matched, and a path takes the result of every pattern its parent directory matched
+    without matching it again. A pattern that cannot change the verdict is not evaluated: a plain
+    pattern once the path is excluded, a `!` pattern while it is not. So a later exclude is skipped
+    on a directory an earlier pattern excluded, and an allowlisted file inside such a directory
+    ships (`app/.aws/c.py`), as does everything inside a directory the allowlist names
+    (`app/foo.py/dump.tar`).
+    """
+    parent: list[bool] | None = None
     excluded = False
-    for excludes, matcher in rules:
-        if any(matcher.match(candidate) for candidate in candidates):
-            excluded = excludes
+    parts = path.split("/")
+    for depth in range(1, len(parts) + 1):
+        candidate = "/".join(parts[:depth])
+        excluded = False
+        hits: list[bool] = []
+        for index, (excludes, matcher) in enumerate(rules):
+            hit = parent[index] if parent is not None else False
+            if not hit:
+                if excludes == excluded:
+                    hits.append(False)
+                    continue
+                hit = matcher.fullmatch(candidate) is not None
+            if hit:
+                excluded = excludes
+            hits.append(hit)
+        parent = hits
     return not excluded
 
 
@@ -81,13 +102,29 @@ def _text() -> str:
     return (REPO / ".dockerignore").read_text()
 
 
-def _files() -> list[str]:
+def _entries(*, directories: bool) -> list[str]:
+    """The directories (or the files) under app/ and alembic/. A symlink is a file entry, judged by
+    its own name as the build does, whatever it points at."""
     return sorted(
         path.relative_to(REPO).as_posix()
         for root in ROOTS
         for path in (REPO / root).rglob("*")
-        if path.is_file() and "__pycache__" not in path.parts
+        if "__pycache__" not in path.parts
+        and (
+            (path.is_dir() and not path.is_symlink())
+            if directories
+            else (path.is_file() or path.is_symlink())
+        )
     )
+
+
+def _files() -> list[str]:
+    return _entries(directories=False)
+
+
+def _directories_that_ship(directories: list[str], rules: Rules) -> list[str]:
+    """The directories whose own name an allow pattern covers: everything inside one ships."""
+    return [d for d in directories if d not in ROOTS and _ships(d, rules)]
 
 
 def _is_not_shipped(path: str) -> bool:
@@ -106,6 +143,25 @@ def test_every_file_under_app_and_alembic_reaches_the_image() -> None:
     assert not missing, (
         f"the .dockerignore allowlist drops these from the image: {missing}"
     )
+
+
+def test_no_directory_is_named_like_a_file_the_allowlist_ships() -> None:
+    """`app/foo.py/` matches `!app/**/*.py`, and then every file inside it ships, whatever it is."""
+    rules = _rules(_text())
+
+    named = _directories_that_ship(_entries(directories=True), rules)
+
+    assert not named, f"rename these: all that is inside them ships: {named}"
+
+
+@pytest.mark.parametrize(
+    "directory",
+    ["app/foo.py", "app/static/img.css", "app/templates/x.html", "alembic/v.py"],
+)
+def test_a_directory_named_like_an_allowed_type_is_found(directory: str) -> None:
+    rules = _rules(_text())
+
+    assert _directories_that_ship(["app", "app/api", directory], rules) == [directory]
 
 
 def test_the_files_the_image_leaves_out_are_left_out() -> None:
@@ -181,6 +237,33 @@ def test_removing_an_allowlist_line_drops_the_files_it_covers(
     rules = _rules("\n".join(line for line in lines if line != dropped_line))
 
     assert not _ships(path, rules)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "app/.aws/c.py",
+        "app/.git/hooks/h.py",
+        "app/sub/foo.key/c.py",
+        "app/__pycache__/m.py",
+        "app/static/node_modules/a.js",
+        "app/foo.py/dump.tar",
+    ],
+)
+def test_an_allowed_file_ships_inside_a_directory_a_secret_pattern_names(
+    path: str,
+) -> None:
+    """BuildKit skips a later exclude on a directory an earlier pattern already excluded (measured
+    with a real build): `app/**` excluded the directory, so `**/.aws/` never ran on it, and the file
+    the allowlist names comes through."""
+    assert _ships(path, _rules(_text()))
+
+
+@pytest.mark.parametrize("path", ["app/.aws/c.txt", "app/.git/config", "app/x.py\n"])
+def test_a_file_the_allowlist_does_not_name_is_dropped_in_any_directory(
+    path: str,
+) -> None:
+    assert not _ships(path, _rules(_text()))
 
 
 def test_the_last_matching_pattern_decides() -> None:
