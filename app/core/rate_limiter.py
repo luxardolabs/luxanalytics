@@ -72,6 +72,17 @@ return {1, 0, first, ''}
 """
 
 
+class RedisOutage:
+    """How many Redis rate limit checks have failed since the last one that worked."""
+
+    def __init__(self) -> None:
+        self.failed_checks = 0
+
+
+# One per process, like Redis itself: an outage is logged with its traceback once, not per request.
+redis_outage = RedisOutage()
+
+
 def _rate_limit_requests() -> int:
     return settings.RATE_LIMIT_REQUESTS
 
@@ -198,15 +209,26 @@ def _refused(ready_at: float | None, budget: Budget, now: float) -> dict[str, An
 async def admit(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
     """Spend every budget, or none: (None, the first budget's metadata) when each has room, else
     (the index of the budget without room that is last to have it again, its metadata) and
-    nothing is spent. Redis being unreachable falls back to each limiter's in-memory window."""
+    nothing is spent. Redis being unreachable falls back to each limiter's in-memory window; the
+    outage's traceback is logged by its first failed check, and its end by the first check after."""
     redis_client = await get_redis_client()
     if redis_client:
         try:
-            return await _admit_redis(redis_client, budgets)
+            result = await _admit_redis(redis_client, budgets)
         except RedisError, OSError:
             # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
             # the in-memory windows, so requests stay limited. Anything else is a bug and raises.
-            logger.exception("Redis rate limit check failed")
+            redis_outage.failed_checks += 1
+            if redis_outage.failed_checks == 1:
+                logger.exception("Redis rate limit check failed")
+        else:
+            if redis_outage.failed_checks:
+                logger.info(
+                    "Redis rate limit check recovered",
+                    extra={"failed_checks": redis_outage.failed_checks},
+                )
+                redis_outage.failed_checks = 0
+            return result
     return _admit_memory(budgets)
 
 
