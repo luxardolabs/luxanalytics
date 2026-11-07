@@ -8,9 +8,12 @@ failed login logs nothing that was typed, where a password typed into the wrong 
 import logging
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
+from app.core.security import verify_hmac_ingest
 from app.main import app as served_app
+from app.main import create_application
+from app.services.core.event_core_service import EventCoreService
 from app.services.views.dashboard_view_service import DashboardViewService
 from tests.test_auth_session import _login
 
@@ -111,3 +114,25 @@ async def test_a_failed_login_does_not_log_what_was_typed(
     logged = _logged(caplog)
     assert any("Failed login attempt" in line for line in logged)
     assert not any(typed in line for line in logged)
+
+
+async def test_a_failed_api_request_is_logged_by_its_route_not_its_query_string(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fails(self: EventCoreService, *args: object, **kwargs: object) -> None:
+        raise RuntimeError("the ingest failed")
+
+    monkeypatch.setattr(EventCoreService, "ingest", fails)
+    app = create_application()
+    app.dependency_overrides[verify_hmac_ingest] = lambda: "app-1"
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://localhost"
+    ) as api:
+        with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
+            await api.post(f"/api/v1/events/?email={END_USER}", content=b"{}")
+
+    failed = [r for r in caplog.records if r.getMessage() == "Request failed"]
+    assert len(failed) == 1
+    assert vars(failed[0])["route"] == "/api/v1/events/"
+    assert END_USER not in str(vars(failed[0]))

@@ -167,7 +167,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 "Request failed",
                 extra={
                     "method": request.method,
-                    "url": str(request.url),
+                    # The route's template, never the URL: a client can send any query string
+                    "route": route_template(request),
                     "process_time": round(process_time, 4),
                 },
             )
