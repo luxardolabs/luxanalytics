@@ -1,18 +1,30 @@
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 
 from app.core.config import MAX_BATCH_EVENTS, settings
 
 CLIENT_EVENT_ID_MAX = 64  # the events.client_event_id column width
-# Metadata values that reach a btree index key: `device_id` (ix_events_app_device_received and the
-# devices primary key) and `operation` (ix_events_perf_operation). A btree row holds about 2.7 KB,
-# so a longer value fails the INSERT for every batch that carries it; 255 characters (1 KB as
-# UTF-8) is the width name, user_id and session_id already have.
-INDEXED_METADATA_MAX = 255
-INDEXED_METADATA_KEYS = ("device_id", "operation")
+# `device_id` is in a btree key on every event (ix_events_app_device_received and the devices
+# primary key). A btree row holds about 2.7 KB, so a longer one fails the INSERT for every batch
+# that carries it. It is an identity: past this length the event is refused, never shortened
+# (two devices would merge). 255 characters (1 KB as UTF-8) is the width name, user_id and
+# session_id already have; the SDK's is 64.
+DEVICE_ID_MAX = 255
+# `operation` reaches a btree key only on performance_measured (ix_events_perf_operation is
+# partial). The index limit is in bytes, so a longer value there is cut to this many bytes, on a
+# character boundary, and the event is stored: refusing it would drop the SDK's whole batch.
+PERFORMANCE_EVENT = "performance_measured"
+PERFORMANCE_OPERATION_MAX_BYTES = 2000
 # Before this, a timestamp is a device clock reset (often to 1970), not when the event happened.
 EARLIEST_TIMESTAMP = datetime(2000, 1, 1, tzinfo=UTC)
 
@@ -86,12 +98,25 @@ class EventBase(BaseModel):
             raise ValueError(
                 "metadata must not contain NUL characters or lone surrogates"
             )
-        for key in INDEXED_METADATA_KEYS:
-            if len(v.get(key, "")) > INDEXED_METADATA_MAX:
-                raise ValueError(
-                    f"metadata {key} must be at most {INDEXED_METADATA_MAX} characters"
-                )
+        if len(v.get("device_id", "")) > DEVICE_ID_MAX:
+            raise ValueError(
+                f"metadata device_id must be at most {DEVICE_ID_MAX} characters"
+            )
         return v
+
+    @model_validator(mode="after")
+    def fit_performance_operation(self) -> Self:
+        """A performance event's `operation` is indexed: keep it under the btree row limit."""
+        operation = self.metadata.get("operation")
+        if (
+            self.name == PERFORMANCE_EVENT
+            and operation is not None
+            and len(operation.encode()) > PERFORMANCE_OPERATION_MAX_BYTES
+        ):
+            self.metadata["operation"] = operation.encode()[
+                :PERFORMANCE_OPERATION_MAX_BYTES
+            ].decode(errors="ignore")
+        return self
 
     @field_validator("name")
     @classmethod

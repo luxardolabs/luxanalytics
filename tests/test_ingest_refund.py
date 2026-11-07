@@ -223,6 +223,54 @@ async def test_a_batch_the_database_refuses_for_its_data_keeps_its_budgets_spent
         await EventCoreService(db).ingest(sample_app.app_id, _payload(1, device), ip)
 
 
+def _sdk_event(name: str, **metadata: str) -> dict[str, object]:
+    return {
+        "name": name,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "metadata": {"device_id": "a" * 64, **metadata},
+    }
+
+
+@pytest.mark.db
+async def test_a_long_operation_on_an_unindexed_event_keeps_its_batch(
+    db: AsyncSession,
+    sample_app: App,
+    window: None,
+    identity: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "DEVICE_RATE_LIMIT_EVENTS", 1000)
+    monkeypatch.setattr(settings, "IP_RATE_LIMIT_EVENTS", 1000)
+    ip, _device = identity
+    batch = [_sdk_event("app_opened") for _ in range(49)]
+    batch.append(_sdk_event("sync_failed", operation="x" * 5000))
+
+    result = await EventCoreService(db).ingest(sample_app.app_id, {"events": batch}, ip)
+
+    assert result.stored == 50
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("unit", ["x", "日"])
+async def test_a_long_operation_on_a_performance_event_is_stored_cut_to_the_index(
+    db: AsyncSession,
+    sample_app: App,
+    window: None,
+    identity: tuple[str, str],
+    unit: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "DEVICE_RATE_LIMIT_EVENTS", 1000)
+    monkeypatch.setattr(settings, "IP_RATE_LIMIT_EVENTS", 1000)
+    ip, _device = identity
+    batch = [_sdk_event("app_opened") for _ in range(49)]
+    batch.append(_sdk_event("performance_measured", operation=unit * 3000))
+
+    result = await EventCoreService(db).ingest(sample_app.app_id, {"events": batch}, ip)
+
+    assert result.stored == 50
+
+
 @pytest.mark.db
 async def test_a_device_id_no_index_can_hold_is_refused_before_any_budget_is_spent(
     db: AsyncSession, sample_app: App, window: None, identity: tuple[str, str]
