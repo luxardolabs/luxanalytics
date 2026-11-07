@@ -2,6 +2,7 @@
 that names the refused parameter and never echoes the value; /api keeps its JSON."""
 
 import base64
+import json
 
 import pytest
 from httpx import AsyncClient
@@ -49,6 +50,25 @@ async def test_a_refused_path_value_is_html_too(
     assert response.status_code == 422
     assert response.headers["hx-error-swap"] == "true"
     assert "session_id" in response.text
+
+
+@pytest.mark.db
+async def test_a_refused_app_selection_toasts_and_does_not_swap_the_select(
+    dashboard_client: AsyncClient,
+) -> None:
+    # The nav select posts with hx-swap="none", but htmx-error-swap.js writes an error body into
+    # the request's target whenever HX-Error-Swap is set: that would replace the select's options.
+    response = await dashboard_client.post(
+        "/set-app-context",
+        data={"app_id": "a\x00b"},
+        headers={**HX, "HX-Target": "nav-app-select"},
+    )
+    assert response.status_code == 422
+    assert "hx-error-swap" not in response.headers
+    toast = json.loads(response.headers["hx-trigger"])["showtoast"]
+    assert toast["type"] == "error"
+    assert toast["message"]
+    assert "a\x00b" not in response.headers["hx-trigger"]
 
 
 @pytest.mark.db

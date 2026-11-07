@@ -7,11 +7,18 @@ into the failing target, and any other request gets an error page. Neither echoe
 values; they name the refused parameters, which are the route's own.
 """
 
+import json
+
 from fastapi import Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
+
+# Routes whose htmx caller swaps nothing (hx-swap="none"): the error swap would still write the
+# partial into the caller's own element (the nav select, replacing its options), so they are
+# answered with an error toast, which htmx fires from the HX-Trigger header on any status.
+_TOAST_ROUTES = frozenset({"system.set_app_context"})
 
 
 def _is_api(request: Request) -> bool:
@@ -42,6 +49,17 @@ async def request_validation_handler(request: Request, exc: Exception) -> Respon
     templates: Jinja2Templates = request.app.state.templates
     context = {"refused": _refused(exc)}
     if request.headers.get("HX-Request") is not None:
+        route_name = getattr(request.scope.get("route"), "name", None)
+        if route_name in _TOAST_ROUTES:
+            toast = {
+                "message": f"The request was refused: {', '.join(context['refused'])} "
+                "is not a value this page accepts.",
+                "type": "error",
+            }
+            return Response(
+                status_code=422,
+                headers={"HX-Trigger": json.dumps({"showtoast": toast})},
+            )
         response = templates.TemplateResponse(
             request, "partials/errors/invalid_request.html", context, status_code=422
         )
