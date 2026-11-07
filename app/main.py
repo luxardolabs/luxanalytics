@@ -158,9 +158,12 @@ def _publish_ingest_schemas(app: FastAPI) -> None:
     components.update(INGEST_BODY_COMPONENTS)
 
 
-# Exact paths (the guard matches no pattern): the DSN route `/api/v1/events/{project_id}` is not
-# listed and stays held to the guard. A literal, because fw.auth_posts_refuse_cross_site must read
-# the exemptions; fw.urls_from_route_names reds it as a literal path (escalated: the two conflict).
+# The cross-site guard reads an entry ending in "/" as a subtree, so "/api/v1/events/" exempts every
+# route under it, the DSN route `/api/v1/events/{project_id}` and "/api/v1/events/public" included
+# ("/api/v1/events/public" is also listed on its own). Every route there authenticates by HMAC or
+# DSN, never by a cookie, so a cross-site POST carries no victim's session. A literal, because
+# fw.auth_posts_refuse_cross_site must read the exemptions; fw.urls_from_route_names reds it as a
+# literal path (escalated: the two conflict).
 INGEST_PATHS = ("/api/v1/events/", "/api/v1/events/public")
 
 
@@ -196,9 +199,10 @@ def create_application() -> FastAPI:
     app.include_router(api_router)
 
     # Middleware. Starlette's add_middleware PREPENDS, so the LAST one added is the OUTERMOST.
-    # Effective order, outer -> inner: AllowedHosts, SameOrigin, CORS, RateLimit, Logging,
-    # SecurityHeaders, Session. Host validation and the cross-site refusal (login CSRF,
-    # FLEET-AUTH-SESSION-STANDARD §5) run before anything else touches the request.
+    # Effective order, outer -> inner: SecurityHeaders, AllowedHosts, SameOrigin, CORS, RateLimit,
+    # Logging, Session. Host validation and the cross-site refusal (login CSRF,
+    # FLEET-AUTH-SESSION-STANDARD §5) run before anything else touches the request; the headers
+    # layer is outside them all, so a refusal from any layer carries the CSP and frame policy.
     app.add_middleware(
         SessionMiddleware,
         secret_key=get_session_secret(),
@@ -207,7 +211,6 @@ def create_application() -> FastAPI:
         same_site="lax",
         https_only=True,
     )
-    app.add_middleware(SecurityHeadersMiddleware, environment=settings.ENVIRONMENT)
     app.add_middleware(LoggingMiddleware)
     # RequestSizeLimitMiddleware disabled — nginx handles body size via client_max_body_size
     app.add_middleware(
@@ -239,6 +242,7 @@ def create_application() -> FastAPI:
         # the container HEALTHCHECK (Dockerfile, compose.yml)
         health_paths=(app.url_path_for("system.health"),),
     )
+    app.add_middleware(SecurityHeadersMiddleware, environment=settings.ENVIRONMENT)
 
     # The canonical exception handler renders its error page/partial through this instance.
     app.state.templates = error_templates
