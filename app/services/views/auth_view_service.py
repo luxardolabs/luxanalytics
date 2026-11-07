@@ -44,11 +44,13 @@ class AuthViewService:
         self, next: str, error: str | None, message: str | None
     ) -> dict[str, Any]:
         with create_service_span("AuthViewService", "login_context"):
+            error_text = LOGIN_ERRORS.get(error or "")
             return {
                 "next": next or self.after_login(),
                 "login_url": str(self._request.app.url_path_for("auth.login")),
-                "error": LOGIN_ERRORS.get(error or ""),
-                "message": LOGIN_MESSAGES.get(message or ""),
+                "error": error_text,
+                # One banner: an error outranks a confirmation.
+                "message": None if error_text else LOGIN_MESSAGES.get(message or ""),
                 "version": settings.APP_VERSION,
                 "build_timestamp": settings.BUILD_TIMESTAMP,
             }

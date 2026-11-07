@@ -39,6 +39,17 @@ async def test_a_failed_login_lands_on_the_invalid_code(client: AsyncClient) -> 
     assert "Invalid username or password" in response.text
 
 
+async def test_an_error_and_a_message_together_show_only_the_error(
+    client: AsyncClient,
+) -> None:
+    response = await client.get(
+        "/login", params={"error": "invalid", "message": "logged_out"}
+    )
+    assert "Invalid username or password" in response.text
+    assert "You have been logged out" not in response.text
+    assert "text-green-300" not in response.text
+
+
 async def test_logout_confirmation_is_shown(client: AsyncClient) -> None:
     await _login(client, "198.51.100.152")
     response = await client.post("/logout", follow_redirects=True)
