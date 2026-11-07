@@ -80,12 +80,13 @@ def switch_app_response(request: Request, current_url: str, app_id: str) -> Resp
     return response
 
 
-def _is_uuid(value: str) -> bool:
+def _canonical_uuid(value: str) -> str | None:
+    """The canonical text of a UUID in any form Python reads (braces, urn:uuid:, no dashes), or
+    None. The database driver takes only the canonical form."""
     try:
-        UUID(value)
+        return str(UUID(value))
     except ValueError:
-        return False
-    return True
+        return None
 
 
 class DashboardViewService:
@@ -326,10 +327,11 @@ class DashboardViewService:
         with create_service_span(
             "DashboardViewService", "event_detail_context", event_id=event_id
         ):
-            if not _is_uuid(event_id):
+            canonical = _canonical_uuid(event_id)
+            if canonical is None:
                 # Not an event id at all: not found, not a database error.
                 raise HTTPException(status_code=404, detail="Event not found")
-            event = await self._core.get_event_by_id(event_id)
+            event = await self._core.get_event_by_id(canonical)
             if not event:
                 raise HTTPException(status_code=404, detail="Event not found")
             return {"event": event}
