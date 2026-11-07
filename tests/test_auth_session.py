@@ -201,7 +201,10 @@ async def test_a_missing_row_refuses_every_session(
     await db.execute(delete(DashboardSessionState))
 
     assert await _replay(client, copied) == 303
-    assert "error=store_down" in await _login(client, "198.51.100.235")
+    location = await _login(client, "198.51.100.235")
+    assert "error=store_down" in location
+    page = await client.get(location)
+    assert "Sign-in is unavailable: the session store is down" in page.text
 
 
 @pytest.mark.db
@@ -439,6 +442,9 @@ async def test_a_logout_during_a_database_outage_says_it_revoked_nothing(
     assert r.status_code == 303
     assert "error=logout_partial" in r.headers["location"]
     assert "analytics_session" not in client.cookies  # this browser is signed out
+    page = await client.get(r.headers["location"])
+    assert "Signed out in this browser only" in page.text
+    assert "other sessions were not revoked" in page.text
 
 
 @pytest.mark.db
@@ -456,6 +462,8 @@ async def test_sign_in_says_so_when_the_session_store_is_down(
     )
     assert r.status_code == 303
     assert "error=store_down" in r.headers["location"]
+    page = await client.get(r.headers["location"])
+    assert "Sign-in is unavailable: the session store is down" in page.text
 
 
 @pytest.mark.db

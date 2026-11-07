@@ -5,6 +5,8 @@ page policy."""
 import pytest
 from httpx import AsyncClient
 
+from app.core.config import settings
+
 pytestmark = pytest.mark.db
 
 PAGE_POLICY_MARK = "script-src"
@@ -52,17 +54,16 @@ async def test_a_body_the_logging_layer_refuses_carries_the_page_policy(
     assert response.headers["x-frame-options"] == "DENY"
 
 
-async def test_a_rate_limit_refusal_carries_the_page_policy(
-    client: AsyncClient,
+async def test_the_rate_limit_middlewares_refusal_carries_the_page_policy(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    bad = {"username": "nobody", "password": "wrong"}
+    monkeypatch.setattr(settings, "RATE_LIMIT_REQUESTS", 1)
     headers = {"X-Forwarded-For": "198.51.100.171"}
-    response = await client.post("/login", data=bad, headers=headers)
-    for _ in range(20):
-        if response.status_code == 429:
-            break
-        response = await client.post("/login", data=bad, headers=headers)
+    first = await client.get("/login", headers=headers)
+    assert first.status_code == 200
+    response = await client.get("/login", headers=headers)
     assert response.status_code == 429
+    assert "retry_after" in response.text
     assert PAGE_POLICY_MARK in response.headers["content-security-policy"]
     assert response.headers["x-frame-options"] == "DENY"
 
