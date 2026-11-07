@@ -9,7 +9,7 @@ it is a URL, so it is assembled in the view from the ingest route's NAME
 import json
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 
 from fastapi import HTTPException, Request
 from fastapi.responses import Response
@@ -114,10 +114,13 @@ class AppsViewService:
         is blocked as mixed content."""
         path_for = self._request.app.url_path_for
         dashboard = path_for("dashboard.overview.page")
+        # The app routes take {app_id:path}, so a "/" in an id is part of the path; every other
+        # reserved character ("?", "#", "%", "&") is percent-encoded to stay in it.
+        encoded = quote(app_id, safe="/")
         return AppUrls(
-            detail=path_for("apps.detail_panel", app_id=app_id),
-            edit=path_for("apps.edit_panel", app_id=app_id),
-            update=path_for("apps.update", app_id=app_id),
+            detail=path_for("apps.detail_panel", app_id=encoded),
+            edit=path_for("apps.edit_panel", app_id=encoded),
+            update=path_for("apps.update", app_id=encoded),
             dashboard=f"{dashboard}?{urlencode({'app_id': app_id})}",
         )
 

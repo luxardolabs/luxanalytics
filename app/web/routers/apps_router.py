@@ -53,7 +53,7 @@ async def new_app_panel(request: Request) -> Response:
     )
 
 
-@router.get("/{app_id}/edit", response_class=HTMLResponse, name="apps.edit_panel")
+@router.get("/{app_id:path}/edit", response_class=HTMLResponse, name="apps.edit_panel")
 async def edit_app_panel(
     request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
@@ -62,7 +62,9 @@ async def edit_app_panel(
     return templates.TemplateResponse(request, "partials/apps/form_panel.html", context)
 
 
-@router.get("/{app_id}/detail", response_class=HTMLResponse, name="apps.detail_panel")
+@router.get(
+    "/{app_id:path}/detail", response_class=HTMLResponse, name="apps.detail_panel"
+)
 async def app_detail_panel(
     request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
@@ -94,7 +96,7 @@ async def create_app(
     return await view.list_with_toast(message)
 
 
-@router.put("/{app_id}", response_class=HTMLResponse, name="apps.update")
+@router.put("/{app_id:path}", response_class=HTMLResponse, name="apps.update")
 async def update_app(
     request: Request,
     app_id: str,
@@ -113,7 +115,7 @@ async def update_app(
     return await view.list_with_toast(message)
 
 
-@router.delete("/{app_id}", response_class=HTMLResponse, name="apps.delete")
+@router.delete("/{app_id:path}", response_class=HTMLResponse, name="apps.delete")
 async def delete_app(
     request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
 ) -> Response:
