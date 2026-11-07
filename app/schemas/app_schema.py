@@ -2,7 +2,14 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _no_nul(value: str | None) -> str | None:
+    """Text the database stores cannot hold a NUL byte."""
+    if value is not None and "\x00" in value:
+        raise ValueError("must not contain a NUL byte")
+    return value
 
 
 class AppBase(BaseModel):
@@ -10,6 +17,8 @@ class AppBase(BaseModel):
     organization: str | None = Field(None, max_length=255)
     description: str | None = None
     app_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    _text_has_no_nul = field_validator("name", "organization", "description")(_no_nul)
 
 
 class AppCreate(AppBase):
@@ -27,6 +36,8 @@ class AppUpdate(BaseModel):
     description: str | None = None
     is_active: bool | None = None
     app_metadata: dict[str, Any] | None = None
+
+    _text_has_no_nul = field_validator("name", "organization", "description")(_no_nul)
 
 
 class AppRow(AppBase):

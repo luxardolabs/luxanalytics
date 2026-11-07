@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
+from app.core.query_params import PathText, TextFilter
 from app.db.database import get_db
 from app.services.views.apps_view_service import (
     AppFormError,
@@ -35,10 +36,12 @@ async def apps_page(request: Request) -> Response:
 
 @router.get("/list", response_class=HTMLResponse, name="apps.list")
 async def apps_list(
-    request: Request, q: str = "", db: AsyncSession = Depends(get_db, scope="function")
+    request: Request,
+    q: TextFilter = None,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Apps list partial — loaded by HTMX on page load and search."""
-    context = await AppsViewService(db, request).list_context(q)
+    context = await AppsViewService(db, request).list_context(q or "")
     return templates.TemplateResponse(request, "partials/apps/list.html", context)
 
 
@@ -55,7 +58,9 @@ async def new_app_panel(request: Request) -> Response:
 
 @router.get("/{app_id:path}/edit", response_class=HTMLResponse, name="apps.edit_panel")
 async def edit_app_panel(
-    request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
+    request: Request,
+    app_id: PathText,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Edit app form — slider panel."""
     context = await AppsViewService(db, request).edit_panel_context(app_id)
@@ -66,7 +71,9 @@ async def edit_app_panel(
     "/{app_id:path}/detail", response_class=HTMLResponse, name="apps.detail_panel"
 )
 async def app_detail_panel(
-    request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
+    request: Request,
+    app_id: PathText,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """App detail — slider panel with DSN, stats."""
     context = await AppsViewService(db, request).detail_panel_context(app_id)
@@ -99,7 +106,7 @@ async def create_app(
 @router.put("/{app_id:path}", response_class=HTMLResponse, name="apps.update")
 async def update_app(
     request: Request,
-    app_id: str,
+    app_id: PathText,
     name: str | None = Form(None),
     organization: str | None = Form(None),
     description: str | None = Form(None),
@@ -117,7 +124,9 @@ async def update_app(
 
 @router.delete("/{app_id:path}", response_class=HTMLResponse, name="apps.delete")
 async def delete_app(
-    request: Request, app_id: str, db: AsyncSession = Depends(get_db, scope="function")
+    request: Request,
+    app_id: PathText,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Delete an app."""
     view = AppsViewService(db, request)

@@ -1,5 +1,5 @@
-"""The dashboard's request parameters, declared once: every route takes its time window, page
-number and text filters through these types, so the bounds are checked where the request is parsed
+"""The web routes' request parameters, declared once: every dashboard and apps route takes its
+time window, page number, text filters and path values through these types, so the bounds are checked where the request is parsed
 and the services below never see a value no query can use."""
 
 from typing import Annotated
