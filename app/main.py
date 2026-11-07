@@ -199,10 +199,10 @@ def create_application() -> FastAPI:
     app.include_router(api_router)
 
     # Middleware. Starlette's add_middleware PREPENDS, so the LAST one added is the OUTERMOST.
-    # Effective order, outer -> inner: SecurityHeaders, AllowedHosts, SameOrigin, CORS, RateLimit,
+    # Effective order, outer -> inner: AllowedHosts, SameOrigin, SecurityHeaders, CORS, RateLimit,
     # Logging, Session. Host validation and the cross-site refusal (login CSRF,
-    # FLEET-AUTH-SESSION-STANDARD §5) run before anything else touches the request; the headers
-    # layer is outside them all, so a refusal from any layer carries the CSP and frame policy.
+    # FLEET-AUTH-SESSION-STANDARD §5) run before anything else touches the request and answer with
+    # their own strict headers; every layer inside them is covered by SecurityHeaders.
     app.add_middleware(
         SessionMiddleware,
         secret_key=get_session_secret(),
@@ -229,6 +229,9 @@ def create_application() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
+    # Outside CORS, the rate limit and logging, so their refusals and a preflight carry the page
+    # policy; inside the two refusers below, which answer with a stricter policy of their own.
+    app.add_middleware(SecurityHeadersMiddleware, environment=settings.ENVIRONMENT)
     # The SDK ingest routes authenticate by HMAC or DSN, never by a cookie, so a cross-site POST
     # there carries no victim's session: a WebView client (CORS_ORIGINS) posts with its own Origin.
     app.add_middleware(
@@ -242,7 +245,6 @@ def create_application() -> FastAPI:
         # the container HEALTHCHECK (Dockerfile, compose.yml)
         health_paths=(app.url_path_for("system.health"),),
     )
-    app.add_middleware(SecurityHeadersMiddleware, environment=settings.ENVIRONMENT)
 
     # The canonical exception handler renders its error page/partial through this instance.
     app.state.templates = error_templates
