@@ -9,7 +9,9 @@ from opentelemetry.trace import StatusCode
 from app.core.tracing import create_service_span, record_exception_in_span
 
 
-def test_span_carries_name_and_entity_ids(span_exporter: InMemorySpanExporter) -> None:
+def test_span_carries_its_name_and_the_app_id_and_exports_no_end_user_id(
+    span_exporter: InMemorySpanExporter,
+) -> None:
     event_id = UUID("12345678-1234-5678-1234-567812345678")
     with create_service_span(
         "AppCoreService",
@@ -25,7 +27,7 @@ def test_span_carries_name_and_entity_ids(span_exporter: InMemorySpanExporter) -
     assert span.attributes is not None
     assert span.attributes["code.namespace"] == "AppCoreService"
     assert span.attributes["app_id"] == "demo"
-    assert span.attributes["event_id"] == str(event_id)
+    assert "event_id" not in span.attributes
     assert "user_id" not in span.attributes
     assert span.status.status_code is StatusCode.UNSET
 

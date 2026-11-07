@@ -67,8 +67,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 
 # The app's sessionmaker (the one TEST_DB_SESSION_FACTORY names) and its app factory
 from app.core.config import settings as app_settings  # noqa: E402
+from app.core.instrumentation import configure_app_tracing  # noqa: E402
 from app.core.redis_client import close_redis_client, get_redis_client  # noqa: E402
-from app.core.telemetry import configure_tracing  # noqa: E402
 from app.crud.dashboard_session_crud import ensure_session_generation  # noqa: E402 - imported once the test database is chosen, like the app modules above
 from app.db.database import AsyncSessionLocal  # noqa: E402
 from app.main import create_application  # noqa: E402
@@ -186,11 +186,7 @@ def _session_span_exporter() -> InMemorySpanExporter:
     """The process's one tracer provider, exporting into memory (a provider is set once per process).
     Apps built after the first use of `span_exporter` are traced."""
     exporter = InMemorySpanExporter()
-    provider = configure_tracing(
-        app_settings.OTEL_SERVICE_NAME,
-        version=app_settings.APP_VERSION,
-        exporter=exporter,
-    )
+    provider = configure_app_tracing(exporter=exporter)
     assert provider is not None, "another component installed a tracer provider first"
     return exporter
 

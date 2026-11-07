@@ -514,8 +514,8 @@ def test_an_otlp_endpoint_with_userinfo_is_refused_without_printing_it(
     [
         "http://otel-collector:4318",
         "https://collector.example.com",
-        "http://[::1]:4318/v1/traces",
-        "https://collector.example.com:4318/prefix?x=1",
+        "http://[::1]:4318",
+        "https://collector.example.com:4318/prefix",
     ],
 )
 def test_an_otlp_endpoint_without_userinfo_starts(url: str) -> None:
@@ -524,3 +524,71 @@ def test_an_otlp_endpoint_without_userinfo_starts(url: str) -> None:
 
 def test_no_otlp_endpoint_starts() -> None:
     assert _settings().OTEL_EXPORTER_OTLP_ENDPOINT is None
+
+
+BAD_COLLECTOR_URLS = [
+    "user:tail-secret@collector:4318",
+    "http:user:tail-secret@collector:4318",
+    "http:/user:tail-secret@collector:4318",
+    "http:\\\\user:tail-secret@collector:4318",
+    "http://user:tail-secret%40collector",
+    "http://collector:4318?token=tail-secret",
+    "http://collector:4318/?token=tail-secret",
+    "http://collector:4318#tail-secret",
+    "ftp://collector:4318",
+    "grpc://collector:4317",
+    "collector:4318",
+    "http://",
+    "http:///path",
+    "http://collector:notaport",
+    "http://collector:99999999",
+    "http://col lector:4318",
+    "http://collector:4318\n",
+]
+
+
+@pytest.mark.parametrize("url", BAD_COLLECTOR_URLS)
+def test_an_otlp_endpoint_that_is_not_a_plain_collector_url_is_refused(
+    url: str,
+) -> None:
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_ENDPOINT") as refused:
+        _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url)
+
+    assert "tail-secret" not in str(refused.value)
+
+
+@pytest.mark.parametrize("url", BAD_COLLECTOR_URLS)
+def test_an_otlp_traces_endpoint_that_is_not_a_plain_collector_url_is_refused(
+    url: str,
+) -> None:
+    with pytest.raises(
+        ValidationError, match="OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+    ) as refused:
+        _settings(OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=url)
+
+    assert "tail-secret" not in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://collector:4318/v1/traces",
+        "https://collector.example.com/v1/traces/",
+        "http://collector:4318/prefix/v1/traces",
+    ],
+)
+def test_a_base_otlp_endpoint_naming_the_traces_path_is_refused(url: str) -> None:
+    """The exporter appends /v1/traces to a base endpoint, so the path would be doubled."""
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_ENDPOINT"):
+        _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url)
+
+
+def test_a_traces_endpoint_is_the_full_url_and_may_name_the_traces_path() -> None:
+    url = "http://collector:4318/v1/traces"
+
+    assert (
+        url
+        == _settings(
+            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=url
+        ).OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+    )

@@ -51,3 +51,22 @@ def test_no_endpoint_in_settings_leaves_the_environment_alone(
 
 def test_the_default_service_name_is_luxanalytics() -> None:
     assert Settings.model_fields["OTEL_SERVICE_NAME"].default == "luxanalytics"
+
+
+def test_the_traces_endpoint_in_settings_reaches_the_otel_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "placeholder")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    monkeypatch.setattr(
+        settings,
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "http://collector:4318/v1/traces",
+    )
+
+    export_otel_settings()
+
+    assert (
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]
+        == "http://collector:4318/v1/traces"
+    )

@@ -21,7 +21,11 @@ from alembic import command
 from app.api.v1.routers import router as api_router
 from app.core.auth import get_session_secret
 from app.core.config import settings
-from app.core.instrumentation import export_otel_settings, instrument_database
+from app.core.instrumentation import (
+    configure_app_tracing,
+    export_otel_settings,
+    instrument_database,
+)
 from app.core.limiter import limiter, rate_limit_exceeded_handler
 from app.core.logging_config import configure_logging
 from app.core.middleware import (
@@ -33,7 +37,7 @@ from app.core.middleware import (
 from app.core.rate_limiter import AppRateLimitExceeded
 from app.core.redis_client import close_redis_client
 from app.core.same_origin import SameOriginMiddleware
-from app.core.telemetry import configure_tracing, current_trace_ids, shutdown_tracing
+from app.core.telemetry import current_trace_ids, shutdown_tracing
 from app.core.trusted_host import AllowedHostsMiddleware
 from app.crud.dashboard_session_crud import ensure_session_generation
 from app.db.database import async_engine
@@ -131,7 +135,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     logger.info("Shutting down Analytics Collector API")
-    shutdown_tracing()
     await async_engine.dispose()
     logger.info("Database connections closed")
     try:
@@ -140,6 +143,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except (RedisError, OSError) as e:
         # Shutdown proceeds either way; record that the close failed instead of hiding it.
         logger.warning("Redis close failed during shutdown", extra={"error": str(e)})
+    # Last, and off the loop: the flush waits on the collector, which can hang for longer than
+    # the orchestrator's stop timeout, and the connections above are closed by then.
+    await asyncio.to_thread(shutdown_tracing)
 
 
 def _publish_ingest_schemas(app: FastAPI) -> None:
@@ -167,16 +173,15 @@ def create_application() -> FastAPI:
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
         lifespan=lifespan,
+        # FastAPI would add unredacted OTLP exporters from the OTEL environment at startup, for
+        # metrics and logs too; configure_app_tracing is the one place tracing is configured.
+        telemetry={"auto_configure": False},
     )
 
     # Tracing: the provider from the OTEL environment, then the instrumentors. With no endpoint
     # configure_tracing installs nothing and the instrumentors stay off.
     export_otel_settings()
-    if configure_tracing(
-        settings.OTEL_SERVICE_NAME,
-        version=settings.APP_VERSION,
-        environment=settings.ENVIRONMENT,
-    ):
+    if configure_app_tracing():
         FastAPIInstrumentor.instrument_app(app)
         instrument_database(async_engine)
 

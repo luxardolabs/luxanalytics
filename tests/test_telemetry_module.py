@@ -113,7 +113,7 @@ def test_cancellation_does_not_fail_the_span(
     assert _only(span_exporter).status.status_code is StatusCode.UNSET
 
 
-def test_the_caller_id_rides_the_current_span_and_nothing_else(
+def test_the_caller_id_is_set_on_the_span_and_left_out_of_the_export(
     span_exporter: InMemorySpanExporter,
 ) -> None:
     with create_service_span("DashboardViewService", "page"):
@@ -122,8 +122,8 @@ def test_the_caller_id_rides_the_current_span_and_nothing_else(
 
     attributes = _only(span_exporter).attributes
     assert attributes is not None
-    assert attributes["enduser.id"] == "u-1"
-    assert attributes["tenant.id"] == "t-9"
+    assert "enduser.id" not in attributes
+    assert "tenant.id" not in attributes
 
 
 def test_attributes_and_events_land_on_the_current_span(
@@ -161,9 +161,8 @@ def test_configuring_again_returns_the_provider_already_installed(
     assert first is not None
 
 
-def test_withholding_exception_text_after_tracing_exports_it_is_refused() -> None:
-    with pytest.raises(ValueError, match="withhold"):
-        configure_tracing("x", version="1", exception_text="withhold")
+def test_the_app_withholds_exception_text_from_the_start() -> None:
+    assert configure_tracing("x", version="1", exception_text="withhold") is not None
 
 
 def test_shutting_down_flushes_and_leaves_the_session_provider_recording(

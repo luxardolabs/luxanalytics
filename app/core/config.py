@@ -13,6 +13,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     ValidationError,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -45,6 +46,15 @@ def _visible(text: str) -> str:
         if c in string.whitespace
         or (unicodedata.category(c) not in _INVISIBLE_CATEGORIES and c not in _FILLERS)
     )
+# A collector URL: scheme, a hostname or bracketed IPv6 address, an optional port, a path of plain
+# characters. No `@`, `?`, `#`, backslash, space or control character can appear anywhere in it.
+_COLLECTOR_URL = re.compile(
+    r"https?://(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:.]+\])"
+    r"(?::(?P<port>[0-9]{1,5}))?"
+    r"(?P<path>(?:/[A-Za-z0-9._~%!$&'()*+,;=:-]*)*)",
+    re.IGNORECASE,
+)
+_MAX_PORT = 65535
 
 
 def _blank(secret: str) -> bool:
@@ -212,6 +222,7 @@ class Settings(BaseSettings):
 
     # OpenTelemetry
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: str | None = None
     OTEL_SERVICE_NAME: str = "luxanalytics"
 
     @property
@@ -267,20 +278,38 @@ class Settings(BaseSettings):
             raise ValueError("REDIS_URL is not a readable URL") from None
         return v
 
-    @field_validator("OTEL_EXPORTER_OTLP_ENDPOINT")
+    @field_validator(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+    )
     @classmethod
-    def otlp_endpoint_without_userinfo(cls, v: str | None) -> str | None:
-        """Credentials in the collector URL reach the exporter's log lines and the environment;
-        refused here, the log names only the setting. Credentials go in OTEL_EXPORTER_OTLP_HEADERS."""
+    def otlp_endpoint_is_a_plain_collector_url(
+        cls, v: str | None, info: ValidationInfo
+    ) -> str | None:
+        """The collector's http(s) URL, with no credentials, query or fragment: each reaches the
+        exporter's log lines and the environment. Refused here, the log names only the setting
+        (credentials go in OTEL_EXPORTER_OTLP_HEADERS). The base endpoint is not the traces path,
+        which the exporter appends; OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is the full URL."""
         if not v:
             return v
-        try:
-            has_userinfo = "@" in urlparse(v).netloc
-        except ValueError:
-            has_userinfo = True
-        if has_userinfo:
+        match = _COLLECTOR_URL.fullmatch(v)
+        refused = (
+            match is None
+            or int(match["port"] or 0) > _MAX_PORT
+            or (
+                info.field_name == "OTEL_EXPORTER_OTLP_ENDPOINT"
+                and match["path"].rstrip("/").endswith("/v1/traces")
+            )
+        )
+        if refused:
             raise ValueError(
-                "OTEL_EXPORTER_OTLP_ENDPOINT must not carry credentials in the URL"
+                f"{info.field_name} must be the collector's http(s) URL "
+                "(host, optional port and path) and must not carry credentials, "
+                "a query or a fragment"
+                + (
+                    ", nor the /v1/traces path"
+                    if info.field_name == "OTEL_EXPORTER_OTLP_ENDPOINT"
+                    else ""
+                )
             )
         return v
 
