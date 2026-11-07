@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
 from app.core.query_params import PathText, TextFilter
+from app.core.route_convertors import APP_ID_PARAM
 from app.db.database import get_db
 from app.services.views.apps_view_service import (
     AppFormError,
@@ -56,7 +57,9 @@ async def new_app_panel(request: Request) -> Response:
     )
 
 
-@router.get("/{app_id:path}/edit", response_class=HTMLResponse, name="apps.edit_panel")
+@router.get(
+    f"/{APP_ID_PARAM}/edit", response_class=HTMLResponse, name="apps.edit_panel"
+)
 async def edit_app_panel(
     request: Request,
     app_id: PathText,
@@ -68,7 +71,7 @@ async def edit_app_panel(
 
 
 @router.get(
-    "/{app_id:path}/detail", response_class=HTMLResponse, name="apps.detail_panel"
+    f"/{APP_ID_PARAM}/detail", response_class=HTMLResponse, name="apps.detail_panel"
 )
 async def app_detail_panel(
     request: Request,
@@ -103,7 +106,7 @@ async def create_app(
     return await view.list_with_toast(message)
 
 
-@router.put("/{app_id:path}", response_class=HTMLResponse, name="apps.update")
+@router.put(f"/{APP_ID_PARAM}", response_class=HTMLResponse, name="apps.update")
 async def update_app(
     request: Request,
     app_id: PathText,
@@ -122,7 +125,7 @@ async def update_app(
     return await view.list_with_toast(message)
 
 
-@router.delete("/{app_id:path}", response_class=HTMLResponse, name="apps.delete")
+@router.delete(f"/{APP_ID_PARAM}", response_class=HTMLResponse, name="apps.delete")
 async def delete_app(
     request: Request,
     app_id: PathText,

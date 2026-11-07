@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.app_model import App
@@ -135,6 +136,51 @@ async def test_an_app_id_of_dots_fails_safe(
     await db.refresh(victim)
     assert victim.name == "name of victim"
     assert victim.is_active
+
+
+@pytest.mark.db
+async def test_a_trailing_newline_id_acts_on_that_app_and_no_other(
+    dashboard_client: AsyncClient, db: AsyncSession
+) -> None:
+    plain, newline = _app("nlapp"), _app("nlapp\n")
+    db.add_all([plain, newline])
+    await db.flush()
+
+    updated = await dashboard_client.put("/apps/nlapp%0A", data={"name": "changed"})
+    assert updated.status_code == 200
+    await db.refresh(plain)
+    await db.refresh(newline)
+    assert plain.name == "name of nlapp"
+    assert newline.name == "changed"
+
+    deleted = await dashboard_client.delete("/apps/nlapp%0A")
+    assert deleted.status_code == 200
+    remaining = (
+        await db.execute(select(App.app_id).where(App.app_id.like("nlapp%")))
+    ).scalars()
+    assert list(remaining) == ["nlapp"]
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("route", ["detail", "edit"])
+async def test_the_panels_of_an_id_with_a_newline_inside_open(
+    dashboard_client: AsyncClient, db: AsyncSession, route: str
+) -> None:
+    db.add(_app("nl\nmiddle"))
+    await db.flush()
+    response = await dashboard_client.get(f"/apps/nl%0Amiddle/{route}")
+    assert response.status_code == 200
+    assert "name of nl" in response.text
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("path", ["/apps/list/", "/apps/new/", "/apps/export/json/"])
+async def test_a_trailing_slash_on_a_fixed_route_redirects_to_it(
+    dashboard_client: AsyncClient, path: str
+) -> None:
+    response = await dashboard_client.get(path, follow_redirects=False)
+    assert response.status_code in (301, 307, 308)
+    assert response.headers["location"].endswith(path.rstrip("/"))
 
 
 @pytest.mark.db
