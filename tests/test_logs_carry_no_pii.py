@@ -74,7 +74,9 @@ async def test_an_unhandled_500_is_logged_by_its_route_template(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fails(self: DashboardViewService, user_id: str) -> None:
+    async def fails(
+        self: DashboardViewService, user_id: str, app_id: str | None
+    ) -> None:
         raise RuntimeError("the view failed")
 
     monkeypatch.setattr(DashboardViewService, "user_profile_context", fails)

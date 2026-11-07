@@ -233,7 +233,7 @@ async def test_a_slash_user_id_link_opens_that_users_profile(
     await _seed(db, [_ev("adv_slash", user_id="evil/user")])
     await _login(client, "198.51.100.208")
     page = await client.get("/dashboard/events/content?hours=24&app_id=adv_app")
-    assert 'hx-get="/dashboard/user/evil%2Fuser"' in page.text
-    panel = await client.get("/dashboard/user/evil%2Fuser")
+    assert 'hx-get="/dashboard/user/evil%2Fuser?app_id=adv_app"' in page.text
+    panel = await client.get("/dashboard/user/evil%2Fuser?app_id=adv_app")
     assert panel.status_code == 200
     assert "evil/user" in panel.text
