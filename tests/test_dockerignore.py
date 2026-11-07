@@ -98,6 +98,33 @@ def _ships(path: str, rules: Rules) -> bool:
     return not excluded
 
 
+def _unmodelled(text: str) -> list[str]:
+    """The pattern lines whose shape `_rules` does not model, so it could read them differently
+    from BuildKit: a BOM, a `#` after a space, a space after `!`, a `.`, `..` or empty path
+    segment (`./`, `x/../`, `//`, `/./`), and `**` not a whole path segment (`a**b`, `***`)."""
+    lines = text.splitlines()
+    found = [line for line in lines if "\ufeff" in line]
+    for line in lines:
+        pattern = line.removeprefix("!")
+        segments = pattern.strip("/").split("/")
+        bare_stars = re.sub(r"(?<![^/])\*\*(?![^/])", "", pattern)
+        if (
+            (line.startswith((" ", "\t")) and line.strip().startswith("#"))
+            or (line.startswith("!") and pattern[:1].isspace())
+            or (
+                line.strip()
+                and not line.startswith("#")
+                and (
+                    {".", "..", ""} & set(segments)
+                    or pattern.startswith("//")
+                    or "**" in bare_stars
+                )
+            )
+        ):
+            found.append(line)
+    return list(dict.fromkeys(found))
+
+
 def _text() -> str:
     return (REPO / ".dockerignore").read_text()
 
@@ -122,9 +149,18 @@ def _files() -> list[str]:
     return _entries(directories=False)
 
 
-def _directories_that_ship(directories: list[str], rules: Rules) -> list[str]:
-    """The directories whose own name an allow pattern covers: everything inside one ships."""
-    return [d for d in directories if d not in ROOTS and _ships(d, rules)]
+def _directories_that_ship(
+    directories: list[str], files: list[str], rules: Rules
+) -> list[str]:
+    """The directories whose own name an allow pattern covers and that hold a file: everything
+    inside one ships. An empty one (a branch switch leaves them) ships nothing."""
+    return [
+        d
+        for d in directories
+        if d not in ROOTS
+        and _ships(d, rules)
+        and any(f.startswith(f"{d}/") for f in files)
+    ]
 
 
 def _is_not_shipped(path: str) -> bool:
@@ -149,7 +185,7 @@ def test_no_directory_is_named_like_a_file_the_allowlist_ships() -> None:
     """`app/foo.py/` matches `!app/**/*.py`, and then every file inside it ships, whatever it is."""
     rules = _rules(_text())
 
-    named = _directories_that_ship(_entries(directories=True), rules)
+    named = _directories_that_ship(_entries(directories=True), _files(), rules)
 
     assert not named, f"rename these: all that is inside them ships: {named}"
 
@@ -161,7 +197,17 @@ def test_no_directory_is_named_like_a_file_the_allowlist_ships() -> None:
 def test_a_directory_named_like_an_allowed_type_is_found(directory: str) -> None:
     rules = _rules(_text())
 
-    assert _directories_that_ship(["app", "app/api", directory], rules) == [directory]
+    files = [f"{directory}/dump.tar", "app/api/x.txt"]
+
+    assert _directories_that_ship(["app", "app/api", directory], files, rules) == [
+        directory
+    ]
+
+
+def test_an_empty_directory_named_like_an_allowed_type_is_not_a_red() -> None:
+    rules = _rules(_text())
+
+    assert _directories_that_ship(["app/foo.py"], [], rules) == []
 
 
 def test_the_files_the_image_leaves_out_are_left_out() -> None:
@@ -280,3 +326,52 @@ def test_double_star_crosses_directories_and_single_star_does_not() -> None:
 
 def test_a_pattern_naming_a_directory_drops_what_is_inside_it() -> None:
     assert not _ships("deploy/prod/.env.prod", _rules("deploy/"))
+
+
+def test_the_dockerignore_has_only_lines_the_parser_models() -> None:
+    assert not _unmodelled(_text()), (
+        f"the parser does not model: {_unmodelled(_text())}"
+    )
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "./drop",
+        "x/../drop",
+        "d//drop",
+        "d/./drop",
+        "! keep.tok",
+        "a**b",
+        "d/***/z",
+        "!app/**.py",
+        "\ufeffdrop",
+        "  # drop",
+    ],
+)
+def test_a_line_whose_shape_the_parser_does_not_model_is_named(line: str) -> None:
+    assert _unmodelled(f"app/**\n{line}\n") == [line]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "/drop",
+        "d/**/z",
+        "**/*.log",
+        "app/**",
+        "!app/**/*.py",
+        "[a-c]x",
+        "# a comment",
+        "",
+    ],
+)
+def test_a_line_the_parser_models_is_not_named(line: str) -> None:
+    assert _unmodelled(f"{line}\n") == []
+
+
+def test_a_mistyped_allow_line_is_named_not_read_as_every_python_file() -> None:
+    """`!app/**.py` is files named `.py` to BuildKit, so the image would have no code."""
+    mistyped = _text().replace("!app/**/*.py", "!app/**.py")
+
+    assert _unmodelled(mistyped) == ["!app/**.py"]
