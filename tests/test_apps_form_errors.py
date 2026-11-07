@@ -64,6 +64,54 @@ async def test_a_blank_or_missing_required_create_field_lands_in_the_form_box(
 
 
 @pytest.mark.db
+async def test_the_edit_form_clears_an_optional_field_left_empty(
+    dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
+) -> None:
+    sample_app.description = "to be cleared"
+    await db.flush()
+
+    response = await dashboard_client.put(
+        f"/apps/{sample_app.app_id}",
+        data={
+            "name": "Kept",
+            "organization": "",
+            "description": "",
+            "is_active": "on",
+        },
+    )
+    assert response.status_code == 200
+    await db.refresh(sample_app)
+    assert sample_app.name == "Kept"
+    assert sample_app.organization is None
+    assert sample_app.description is None
+
+
+@pytest.mark.db
+async def test_the_edit_form_leaves_a_field_it_does_not_send_unchanged(
+    dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
+) -> None:
+    response = await dashboard_client.put(
+        f"/apps/{sample_app.app_id}", data={"name": "Only name", "is_active": "on"}
+    )
+    assert response.status_code == 200
+    await db.refresh(sample_app)
+    assert sample_app.name == "Only name"
+    assert sample_app.organization == "Test Org"
+
+
+@pytest.mark.db
+async def test_the_edit_form_with_an_empty_name_is_a_form_error(
+    dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
+) -> None:
+    response = await dashboard_client.put(
+        f"/apps/{sample_app.app_id}", data={"name": "", "is_active": "on"}
+    )
+    _assert_form_error(response)
+    await db.refresh(sample_app)
+    assert sample_app.name == "Test Application"
+
+
+@pytest.mark.db
 async def test_losing_the_duplicate_app_id_race_is_the_already_exists_error(
     dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
 ) -> None:

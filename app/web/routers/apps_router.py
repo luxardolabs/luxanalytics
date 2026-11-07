@@ -1,6 +1,7 @@
 """Apps admin (HTMX). HTTP only: every route asks AppsViewService for its context."""
 
 import io
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
@@ -10,6 +11,7 @@ from app.core.auth import require_auth
 from app.core.query_params import PathText, TextFilter
 from app.core.route_convertors import APP_ID_PARAM
 from app.db.database import get_db
+from app.schemas.app_schema import AppEditForm
 from app.services.views.apps_view_service import (
     AppFormError,
     AppsViewService,
@@ -110,16 +112,13 @@ async def create_app(
 async def update_app(
     request: Request,
     app_id: PathText,
-    name: str | None = Form(None),
-    organization: str | None = Form(None),
-    description: str | None = Form(None),
-    is_active: bool = Form(False),
+    form: Annotated[AppEditForm, Form()],
     db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Update an app."""
     view = AppsViewService(db, request)
     try:
-        message = await view.update(app_id, name, organization, description, is_active)
+        message = await view.update(app_id, form)
     except AppFormError as e:
         return view.form_error(str(e))
     return await view.list_with_toast(message)

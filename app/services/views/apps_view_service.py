@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.tracing import create_service_span
 from app.schemas.app_schema import (
     AppCreate,
+    AppEditForm,
     AppListItem,
     AppResponse,
     AppRow,
@@ -75,22 +76,19 @@ def _create_form(
         raise AppFormError(_form_message(exc)) from exc
 
 
-def _update_form(
-    name: str | None,
-    organization: str | None,
-    description: str | None,
-    is_active: bool,
-) -> AppUpdate:
-    """The edit form as a validated DTO, built in one call: a field the form left out stays unset
-    (unchanged); AppFormError names what the form got wrong."""
-    fields: dict[str, str | bool] = {"is_active": is_active}
+def _update_form(form: AppEditForm) -> AppUpdate:
+    """The edit form as a validated DTO, built in one call: a field the form did not send stays
+    unset (unchanged), an optional text field it sent empty is cleared, and an empty name is
+    refused; AppFormError names what the form got wrong."""
+    fields: dict[str, str | bool | None] = {"is_active": form.is_active}
+    if form.name is not None:
+        fields["name"] = form.name
     for field, value in (
-        ("name", name),
-        ("organization", organization),
-        ("description", description),
+        ("organization", form.organization),
+        ("description", form.description),
     ):
         if value is not None:
-            fields[field] = value
+            fields[field] = value or None
     try:
         return AppUpdate.model_validate(fields)
     except ValidationError as exc:
@@ -199,19 +197,16 @@ class AppsViewService:
     async def update(
         self,
         app_id: str,
-        name: str | None,
-        organization: str | None,
-        description: str | None,
-        is_active_checked: bool,
+        form: AppEditForm,
     ) -> str:
         """Apply the edit form; returns the toast message. Raises AppFormError.
 
         The Active toggle is a checkbox, which a browser OMITS when unchecked: absent means
-        False, never "leave unchanged" (LUXANALYTI-63: a None here wrote NULL into a NOT NULL
-        column, so an app could not be deactivated).
+        False, never "leave unchanged" (a None would write NULL into a NOT NULL column, and an app
+        could not be deactivated).
         """
         with create_service_span("AppsViewService", "update", app_id=app_id):
-            update = _update_form(name, organization, description, is_active_checked)
+            update = _update_form(form)
             app = await self._core.update_app(app_id, update)
             if app is None:
                 raise HTTPException(404, "App not found")

@@ -49,6 +49,18 @@ class AppUpdate(BaseModel):
     _text_has_no_nul = field_validator("name", "organization", "description")(_no_nul)
 
 
+class AppEditForm(BaseModel):
+    """The edit form as the browser posts it: every field optional and unconstrained, because the
+    limits live on AppUpdate, which answers a refused field in the form's own error box. A text
+    field the browser sent empty is "" (the person cleared it); one it did not send is None
+    (leave it). The Active checkbox is omitted when unchecked, so absent means False."""
+
+    name: str | None = None
+    organization: str | None = None
+    description: str | None = None
+    is_active: bool = False
+
+
 class AppRow(AppBase):
     """An app's stored columns, read from the ORM row (no derived fields)."""
 
