@@ -61,7 +61,11 @@ def switch_app_response(request: Request, current_url: str, app_id: str) -> Resp
     (the old app's page number).
     Server-driven; no reload in the client (luxarch --playbook hypermedia)."""
     overview = request.app.url_path_for("dashboard.overview.page")
-    current = urlsplit(current_url)
+    try:
+        current = urlsplit(current_url)
+    except ValueError:
+        # A header the browser never sends (a malformed bracketed host): no page to return to.
+        current = urlsplit("")
     path = current.path if current.path.startswith("/") else overview
     # An explicit ?app_id= would override the new cookie, and the page number belongs to the
     # list of the app being left: the new app starts on its first page.

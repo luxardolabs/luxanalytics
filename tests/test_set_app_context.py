@@ -76,6 +76,23 @@ async def test_a_nul_byte_in_the_selection_is_a_422(
 
 
 @pytest.mark.db
+@pytest.mark.parametrize(
+    "current_url",
+    ["http://[bad/", "http://[::1", "https://[x]:abc/dashboard/events", ""],
+)
+async def test_an_unparseable_current_url_goes_back_to_the_overview(
+    dashboard_client: AsyncClient, current_url: str
+) -> None:
+    response = await dashboard_client.post(
+        "/set-app-context",
+        data={"app_id": "x"},
+        headers={"HX-Current-URL": current_url},
+    )
+    assert response.status_code == 204
+    assert response.headers["hx-redirect"] == "/dashboard/overview"
+
+
+@pytest.mark.db
 async def test_an_empty_selection_clears_the_cookie(
     dashboard_client: AsyncClient,
 ) -> None:
