@@ -155,10 +155,14 @@ async def test_a_trailing_newline_id_acts_on_that_app_and_no_other(
 
     deleted = await dashboard_client.delete("/apps/nlapp%0A")
     assert deleted.status_code == 200
-    remaining = (
-        await db.execute(select(App.app_id).where(App.app_id.like("nlapp%")))
+    live = (
+        await db.execute(
+            select(App.app_id).where(App.app_id.like("nlapp%"), App.deleted_at.is_(None))
+        )
     ).scalars()
-    assert list(remaining) == ["nlapp"]
+    assert list(live) == ["nlapp"]
+    await db.refresh(newline)
+    assert newline.deleted_at is not None
 
 
 @pytest.mark.db
