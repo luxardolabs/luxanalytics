@@ -72,14 +72,23 @@ return {1, 0, first, ''}
 """
 
 
+# At most one traceback of a failing Redis check per this many seconds, whatever the cause.
+OUTAGE_LOG_INTERVAL = 60.0
+
+
 class RedisOutage:
-    """How many Redis rate limit checks have failed since the last one that worked."""
+    """What the Redis rate limit failures have logged: when the last traceback went out (None:
+    none yet), whether the failures since the last working check include one, and how many checks
+    failed since that working check."""
 
     def __init__(self) -> None:
+        self.clock: Callable[[], float] = time.monotonic
+        self.last_logged: float | None = None
+        self.logged = False
         self.failed_checks = 0
 
 
-# One per process, like Redis itself: an outage is logged with its traceback once, not per request.
+# One per process, like Redis itself.
 redis_outage = RedisOutage()
 
 
@@ -242,8 +251,8 @@ async def admit(
     """Spend every budget, or none: (None, the first budget's metadata, what was spent) when each
     has room, else (the index of the budget without room that is last to have it again, its
     metadata, a Spent of nothing) and nothing is spent. Redis being unreachable falls back to each
-    limiter's in-memory window; the outage's traceback is logged by its first failed check, and
-    its end by the first check after."""
+    limiter's in-memory window; a failing check logs its traceback at most once per
+    OUTAGE_LOG_INTERVAL, and the first working check after a logged failure logs the recovery."""
     redis_client = await get_redis_client()
     if redis_client:
         try:
@@ -252,15 +261,20 @@ async def admit(
             # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
             # the in-memory windows, so requests stay limited. Anything else is a bug and raises.
             redis_outage.failed_checks += 1
-            if redis_outage.failed_checks == 1:
+            now = redis_outage.clock()
+            last = redis_outage.last_logged
+            if last is None or now - last >= OUTAGE_LOG_INTERVAL:
                 logger.exception("Redis rate limit check failed")
+                redis_outage.last_logged = now
+                redis_outage.logged = True
         else:
-            if redis_outage.failed_checks:
+            if redis_outage.logged:
                 logger.info(
                     "Redis rate limit check recovered",
                     extra={"failed_checks": redis_outage.failed_checks},
                 )
-                redis_outage.failed_checks = 0
+                redis_outage.logged = False
+            redis_outage.failed_checks = 0
             return result
     return _admit_memory(budgets)
 
@@ -282,7 +296,7 @@ async def refund(spent: Spent) -> None:
             except RedisError, OSError:
                 # swallowed-exceptions: handled, not dropped: the failed request's own error is
                 # the one the caller needs, and the unrefunded entries expire with their window.
-                logger.warning("Redis rate limit refund failed")
+                logger.warning("Redis rate limit refund failed", exc_info=True)
     if spent.memory_at is not None:
         for budget in spent.budgets:
             budget.limiter._memory_refund(
