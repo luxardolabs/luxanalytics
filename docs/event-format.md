@@ -14,7 +14,12 @@ A DSN reads `https://PUBLIC_ID@HOST/api/v1/events/PROJECT_ID`. Each app register
 
 **HMAC.** Three headers: `X-Key-ID` (the key id in the server's `HMAC_KEYS`), `X-Timestamp` (Unix seconds) and `X-HMAC-Signature` (lowercase hex). The signature is `HMAC-SHA256(secret, body_bytes + timestamp_string)`, over the body exactly as sent, so over the **compressed** bytes when the body is compressed. The request is refused (401) when `X-Timestamp` is more than `EVENT_TIMESTAMP_FUTURE_TOLERANCE` (60 s) from the server's clock in either direction, and with 403 when the key id names an app that is marked Inactive or deleted in the dashboard (a key with no registered app is accepted). An HMAC client's clock must be within a minute of real time; the DSN path has no such check.
 
-**Replays.** The timestamp window bounds a replay of a captured request; it does not prevent one, because the signature covers no nonce. Two things limit what a replay does. While Redis is reachable the server remembers each signature for as long as it can verify (twice the tolerance): a repeat inside that time is answered `200` with `events_received: 0` and the message `Duplicate request ignored`, stores nothing and spends no rate-limit budget; a request that failed (a 4xx or 5xx) gives its signature back, so a client may retry the identical signed request. The signature alone is remembered, not the route, so a signature from the stats read also counts as used on the ingest route. The `id` field is what makes a replay harmless whatever Redis is doing: events with an `id` are stored once ([Idempotency](#idempotency)), while events without one are stored again by a replay the server could not recognise, which is the case when Redis is unreachable (ingest then keeps working rather than refusing).
+**Replays.** The timestamp window bounds a replay of a captured request; it does not prevent one, because the signature covers no nonce. Two things limit what a replay does.
+
+- **The server remembers stored requests.** With Redis configured, the server marks the `(X-Key-ID, signature)` of each HMAC ingest request **after** its events are committed, for as long as the signature can verify (twice the tolerance). A repeat inside that time is answered `200` with `events_received: 0` and the message `Duplicate request ignored`, and stores nothing. A repeat is not counted against the app's, device's or address's ingest budgets, but it is still one request against the per-IP request limit. A request that failed, was refused or died before its commit leaves no mark, so a client may retry the identical signed request and it is stored. The worst case is a duplicate row, never a lost event: two identical requests in flight together, or a crash between the commit and the mark, store twice.
+- **`id` makes a replay harmless.** Events with an `id` are stored once whatever Redis is doing ([Idempotency](#idempotency)).
+
+Replay protection is off when `REDIS_URL` is unset, and while Redis is unreachable (ingest keeps working, and the failure is logged): a replayed request is then stored again unless its events carry an `id`. The mark covers HMAC ingest only. The stats read (`GET /api/v1/events/stats`) marks nothing and every call, replayed or not, counts against the app's request limit.
 
 ## The body
 
@@ -39,7 +44,7 @@ A request carries at most **1000** events. Validation is **all-or-nothing per re
 
 ### Idempotency
 
-Set `id` once, when the event is created, and resend it unchanged on every retry. The server keeps one row per `(app, id)`: an event whose `id` this app already sent, or that appears twice in one request, is acknowledged and not stored again. Different apps never collide. Events without a usable `id` are always stored.
+Set `id` once, when the event is created, and resend it unchanged on every retry. The server keeps one row per `(app, id)`: an event whose `id` this app already sent, or that appears twice in one request, is acknowledged and not stored again. Different apps never collide. Events without a usable `id` are stored each time they are sent, with one exception on the HMAC path: two requests with the same body and the same `X-Timestamp` (the same second) have the same signature, so the second is acknowledged as a duplicate and dropped when the first was stored. **HMAC clients must send an `id` on every event**, so that two genuine identical events in one second are two events and a retry is harmless.
 
 ### Metadata: device context and properties
 

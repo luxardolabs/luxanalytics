@@ -3,14 +3,13 @@ import hmac
 import logging
 import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.hmac_replay import claim_signature, release_signature
+from app.core.hmac_replay import mark_signature, signature_is_marked
 from app.core.rate_limiter import enforce_app_rate_limit
 from app.db.database import get_db
 from app.services.core.app_core_service import AppCoreService
@@ -50,7 +49,7 @@ def verify_hmac_signature(
     computed_signature = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
 
     # Verify signature
-    if not hmac.compare_digest(computed_signature, x_signature):
+    if not hmac.compare_digest(computed_signature.encode(), x_signature.encode()):
         logger.warning(
             "HMAC signature verification failed",
             extra={
@@ -65,15 +64,23 @@ def verify_hmac_signature(
     return x_key_id
 
 
+async def _refuse_deleted(app_id: str, db: AsyncSession) -> None:
+    app = await AppCoreService(db).get_app_by_app_id_including_deleted(app_id)
+    if app is not None and app.deleted_at is not None:
+        logger.warning(
+            "HMAC request for a deleted app refused", extra={"app_id": app_id}
+        )
+        raise HTTPException(status_code=403, detail="App is deleted")
+
+
 async def verify_hmac_app(
     app_id: Annotated[str, Depends(verify_hmac_signature)],
-    x_signature: Annotated[str, Header(alias="X-HMAC-Signature")],
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> str:
-    """A verified HMAC key, counted against its app's rate limit (the stats read). A signature
-    already seen inside its window is a replay: it is answered like the first use but spends no
-    budget."""
-    if await claim_signature(x_signature):
-        await enforce_app_rate_limit(app_id)
+    """A verified HMAC key of an app that is not deleted, counted against its app's rate limit (the
+    stats read)."""
+    await _refuse_deleted(app_id, db)
+    await enforce_app_rate_limit(app_id)
     return app_id
 
 
@@ -94,26 +101,18 @@ async def verify_hmac_ingest(
     return app_id
 
 
-@dataclass(frozen=True)
-class HmacIngest:
-    """An HMAC ingest that passed authentication: the app, and whether this signature was already
-    used inside its window (the request is a replay, to be answered but not processed)."""
-
-    app_id: str
-    replayed: bool
-
-
-async def claim_hmac_ingest(
-    app_id: Annotated[str, Depends(verify_hmac_ingest)],
-    x_signature: Annotated[str, Header(alias="X-HMAC-Signature")],
-) -> AsyncIterator[HmacIngest]:
-    """Claim the request's signature once its app may ingest. A request that then fails gives the
-    claim back, so a client retrying the same signed request after a 4xx or 5xx is not mistaken for
-    a replay of one that stored nothing."""
-    first_use = await claim_signature(x_signature)
-    try:
-        yield HmacIngest(app_id=app_id, replayed=not first_use)
-    except Exception:
-        if first_use:
-            await release_signature(x_signature)
-        raise
+async def hmac_replay_mark(
+    x_key_id: Annotated[str | None, Header(alias="X-Key-ID")] = None,
+    x_signature: Annotated[str | None, Header(alias="X-HMAC-Signature")] = None,
+) -> AsyncIterator[bool]:
+    """Yields whether this signed request was already stored inside its window (a replay). Marks
+    the signature once the request has completed, which is after get_db committed: this dependency
+    must be resolved before get_db so that it exits after it. A request that fails, is cancelled or
+    dies before the commit leaves no mark, so its retry is stored."""
+    if x_key_id is None or x_signature is None:
+        yield False
+        return
+    replayed = await signature_is_marked(x_key_id, x_signature)
+    yield replayed
+    if not replayed:
+        await mark_signature(x_key_id, x_signature)

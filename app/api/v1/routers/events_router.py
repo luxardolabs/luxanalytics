@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.client_ip import client_ip_from_request
 from app.core.dsn_auth import extract_app_from_dsn, verify_project_dsn
-from app.core.security import HmacIngest, claim_hmac_ingest, verify_hmac_app
+from app.core.security import hmac_replay_mark, verify_hmac_app, verify_hmac_ingest
 from app.db.database import get_db
 from app.schemas.event_schema import INGEST_OPENAPI, AppStatsResponse, EventResponse
 from app.services.core.event_core_service import EventCoreService, InvalidEventPayload
@@ -60,22 +60,23 @@ async def _ingest(request: Request, app_id: str, db: AsyncSession) -> EventRespo
 )
 async def create_events(
     request: Request,
-    auth: HmacIngest = Depends(claim_hmac_ingest, scope="function"),
+    replayed: bool = Depends(hmac_replay_mark, scope="function"),
+    app_id: str = Depends(verify_hmac_ingest),
     db: AsyncSession = Depends(get_db, scope="function"),
 ) -> EventResponse:
     """
     Create analytics events with HMAC signature authentication.
-    Supports both single events and batch events. A signed request seen again inside its
-    timestamp window is answered 200 and not processed.
+    Supports both single events and batch events. A signed request already stored inside
+    its timestamp window is answered 200 and not processed again.
     """
-    if auth.replayed:
+    if replayed:
         return EventResponse(
             status="success",
             events_received=0,
             duplicates=0,
             message="Duplicate request ignored",
         )
-    return await _ingest(request, auth.app_id, db)
+    return await _ingest(request, app_id, db)
 
 
 @router.post(

@@ -1,9 +1,13 @@
-"""Single use of an HMAC signature inside its timestamp window.
+"""Marks for HMAC-signed requests that were stored, so a replay inside the timestamp window is
+recognised.
 
 The signature covers the body and the timestamp, so the same signed request verifies until the
-timestamp leaves the window. A signature is remembered in Redis (SET NX) for as long as it can
-verify; a second use is a replay. Redis being unreachable, or not configured, fails open: every
-signature then counts as a first use and ingest keeps working, as the rate limiter does."""
+timestamp leaves the window. Once a request has been stored its signature is marked in Redis for as
+long as it can verify; a request whose signature is marked is a replay. The mark is written after
+the events are committed, so a request that failed before that leaves none and its retry is stored.
+The worst case is a duplicate row (a crash between the commit and the mark, or two identical
+requests in flight together), never a lost event. Redis being unreachable or not configured fails
+open on both the read and the write: every request is processed, as the rate limiter does."""
 
 import logging
 
@@ -15,8 +19,10 @@ from app.core.redis_client import get_redis_client
 logger = logging.getLogger(__name__)
 
 
-def _key(signature: str) -> str:
-    return f"hmac:sig:{signature}"
+def _key(key_id: str, signature: str) -> str:
+    """The key id is part of the mark: two key ids may share a secret, and one signed body then
+    verifies under both."""
+    return f"hmac:sig:{key_id}:{signature}"
 
 
 def _ttl_seconds() -> int:
@@ -25,28 +31,26 @@ def _ttl_seconds() -> int:
     return 2 * settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE + 1
 
 
-async def claim_signature(signature: str) -> bool:
-    """True when this is the signature's first use inside its window, False for a replay."""
+async def signature_is_marked(key_id: str, signature: str) -> bool:
+    """True when a request with this signature was already stored inside its window."""
     redis_client = await get_redis_client()
     if redis_client is None:
-        return True
+        return False
     try:
-        return bool(
-            await redis_client.set(_key(signature), "1", nx=True, ex=_ttl_seconds())
-        )
+        return bool(await redis_client.exists(_key(key_id, signature)))
     except RedisError, OSError:
         # swallowed-exceptions: handled, not dropped: an unreachable Redis fails open (logged).
         logger.exception("HMAC replay check failed")
-        return True
+        return False
 
 
-async def release_signature(signature: str) -> None:
-    """Forget a claimed signature (the request it covered stored nothing)."""
+async def mark_signature(key_id: str, signature: str) -> None:
+    """Remember that the request with this signature was stored."""
     redis_client = await get_redis_client()
     if redis_client is None:
         return
     try:
-        await redis_client.delete(_key(signature))
+        await redis_client.set(_key(key_id, signature), "1", ex=_ttl_seconds())
     except RedisError, OSError:
-        # swallowed-exceptions: handled, not dropped: the claim then expires with its window.
-        logger.exception("HMAC replay release failed")
+        # swallowed-exceptions: handled, not dropped: the request was stored; its replay will be too.
+        logger.exception("HMAC replay mark failed")
