@@ -515,6 +515,9 @@ class DashboardViewService:
             return {
                 **self._page("explorer", app_id, hours, data),
                 "event_name": event_name,
+                "pill_filters": self._pill_filters(
+                    app_id=app_id, event_name=event_name
+                ),
                 "key_rows": key_rows,
                 "patterns": patterns,
                 "avg_keys": round(occurrences / total, 1) if total else 0,
