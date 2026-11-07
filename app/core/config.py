@@ -212,6 +212,10 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW: int = 60
+    # /static, per client address and RATE_LIMIT_WINDOW: its own budget, wide enough that a page
+    # load's assets (a dozen files, each uncached after a deploy) never meet RATE_LIMIT_REQUESTS,
+    # and finite so a flood of asset requests is still refused.
+    STATIC_RATE_LIMIT_REQUESTS: int = 1000
     # Ingest, in events per INGEST_RATE_LIMIT_WINDOW, after authentication (rate_limiter
     # enforce_ingest_limits). Per client address and per device: at least MAX_BATCH_EVENTS, or a
     # full batch is refused for good. Per app: a ceiling above one address's worth (device ids
@@ -438,6 +442,8 @@ class Settings(BaseSettings):
             raise ValueError("RATE_LIMIT_WINDOW must be at least 1 second")
         if self.RATE_LIMIT_REQUESTS < 1:
             raise ValueError("RATE_LIMIT_REQUESTS must be at least 1")
+        if self.STATIC_RATE_LIMIT_REQUESTS < 1:
+            raise ValueError("STATIC_RATE_LIMIT_REQUESTS must be at least 1")
         return self
 
     @model_validator(mode="after")

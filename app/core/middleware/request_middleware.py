@@ -18,6 +18,8 @@ from app.core.config import settings
 from app.core.rate_limiter import (
     AppRateLimitExceeded,
     IPRateLimiter,
+    RateLimiter,
+    StaticRateLimiter,
     address_identifier,
 )
 from app.core.request_route import route_template
@@ -211,15 +213,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         app: ASGIApp,
         exempt_paths: Sequence[str] = (),
-        exempt_prefixes: Sequence[str] = (),
+        static_prefixes: Sequence[str] = (),
     ) -> None:
         super().__init__(app)
         # System endpoints (health, metrics, docs) the app resolves by route name and passes in
         self.exempt_paths = frozenset(exempt_paths)
         # Mounts of read-only files with no database (static), each ending in "/" so that only
-        # paths under the mount match, never a sibling that shares its first letters
-        self.exempt_prefixes = tuple(exempt_prefixes)
+        # paths under the mount match, never a sibling that shares its first letters. Held to a
+        # wider budget of their own, not the pages'.
+        self.static_prefixes = tuple(static_prefixes)
         self.ip_limiter = IPRateLimiter()
+        self.static_limiter = StaticRateLimiter()
         # Fallback in-memory storage for backwards compatibility
         self.requests: defaultdict[str, list[datetime]] = defaultdict(list)
         self.lock = asyncio.Lock()
@@ -228,9 +232,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         # Skip rate limiting for health check and other system endpoints
-        path = request.url.path
-        if path in self.exempt_paths or path.startswith(self.exempt_prefixes):
+        # The path the router matches (scope), not request.url.path: URL parsing drops tab, CR
+        # and LF, so `/s%09tatic/x` would read as a static path here and route as something else.
+        path = request.scope["path"]
+        if path in self.exempt_paths:
             return await call_next(request)
+        limiter: RateLimiter = (
+            self.static_limiter
+            if path.startswith(self.static_prefixes)
+            else self.ip_limiter
+        )
 
         # The real client behind the proxy; request.client is nginx for every caller.
         client_ip = client_ip_from_request(request)
@@ -243,13 +254,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Redis fallback, which swallowed it and ran the request a second time.
         try:
             rejection, ip_metadata = await self._redis_decision(
-                request, client_ip, budget_key
+                limiter, client_ip, budget_key
             )
         except Exception:
             # A Redis outage is handled and logged inside the limiter; what reaches here is a bug.
             logger.exception("Request limit check failed, using in-memory fallback")
             rejection, ip_metadata = (
-                await self._memory_decision(client_ip, budget_key),
+                await self._memory_decision(limiter, client_ip, budget_key),
                 {},
             )
 
@@ -268,9 +279,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # A 429 another limit answered carries its own window; never overwrite it with the IP's.
         if ip_metadata.get("allowed") and response.status_code != 429:
-            response.headers["X-RateLimit-Limit"] = str(
-                self.ip_limiter.requests_per_window
-            )
+            response.headers["X-RateLimit-Limit"] = str(limiter.requests_per_window)
             response.headers["X-RateLimit-Remaining"] = str(
                 ip_metadata.get("remaining", 0)
             )
@@ -279,10 +288,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
     async def _redis_decision(
-        self, request: Request, client_ip: str, budget_key: str
+        self, limiter: RateLimiter, client_ip: str, budget_key: str
     ) -> tuple[Response | None, dict[str, Any]]:
         """The IP limit: a 429 response, or None to proceed."""
-        ip_allowed, ip_metadata = await self.ip_limiter.check_ip_limit(budget_key)
+        ip_allowed, ip_metadata = await limiter.is_allowed(budget_key)
 
         if not ip_allowed:
             logger.warning(
@@ -295,7 +304,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return too_many_requests(
                 "Rate limit exceeded",
                 ip_metadata,
-                limit=self.ip_limiter.requests_per_window,
+                limit=limiter.requests_per_window,
             ), ip_metadata
 
         # The per-device and per-app limits are not decided here: they need the authenticated app
@@ -303,11 +312,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return None, ip_metadata
 
     async def _memory_decision(
-        self, client_ip: str, budget_key: str
+        self, limiter: RateLimiter, client_ip: str, budget_key: str
     ) -> Response | None:
         """In-memory IP limit for when Redis is unavailable: a 429 response, or None to proceed."""
         now = datetime.now(UTC)
-        window_start = now - timedelta(seconds=settings.RATE_LIMIT_WINDOW)
+        window_start = now - timedelta(seconds=limiter.window_seconds)
+        budget_key = f"{limiter.key_prefix}:{budget_key}"
 
         async with self.lock:
             # Clean old requests
@@ -318,7 +328,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             ]
 
             # Check rate limit
-            if len(self.requests[budget_key]) >= settings.RATE_LIMIT_REQUESTS:
+            if len(self.requests[budget_key]) >= limiter.requests_per_window:
                 logger.warning(
                     "Rate limit exceeded (in-memory)",
                     extra={
@@ -330,8 +340,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 # exception handler and the client gets a 500.
                 return too_many_requests(
                     "Rate limit exceeded",
-                    {"retry_after": settings.RATE_LIMIT_WINDOW},
-                    limit=settings.RATE_LIMIT_REQUESTS,
+                    {"retry_after": limiter.window_seconds},
+                    limit=limiter.requests_per_window,
                 )
 
             # Add current request

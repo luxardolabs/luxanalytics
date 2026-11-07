@@ -11,7 +11,7 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 
 import app.core.rate_limiter as rate_limiter
 from app.core.config import settings
-from app.core.rate_limiter import IPRateLimiter
+from app.core.rate_limiter import RateLimiter
 from app.core.redis_client import get_redis_client
 
 RATE_LIMIT_CHECK_FAILED = "Redis rate limit check failed"
@@ -51,10 +51,10 @@ async def test_an_unexpected_limit_failure_is_logged_and_the_request_still_runs(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fails(self: IPRateLimiter, client_ip: str) -> None:
+    async def fails(self: RateLimiter, identifier: str, cost: int = 1) -> None:
         raise RuntimeError("the limiter has a bug")
 
-    monkeypatch.setattr(IPRateLimiter, "check_ip_limit", fails)
+    monkeypatch.setattr(RateLimiter, "is_allowed", fails)
     monkeypatch.setattr(settings, "RATE_LIMIT_REQUESTS", 2)
 
     with caplog.at_level(logging.ERROR):

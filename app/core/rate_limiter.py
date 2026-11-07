@@ -418,6 +418,20 @@ class IPRateLimiter(RateLimiter):
         return await self.is_allowed(ip_address, cost)
 
 
+def _static_rate_limit_requests() -> int:
+    return settings.STATIC_RATE_LIMIT_REQUESTS
+
+
+class StaticRateLimiter(RateLimiter):
+    """Rate limiter for a client's requests to /static: a budget apart from the page limit, much
+    wider, so a page's assets never spend the pages' budget and a flood of assets is still bounded."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            key_prefix="static_rate_limit", default_requests=_static_rate_limit_requests
+        )
+
+
 class AppRateLimitExceeded(Exception):
     """An authenticated app, one of its devices, or the client's address is over its budget;
     app_rate_limit_exceeded_handler (beside the IP limit, in request_middleware) answers it with
