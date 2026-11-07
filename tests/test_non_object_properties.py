@@ -10,6 +10,7 @@ from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event_model import Event
+from app.services.core.analytics_core_service import AnalyticsCoreService
 
 
 @pytest.mark.db
@@ -75,3 +76,39 @@ async def test_the_explorer_counts_only_events_with_object_properties(
     assert response.status_code == 200
     assert "Object Event" in response.text
     assert "List Event" not in response.text
+
+
+@pytest.mark.db
+async def test_bare_events_do_not_hide_older_keyed_ones_from_the_explorer(
+    db: AsyncSession,
+) -> None:
+    # An event with no properties is stored as JSON null; the explorer reads the newest 500.
+    old = datetime(2026, 1, 1, tzinfo=UTC)
+    rows = [
+        {
+            "id": str(uuid4()),
+            "app_id": "starved_app",
+            "name": "keyed_event",
+            "timestamp": old,
+            "received_at": old,
+            "properties": {"k": 1},
+        }
+    ] + [
+        {
+            "id": str(uuid4()),
+            "app_id": "starved_app",
+            "name": "bare_event",
+            "timestamp": datetime.now(UTC),
+            "received_at": datetime.now(UTC),
+            "properties": None,
+        }
+        for _ in range(500)
+    ]
+    await db.execute(insert(Event), rows)
+    await db.flush()
+
+    data = await AnalyticsCoreService(db).get_metadata_analysis(
+        app_id="starved_app", hours=0
+    )
+    assert data["all_keys"] == ["k"]
+    assert data["total_events"] == 1
