@@ -147,9 +147,18 @@ class DashboardViewService:
         }
 
     @staticmethod
-    def _filtered(app_id: str | None, hours: int, data: Context) -> Context:
+    def _pill_filters(**filters: str | None) -> dict[str, str]:
+        """The filters a time pill carries to the page it reloads: the ones that are set."""
+        return {k: v for k, v in filters.items() if v}
+
+    def _filtered(self, app_id: str | None, hours: int, data: Context) -> Context:
         """A page's data plus the filters it echoes back into its time pills and app scope."""
-        return {"app_id": app_id, "hours": hours, **data}
+        return {
+            "app_id": app_id,
+            "hours": hours,
+            "pill_filters": self._pill_filters(app_id=app_id),
+            **data,
+        }
 
     def _page(
         self, area: str, app_id: str | None, hours: int, data: Context
@@ -293,6 +302,9 @@ class DashboardViewService:
                 "pagination": pagination,
                 "columns": columns,
                 "event_name": event_name,
+                "pill_filters": self._pill_filters(
+                    app_id=app_id, event_name=event_name
+                ),
                 # Page links go to the full events PAGE (it takes ?page= and the same filters); the
                 # content route is an HTMX fragment and must not be navigated to.
                 "pagination_base_url": self._path("dashboard.events.page"),

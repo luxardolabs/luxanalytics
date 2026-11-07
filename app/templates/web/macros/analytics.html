@@ -18,7 +18,9 @@ Usage:
 {# ============================================================================
    TIME PILLS - Hour-based time range selector as pill buttons
    ============================================================================ #}
-{% macro time_pills(current_hours, hx_target, base_url, extra_params='') %}
+{# `filters`: the page's other query filters as a dict (the view drops the empty ones); each
+   value is URL-encoded here, so "&", "#", "+" and "%" in an app id or event name survive. #}
+{% macro time_pills(current_hours, hx_target, base_url, filters={}) %}
 {% set periods = [
     (1, '1H'),
     (6, '6H'),
@@ -38,7 +40,7 @@ Usage:
                 ? 'bg-brand-500 text-slate-900 shadow-glow'
                 : 'bg-surface-10/50 text-slate-500 hover:bg-surface-20 hover:text-fg'"
             @click="selected = Number($el.dataset.hours)"
-            hx-get="{{ base_url }}?hours={{ hours }}{{ extra_params }}"
+            hx-get="{{ base_url }}?{{ ([('hours', hours)] + (filters | dictsort)) | urlencode }}"
             hx-target="{{ hx_target }}"
             hx-swap="innerHTML">
         {{ label }}
