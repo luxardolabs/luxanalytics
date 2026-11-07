@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 def _no_nul(value: str | None) -> str | None:
@@ -10,6 +10,14 @@ def _no_nul(value: str | None) -> str | None:
     if value is not None and "\x00" in value:
         raise ValueError("must not contain a NUL byte")
     return value
+
+
+# A name written by a form: surrounding whitespace is dropped and something visible must remain.
+# Only the write models use it; AppRow reads a stored name as it is, so an app stored with a blank
+# name still lists and opens.
+AppName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
+]
 
 
 class AppBase(BaseModel):
@@ -22,6 +30,7 @@ class AppBase(BaseModel):
 
 
 class AppCreate(AppBase):
+    name: AppName
     # Lowercase letters, digits, underscores and hyphens, starting with a letter or digit: an
     # app_id is a URL path segment, a cookie value and a query value, so it carries none of the
     # characters those need escaped. Checked at creation only; stored app_ids are read as they are.
@@ -31,7 +40,7 @@ class AppCreate(AppBase):
 
 
 class AppUpdate(BaseModel):
-    name: str | None = Field(None, min_length=1, max_length=255)
+    name: AppName | None = None
     organization: str | None = Field(None, max_length=255)
     description: str | None = None
     is_active: bool | None = None
