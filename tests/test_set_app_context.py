@@ -90,8 +90,16 @@ async def test_an_empty_selection_clears_the_cookie(
 
 @pytest.mark.db
 async def test_a_cookie_holding_an_encoded_nul_byte_selects_no_app(
-    dashboard_client: AsyncClient,
+    dashboard_client: AsyncClient, db: AsyncSession
 ) -> None:
-    dashboard_client.cookies.set("analytics_app_id", "a%00b", domain="test")
+    await db.execute(insert(Event), [_event("some_app", "cookie_probe")])
+    await db.flush()
+    # The Cookie header is written out: the jar would not send a cookie set for another domain.
+    session = "; ".join(f"{c.name}={c.value}" for c in dashboard_client.cookies.jar)
+    headers = {"Cookie": f"{session}; analytics_app_id=a%00b"}
     for path in ("/dashboard/overview", "/dashboard/events", "/dashboard/devices"):
-        assert (await dashboard_client.get(path)).status_code == 200
+        assert (await dashboard_client.get(path, headers=headers)).status_code == 200
+
+    # No app is selected, so the list is every app's.
+    listing = await dashboard_client.get("/dashboard/events/content", headers=headers)
+    assert "Cookie Probe" in listing.text
