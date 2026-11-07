@@ -34,3 +34,27 @@ def test_a_timestamp_beyond_the_skew_tolerance_is_clamped_to_now() -> None:
 def test_anything_but_an_iso8601_string_is_rejected(bad: object) -> None:
     with pytest.raises(ValidationError):
         _event(bad)
+
+
+def _with_metadata(**metadata: str) -> EventCreate:
+    return EventCreate.model_validate(
+        {
+            "name": "app_opened",
+            "timestamp": "2026-10-06T12:00:00Z",
+            "metadata": metadata,
+        }
+    )
+
+
+@pytest.mark.parametrize("key", ["device_id", "operation"])
+def test_metadata_that_reaches_a_btree_index_is_held_to_what_fits_it(key: str) -> None:
+    """device_id is in two btree indexes and the devices primary key, `operation` in the
+    performance index: past a btree row's limit the INSERT fails for every batch carrying one."""
+    assert _with_metadata(**{key: "x" * 255}).metadata[key] == "x" * 255
+    with pytest.raises(ValidationError, match=key):
+        _with_metadata(**{key: "x" * 256})
+
+
+def test_other_metadata_is_not_held_to_an_index_limit() -> None:
+    long_screen = "s" * 8000
+    assert _with_metadata(screen=long_screen).metadata["screen"] == long_screen

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from pydantic import Field, TypeAdapter
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import MAX_BATCH_EVENTS
@@ -81,6 +82,14 @@ def _latest_device_row(
     return merged
 
 
+def _connection_failed(error: Exception) -> bool:
+    """The database could not be reached or the connection broke: nothing of the batch was stored
+    and a retry can succeed. A failure caused by the batch's own data is not one."""
+    return isinstance(error, OperationalError | InterfaceError) or (
+        isinstance(error, DBAPIError) and error.connection_invalidated
+    )
+
+
 class EventCoreService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -90,7 +99,9 @@ class EventCoreService:
     ) -> IngestResult:
         """Validate a decoded ingest payload, hold it to the ingest limits and store its events
         (see events_from_payload). AppRateLimitExceeded when the client address, a device or the
-        app is over its limit; the limits are given back when the events fail to store."""
+        app is over its limit. A connection failure during the insert gives the batch's limits back; any
+        other failure does not (a client could make its own batches fail), and neither does a failure
+        at commit, which the request's session owner runs after this returns."""
         with create_service_span("EventCoreService", "ingest", app_id=app_id):
             events = events_from_payload(payload)
             spent = await enforce_ingest_limits(
@@ -108,9 +119,8 @@ class EventCoreService:
                 created = await self.create_events(app_id, events)
             except Exception as e:
                 record_exception_in_span(e)
-                # A batch that is not stored costs its senders nothing: their retry is not refused
-                # for what this attempt spent.
-                await refund(spent)
+                if _connection_failed(e):
+                    await refund(spent)
                 raise
             logger.info(
                 "Analytics events processed",

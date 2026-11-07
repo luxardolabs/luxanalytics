@@ -7,6 +7,12 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 from app.core.config import MAX_BATCH_EVENTS, settings
 
 CLIENT_EVENT_ID_MAX = 64  # the events.client_event_id column width
+# Metadata values that reach a btree index key: `device_id` (ix_events_app_device_received and the
+# devices primary key) and `operation` (ix_events_perf_operation). A btree row holds about 2.7 KB,
+# so a longer value fails the INSERT for every batch that carries it; 255 characters (1 KB as
+# UTF-8) is the width name, user_id and session_id already have.
+INDEXED_METADATA_MAX = 255
+INDEXED_METADATA_KEYS = ("device_id", "operation")
 # Before this, a timestamp is a device clock reset (often to 1970), not when the event happened.
 EARLIEST_TIMESTAMP = datetime(2000, 1, 1, tzinfo=UTC)
 
@@ -80,6 +86,11 @@ class EventBase(BaseModel):
             raise ValueError(
                 "metadata must not contain NUL characters or lone surrogates"
             )
+        for key in INDEXED_METADATA_KEYS:
+            if len(v.get(key, "")) > INDEXED_METADATA_MAX:
+                raise ValueError(
+                    f"metadata {key} must be at most {INDEXED_METADATA_MAX} characters"
+                )
         return v
 
     @field_validator("name")
