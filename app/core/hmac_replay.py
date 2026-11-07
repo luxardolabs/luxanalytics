@@ -6,8 +6,9 @@ timestamp leaves the window. Once a request has been stored its signature is mar
 long as it can verify; a request whose signature is marked is a replay. The mark is written after
 the events are committed, so a request that failed before that leaves none and its retry is stored.
 The worst case is a duplicate row (a crash between the commit and the mark, or two identical
-requests in flight together), never a lost event. Redis being unreachable or not configured fails
-open on both the read and the write: every request is processed, as the rate limiter does."""
+requests in flight together), never a lost event. Redis being unreachable, not configured, or not
+answering within REDIS_WAIT_SECONDS (a slow Redis or a busy worker) fails open on both the read and
+the write: every request is processed, as the rate limiter does."""
 
 import asyncio
 import logging
