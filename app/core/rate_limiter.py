@@ -10,7 +10,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
+from ipaddress import IPv4Address, IPv6Address, IPv6Network, ip_address, ip_network
 from typing import Any
 
 import redis.asyncio as redis
@@ -491,6 +491,11 @@ _app_event_ceiling = RateLimiter(
 
 # IPv6 prefixes whose low 32 bits are an IPv4 client's address: the NAT64 well-known prefix
 # (RFC 6052), SIIT's IPv4-translated form (RFC 2765) and the deprecated IPv4-compatible form.
+# Decoding them cannot be gamed from a real network: a client's request is a completed TCP
+# connection, so its address is one that routes back to it, and these prefixes route to no host's
+# own /64 (a translator or tunnel owns them, and the IPv4 it carries is the one it saw). The local-use
+# NAT64 prefix 64:ff9b:1::/48 is left out: where the IPv4 sits in it depends on the translator's
+# prefix length, which the server is not told, so it keeps its /64.
 _IPV4_IN_LOW_BITS = (
     ip_network("64:ff9b::/96"),
     ip_network("::ffff:0:0:0/96"),
@@ -499,10 +504,12 @@ _IPV4_IN_LOW_BITS = (
 
 
 def _embedded_ipv4(address: IPv6Address) -> IPv4Address | None:
-    """The IPv4 client an IPv6 address carries (IPv4-mapped, Teredo, or one of the translator
-    forms above), or None for a native IPv6 address."""
+    """The IPv4 client an IPv6 address carries (IPv4-mapped, 6to4, Teredo, or one of the
+    translator forms above), or None for a native IPv6 address."""
     if address.ipv4_mapped is not None:
         return address.ipv4_mapped
+    if address.sixtofour is not None:
+        return address.sixtofour
     if address.teredo is not None:
         return address.teredo[1]
     if any(address in prefix for prefix in _IPV4_IN_LOW_BITS):
@@ -510,9 +517,9 @@ def _embedded_ipv4(address: IPv6Address) -> IPv4Address | None:
     return None
 
 
-def _address_identifier(client_ip: str) -> str:
+def address_identifier(client_ip: str) -> str:
     """One budget per client: an IPv4 address (the one an IPv6 address carries included: mapped,
-    translated or tunnelled), or a native IPv6 address's /64, which one host or subscriber holds
+    6to4, translated or tunnelled), or a native IPv6 address's /64, which one host or subscriber holds
     whole and could otherwise spread a flood over."""
     try:
         address = ip_address(client_ip)
@@ -522,7 +529,7 @@ def _address_identifier(client_ip: str) -> str:
         embedded = _embedded_ipv4(address)
         if embedded is not None:
             return str(embedded)
-        return str(ip_network(f"{address}/64", strict=False))
+        return str(IPv6Network((int(address), 64), strict=False))
     return str(address)
 
 
@@ -547,7 +554,7 @@ async def enforce_ingest_limits(
     spent: `refund` gives it back when the batch then fails to store."""
     total = sum(events_per_device.values())
     budgets = [
-        Budget(_ip_event_limiter, _address_identifier(client_ip), total),
+        Budget(_ip_event_limiter, address_identifier(client_ip), total),
         *(
             Budget(_device_limiter, _device_identifier(app_id, device_id), count)
             for device_id, count in events_per_device.items()

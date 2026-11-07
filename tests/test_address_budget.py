@@ -4,8 +4,10 @@ not its translator's /64."""
 
 from collections.abc import Callable
 from ipaddress import IPv4Address, IPv6Address
+from uuid import uuid4
 
 import pytest
+from httpx import AsyncClient
 
 import app.core.rate_limiter as rate_limiter
 from app.core.config import settings
@@ -87,3 +89,63 @@ async def test_other_ipv6_hosts_still_share_their_64(addresses: list[str]) -> No
         await rate_limiter.enforce_ingest_limits(
             "app_address_v6", addresses[1], {"device-b": 1}
         )
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "same"),
+    [
+        ("2002:cb00:7101:1::1", "2002:cb00:7101:2::9", True),
+        ("2002:cb00:7101::1", "2002:cb00:7102::1", False),
+        ("2002:cb00:7101:1::1", "203.0.113.1", True),
+    ],
+    ids=["one-site-two-subnets", "two-sites", "same-ipv4-as-native"],
+)
+def test_a_6to4_address_is_its_sites_ipv4_client(
+    first: str, second: str, same: bool
+) -> None:
+    assert (
+        rate_limiter.address_identifier(first)
+        == rate_limiter.address_identifier(second)
+    ) is same
+
+
+def test_a_local_use_nat64_prefix_stays_on_its_64() -> None:
+    """Where the IPv4 sits in a 64:ff9b:1::/48 address depends on the translator's prefix length,
+    which the server is not told: two of its addresses are not read as two IPv4 clients."""
+    assert rate_limiter.address_identifier(
+        "64:ff9b:1::cb00:7101"
+    ) == rate_limiter.address_identifier("64:ff9b:1::cb00:7102")
+
+
+def test_a_scoped_address_is_keyed_without_its_scope() -> None:
+    assert rate_limiter.address_identifier("fe80::1%eth0") == "fe80::/64"
+
+
+async def test_the_request_limit_counts_one_ipv6_64_as_one_client(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "RATE_LIMIT_REQUESTS", 3)
+    prefix = f"2001:db8:{uuid4().int % 65536:x}:1"
+
+    codes = [
+        (
+            await client.get("/login", headers={"X-Forwarded-For": f"{prefix}::{i:x}"})
+        ).status_code
+        for i in range(1, 6)
+    ]
+
+    assert codes == [200, 200, 200, 429, 429]
+
+
+async def test_the_request_limit_counts_a_translated_ipv4_client_as_that_client(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "RATE_LIMIT_REQUESTS", 2)
+    forms = ["198.51.100.31", "::ffff:198.51.100.31", "64:ff9b::198.51.100.31"]
+
+    codes = [
+        (await client.get("/login", headers={"X-Forwarded-For": form})).status_code
+        for form in forms
+    ]
+
+    assert codes == [200, 200, 429]

@@ -15,7 +15,11 @@ from starlette.types import ASGIApp, Message
 
 from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
-from app.core.rate_limiter import AppRateLimitExceeded, IPRateLimiter
+from app.core.rate_limiter import (
+    AppRateLimitExceeded,
+    IPRateLimiter,
+    address_identifier,
+)
 from app.core.request_route import route_template
 
 logger = logging.getLogger(__name__)
@@ -230,16 +234,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # The real client behind the proxy; request.client is nginx for every caller.
         client_ip = client_ip_from_request(request)
+        # One budget per client, not per address: an IPv6 host holds a whole /64 and an IPv4
+        # client may arrive inside an IPv6 address (the ingest address budget's key).
+        budget_key = address_identifier(client_ip)
 
         # Decide FIRST, then run the request exactly once. The try covers only the limit
         # check: wrapping call_next in it routed every exception the app raised into the
         # Redis fallback, which swallowed it and ran the request a second time.
         try:
-            rejection, ip_metadata = await self._redis_decision(request, client_ip)
+            rejection, ip_metadata = await self._redis_decision(
+                request, client_ip, budget_key
+            )
         except Exception:
             # A Redis outage is handled and logged inside the limiter; what reaches here is a bug.
             logger.exception("Request limit check failed, using in-memory fallback")
-            rejection, ip_metadata = await self._memory_decision(client_ip), {}
+            rejection, ip_metadata = (
+                await self._memory_decision(client_ip, budget_key),
+                {},
+            )
 
         if rejection is not None:
             return rejection
@@ -267,10 +279,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
     async def _redis_decision(
-        self, request: Request, client_ip: str
+        self, request: Request, client_ip: str, budget_key: str
     ) -> tuple[Response | None, dict[str, Any]]:
         """The IP limit: a 429 response, or None to proceed."""
-        ip_allowed, ip_metadata = await self.ip_limiter.check_ip_limit(client_ip)
+        ip_allowed, ip_metadata = await self.ip_limiter.check_ip_limit(budget_key)
 
         if not ip_allowed:
             logger.warning(
@@ -290,26 +302,28 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # and the parsed batch (app.core.rate_limiter.enforce_ingest_limits, enforce_app_rate_limit).
         return None, ip_metadata
 
-    async def _memory_decision(self, client_ip: str) -> Response | None:
+    async def _memory_decision(
+        self, client_ip: str, budget_key: str
+    ) -> Response | None:
         """In-memory IP limit for when Redis is unavailable: a 429 response, or None to proceed."""
         now = datetime.now(UTC)
         window_start = now - timedelta(seconds=settings.RATE_LIMIT_WINDOW)
 
         async with self.lock:
             # Clean old requests
-            self.requests[client_ip] = [
+            self.requests[budget_key] = [
                 req_time
-                for req_time in self.requests[client_ip]
+                for req_time in self.requests[budget_key]
                 if req_time > window_start
             ]
 
             # Check rate limit
-            if len(self.requests[client_ip]) >= settings.RATE_LIMIT_REQUESTS:
+            if len(self.requests[budget_key]) >= settings.RATE_LIMIT_REQUESTS:
                 logger.warning(
                     "Rate limit exceeded (in-memory)",
                     extra={
                         "client_ip": client_ip,
-                        "requests_count": len(self.requests[client_ip]),
+                        "requests_count": len(self.requests[budget_key]),
                     },
                 )
                 # A response, not HTTPException: raised from a middleware it reaches no
@@ -321,7 +335,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 )
 
             # Add current request
-            self.requests[client_ip].append(now)
+            self.requests[budget_key].append(now)
 
         return None
 
