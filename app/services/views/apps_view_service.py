@@ -114,9 +114,10 @@ class AppsViewService:
         is blocked as mixed content."""
         path_for = self._request.app.url_path_for
         dashboard = path_for("dashboard.overview.page")
-        # The app routes take {app_id:path}, so a "/" in an id is part of the path; every other
-        # reserved character ("?", "#", "%", "&") is percent-encoded to stay in it.
-        encoded = quote(app_id, safe="/")
+        # The app routes take {app_id:path}, which the server fills from the decoded path, so a "/"
+        # travels as %2F: a literal "/" would let a browser resolve a ".." id segment away and send
+        # the request to another app.
+        encoded = quote(app_id, safe="")
         return AppUrls(
             detail=path_for("apps.detail_panel", app_id=encoded),
             edit=path_for("apps.edit_panel", app_id=encoded),
