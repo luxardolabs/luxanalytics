@@ -603,7 +603,7 @@ class EventCRUD:
         result = await db.execute(
             text("""
             WITH bg_events AS (
-                SELECT session_id, received_at
+                SELECT app_id, session_id, received_at
                 FROM events
                 WHERE name = 'app_entered_background'
                   AND session_id IS NOT NULL
@@ -611,16 +611,17 @@ class EventCRUD:
                   AND (CAST(:app_id AS VARCHAR) IS NULL OR app_id = :app_id)
             ),
             last_screen AS (
-                SELECT DISTINCT ON (bg.session_id, bg.received_at)
+                SELECT DISTINCT ON (bg.app_id, bg.session_id, bg.received_at)
                     bg.session_id,
                     e.properties->>'screen' AS screen
                 FROM bg_events bg
                 JOIN events e ON e.session_id = bg.session_id
+                    AND e.app_id = bg.app_id
                     AND e.name = 'screen_viewed'
                     AND e.properties->>'screen' IS NOT NULL
                     AND e.received_at < bg.received_at
                     AND e.received_at > bg.received_at - INTERVAL '5 minutes'
-                ORDER BY bg.session_id, bg.received_at, e.received_at DESC
+                ORDER BY bg.app_id, bg.session_id, bg.received_at, e.received_at DESC
             )
             SELECT screen, COUNT(*) AS exit_count
             FROM last_screen
