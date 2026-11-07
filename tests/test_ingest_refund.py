@@ -238,3 +238,38 @@ async def test_a_device_id_no_index_can_hold_is_refused_before_any_budget_is_spe
     )
 
     assert result.stored == LIMIT
+
+
+async def test_a_memory_refund_does_not_ask_redis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limiter = rate_limiter.RateLimiter(2, 60, key_prefix=f"refund_{uuid4().hex}")
+    monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+    refused, _, spent = await rate_limiter.admit([rate_limiter.Budget(limiter, "a", 2)])
+    assert refused is None
+    assert spent.memory_at is not None
+    assert spent.redis_member is None
+
+    async def explode() -> None:
+        raise AssertionError("a memory refund must not ask for Redis")
+
+    monkeypatch.setattr(rate_limiter, "get_redis_client", explode)
+    await rate_limiter.refund(spent)
+    monkeypatch.setattr(rate_limiter, "get_redis_client", _no_redis)
+
+    refused, _, _ = await rate_limiter.admit([rate_limiter.Budget(limiter, "a", 2)])
+    assert refused is None
+
+
+async def test_refunding_twice_takes_back_only_what_was_spent() -> None:
+    limiter = rate_limiter.RateLimiter(10, 60, key_prefix=f"refund_{uuid4().hex}")
+    _, _, first = await rate_limiter.admit([rate_limiter.Budget(limiter, "a", 3)])
+    await rate_limiter.admit([rate_limiter.Budget(limiter, "a", 3)])
+
+    await rate_limiter.refund(first)
+    await rate_limiter.refund(first)
+
+    refused, _, _ = await rate_limiter.admit([rate_limiter.Budget(limiter, "a", 8)])
+    assert refused == 0  # the second admission's 3 are still held: 11 > 10
+    refused, _, _ = await rate_limiter.admit([rate_limiter.Budget(limiter, "a", 7)])
+    assert refused is None
