@@ -33,6 +33,7 @@ _REDIS_URL_PREFIXES = ("redis://", "rediss://")
 _STR_LIST = TypeAdapter(list[str], config=ConfigDict(hide_input_in_errors=True))
 _INVISIBLE_CATEGORIES = {"Cc", "Cf", "Cn", "Co", "Cs", "Me", "Mn"}
 _FILLERS = {"ᅟ", "ᅠ", "⠀", "ㅤ", "ﾠ", "￼"}
+MAX_REDIS_TIMEOUT_SECONDS = 86400
 
 
 def _visible(text: str) -> str:
@@ -72,13 +73,18 @@ def _positive_number(value: str) -> bool:
     return math.isfinite(number) and number > 0
 
 
+def _socket_timeout(value: str) -> bool:
+    """A day at most: past about 9e9 seconds the sync client's connect raises OverflowError."""
+    return _positive_number(value) and float(value) <= MAX_REDIS_TIMEOUT_SECONDS
+
+
 # The URL options the app's Redis clients can use. Each client takes any other query name as a
 # constructor argument, and many of those construct and then fail on first use: on the async client
 # as a 500 on every ingest and /health, on the limiter's sync client as a silent per-process count.
 _REDIS_URL_OPTIONS: dict[str, Callable[[str], bool]] = {
     "db": str.isdecimal,
-    "socket_timeout": _positive_number,
-    "socket_connect_timeout": _positive_number,
+    "socket_timeout": _socket_timeout,
+    "socket_connect_timeout": _socket_timeout,
     "health_check_interval": _positive_number,
     "client_name": lambda v: re.fullmatch(r"[!-~]+", v) is not None,
     "protocol": {"2", "3"}.__contains__,

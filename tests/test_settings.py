@@ -244,6 +244,8 @@ def test_a_redis_url_either_client_cannot_use_is_refused_by_name(query: str) -> 
         "socket_timeout=nan",
         "socket_timeout=inf",
         "socket_timeout=-1",
+        "socket_timeout=1e18",
+        "socket_connect_timeout=1e18",
         "socket_connect_timeout=nan",
         "credential_provider=x",
         "redis_connect_func=x",
