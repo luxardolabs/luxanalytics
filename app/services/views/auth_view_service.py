@@ -13,6 +13,16 @@ from app.core.config import settings
 from app.core.safe_redirect import safe_redirect_target
 from app.core.tracing import create_service_span
 
+# The login page's banners. The query string carries a code; the text is fixed here, so no text a
+# URL supplies is ever rendered on the page.
+LOGIN_ERRORS = {
+    "invalid": "Invalid username or password",
+    "store_down": "Sign-in is unavailable: the session store is down",
+    "logout_partial": "Signed out in this browser only: the session store is down, "
+    "so other sessions were not revoked",
+}
+LOGIN_MESSAGES = {"logged_out": "You have been logged out"}
+
 
 class AuthViewService:
     def __init__(self, request: Request) -> None:
@@ -37,8 +47,8 @@ class AuthViewService:
             return {
                 "next": next or self.after_login(),
                 "login_url": str(self._request.app.url_path_for("auth.login")),
-                "error": error,
-                "message": message,
+                "error": LOGIN_ERRORS.get(error or ""),
+                "message": LOGIN_MESSAGES.get(message or ""),
                 "version": settings.APP_VERSION,
                 "build_timestamp": settings.BUILD_TIMESTAMP,
             }

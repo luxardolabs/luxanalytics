@@ -201,7 +201,7 @@ async def test_a_missing_row_refuses_every_session(
     await db.execute(delete(DashboardSessionState))
 
     assert await _replay(client, copied) == 303
-    assert "session+store+is+down" in await _login(client, "198.51.100.235")
+    assert "error=store_down" in await _login(client, "198.51.100.235")
 
 
 @pytest.mark.db
@@ -437,7 +437,7 @@ async def test_a_logout_during_a_database_outage_says_it_revoked_nothing(
     monkeypatch.setattr(auth_module, "advance_session_generation", _database_down)
     r = await client.post("/logout", follow_redirects=False)
     assert r.status_code == 303
-    assert "other+sessions+were+not+revoked" in r.headers["location"]
+    assert "error=logout_partial" in r.headers["location"]
     assert "analytics_session" not in client.cookies  # this browser is signed out
 
 
@@ -455,7 +455,7 @@ async def test_sign_in_says_so_when_the_session_store_is_down(
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert "session+store+is+down" in r.headers["location"]
+    assert "error=store_down" in r.headers["location"]
 
 
 @pytest.mark.db

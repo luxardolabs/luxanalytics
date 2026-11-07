@@ -56,9 +56,7 @@ async def login(
         # Never what was typed: a password typed into the username field would land in the logs
         logger.warning("Failed login attempt")
         return RedirectResponse(
-            url=AuthViewService(request).login_page(
-                next=next, error="Invalid username or password"
-            ),
+            url=AuthViewService(request).login_page(next=next, error="invalid"),
             status_code=303,
         )
 
@@ -68,7 +66,7 @@ async def login(
         return RedirectResponse(
             url=AuthViewService(request).login_page(
                 next=next,
-                error="Sign-in is unavailable: the session store is down",
+                error="store_down",
             ),
             status_code=303,
         )
@@ -94,13 +92,12 @@ async def logout(request: Request) -> RedirectResponse:
         logger.exception("Logout could not revoke the other sessions")
         return RedirectResponse(
             url=AuthViewService(request).login_page(
-                error="Signed out in this browser only: the session store is down, "
-                "so other sessions were not revoked",
+                error="logout_partial",
             ),
             status_code=303,
         )
 
     return RedirectResponse(
-        url=AuthViewService(request).login_page(message="You have been logged out"),
+        url=AuthViewService(request).login_page(message="logged_out"),
         status_code=303,
     )
