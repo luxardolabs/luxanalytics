@@ -76,7 +76,7 @@ async def test_the_panel_says_when_it_shows_only_the_first_events(
         follow_redirects=False,
     )
     assert r.status_code == 303
-    page = await client.get("/dashboard/session/long_session")
+    page = await client.get("/dashboard/session/long_session?app_id=session_app")
     assert page.status_code == 200
     assert f"Showing the first {SESSION_EVENTS_SHOWN} of {count} events" in " ".join(
         page.text.split()

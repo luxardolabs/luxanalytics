@@ -891,6 +891,7 @@ class AnalyticsCoreService:
                 )
                 session_list.append(
                     {
+                        "app_id": s.app_id,
                         "session_id": s.session_id,
                         "event_count": s.event_count,
                         "first_event": s.first_event,

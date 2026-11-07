@@ -19,6 +19,7 @@ from sqlalchemy import (
     select,
     text,
     true,
+    tuple_,
 )
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -428,10 +429,12 @@ class EventCRUD:
 
     async def get_user_sessions(
         self, db: AsyncSession, user_id: str, limit: int, app_id: str | None = None
-    ) -> list[Row[str | None, int, datetime, datetime, Sequence[Any]]]:
-        """The user's `limit` most recent sessions, with first/last event and event count."""
+    ) -> list[Row[str, str | None, int, datetime, datetime, Sequence[Any]]]:
+        """The user's `limit` most recent sessions, with first/last event and event count. A
+        session is an (app, session id) pair: apps choose their own session ids."""
         query = (
             select(
+                Event.app_id,
                 Event.session_id,
                 func.count(Event.id).label("event_count"),
                 func.min(Event.received_at).label("first_event"),
@@ -443,7 +446,7 @@ class EventCRUD:
                 Event.session_id.isnot(None),
                 *self.app_conditions(app_id),
             )
-            .group_by(Event.session_id)
+            .group_by(Event.app_id, Event.session_id)
             .order_by(desc(func.max(Event.received_at)))
             .limit(limit)
         )
@@ -489,7 +492,9 @@ class EventCRUD:
         """Aggregate stats for a single user."""
         query = select(
             func.count(Event.id).label("total_events"),
-            func.count(func.distinct(Event.session_id)).label("total_sessions"),
+            func.count(func.distinct(tuple_(Event.app_id, Event.session_id)))
+            .filter(Event.session_id.isnot(None))
+            .label("total_sessions"),
             func.count(func.distinct(Event.device_id)).label("total_devices"),
             func.count(func.distinct(Event.name)).label("event_types"),
             func.min(Event.received_at).label("first_seen"),

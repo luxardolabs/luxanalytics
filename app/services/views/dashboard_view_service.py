@@ -18,7 +18,7 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import build_pagination, fetch_page
-from app.core.query_params import TextFilter
+from app.core.query_params import MAX_ENCODED_APP_ID, TextFilter
 from app.core.safe_redirect import safe_redirect_target
 from app.core.tracing import create_service_span
 from app.schemas.event_schema import EventInDB
@@ -116,24 +116,38 @@ class DashboardViewService:
         kept = {k: v for k, v in (query or {}).items() if v not in (None, "")}
         return f"{path}?{urlencode(kept)}" if kept else path
 
+    def _panel_url(
+        self, route: str, id_name: str, id_value: str | None, app_id: str | None
+    ) -> str | None:
+        """A user or session panel link scoped to `app_id`, or None when no link can reach the
+        row: the id is empty or a dot segment (a browser rewrites `/user/..`), or the row's app is
+        the empty string (a link without it would merge every app). An app_id too long for a URL
+        is left off, as the app cookie leaves it off."""
+        if not id_value or id_value in (".", "..") or app_id == "":
+            return None
+        fits = app_id is not None and len(quote(app_id, safe="")) <= MAX_ENCODED_APP_ID
+        return self._path(
+            route, {"app_id": app_id} if fits else None, **{id_name: id_value}
+        )
+
+    def _user_panel_url(self, user_id: str | None, app_id: str | None) -> str | None:
+        return self._panel_url(
+            "dashboard.users.profile_panel", "user_id", user_id, app_id
+        )
+
+    def _session_panel_url(
+        self, session_id: str | None, app_id: str | None
+    ) -> str | None:
+        return self._panel_url(
+            "dashboard.sessions.detail_panel", "session_id", session_id, app_id
+        )
+
     def _event_row(self, event: EventInDB) -> Context:
         """One event as a list row: the event plus its panel links, resolved here."""
         return {
             "event": event,
-            "user_url": self._path(
-                "dashboard.users.profile_panel",
-                {"app_id": event.app_id},
-                user_id=event.user_id,
-            )
-            if event.user_id
-            else None,
-            "session_url": self._path(
-                "dashboard.sessions.detail_panel",
-                {"app_id": event.app_id},
-                session_id=event.session_id,
-            )
-            if event.session_id
-            else None,
+            "user_url": self._user_panel_url(event.user_id, event.app_id),
+            "session_url": self._session_panel_url(event.session_id, event.app_id),
             "detail_url": self._path(
                 "dashboard.events.detail_panel", event_id=str(event.id)
             ),
@@ -568,11 +582,7 @@ class DashboardViewService:
             sessions = [
                 {
                     **s,
-                    "url": self._path(
-                        "dashboard.sessions.detail_panel",
-                        {"app_id": app_id},
-                        session_id=s["session_id"],
-                    ),
+                    "url": self._session_panel_url(s["session_id"], s["app_id"]),
                     "types_shown": s["event_types"][:SESSION_TYPES_SHOWN],
                     "types_more": max(0, len(s["event_types"]) - SESSION_TYPES_SHOWN),
                 }
@@ -583,21 +593,27 @@ class DashboardViewService:
     async def session_detail_context(
         self, session_id: str, app_id: str | None
     ) -> Context:
-        """A session with no events renders the panel's empty state, not a stats grid of
-        values the core never computed (it returns only the id for an empty session)."""
+        """A session id is app-chosen, so the panel needs the app: with none selected it asks for
+        one. A session with no events renders the empty state, not a stats grid of values the
+        core never computed (it returns only the id for an empty session)."""
         with create_service_span(
             "DashboardViewService",
             "session_detail_context",
             session_id=session_id,
             app_id=app_id,
         ):
+            if not app_id:
+                return {
+                    "session_id": session_id,
+                    "requires_app": True,
+                    "has_data": False,
+                    "user_url": None,
+                }
             detail = await self._core.get_session_detail(session_id, app_id)
-            user_id = detail.get("user_id")
-            user_url = (
-                self._path(
-                    "dashboard.users.profile_panel", {"app_id": app_id}, user_id=user_id
-                )
-                if user_id
-                else None
-            )
-            return {**detail, "has_data": bool(detail["events"]), "user_url": user_url}
+            user_url = self._user_panel_url(detail.get("user_id"), app_id)
+            return {
+                **detail,
+                "requires_app": False,
+                "has_data": bool(detail["events"]),
+                "user_url": user_url,
+            }

@@ -11,7 +11,11 @@
     {{ panel_header("Session", subtitle=session_id | truncate(16)) }}
 
     {% call panel_content() %}
-        {% if not has_data %}
+        {% if requires_app %}
+        {% call info_box("App Selection Required", icon_name="arrow-path", variant="info") %}
+            Select an app to view this session. A session id belongs to one app, and another app can use the same id.
+        {% endcall %}
+        {% elif not has_data %}
         {{ empty_state("No events for this session", description="Nothing has been recorded under this session id.") }}
         {% else %}
         <div class="space-y-4">
@@ -117,7 +121,7 @@
             {% endcall %}
 
             {# ── Link to User Profile ── #}
-            {% if user_id %}
+            {% if user_url %}
             <div class="pt-2">
                 {{ button("View User Profile", variant='secondary', size='sm',
                           hx_get=user_url,
