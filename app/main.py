@@ -215,6 +215,7 @@ def create_application() -> FastAPI:
             app.url_path_for("system.metrics"),
             *(p for p in (app.docs_url, app.openapi_url) if p),
         ),
+        exempt_prefixes=(app.url_path_for("static", path=""),),
     )
     app.add_middleware(
         CORSMiddleware,

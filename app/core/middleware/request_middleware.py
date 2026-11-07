@@ -203,10 +203,18 @@ async def app_rate_limit_exceeded_handler(
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Redis-based distributed rate limiting with in-memory fallback."""
 
-    def __init__(self, app: ASGIApp, exempt_paths: Sequence[str] = ()) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        exempt_paths: Sequence[str] = (),
+        exempt_prefixes: Sequence[str] = (),
+    ) -> None:
         super().__init__(app)
         # System endpoints (health, metrics, docs) the app resolves by route name and passes in
         self.exempt_paths = frozenset(exempt_paths)
+        # Mounts of read-only files with no database (static), each ending in "/" so that only
+        # paths under the mount match, never a sibling that shares its first letters
+        self.exempt_prefixes = tuple(exempt_prefixes)
         self.ip_limiter = IPRateLimiter()
         # Fallback in-memory storage for backwards compatibility
         self.requests: defaultdict[str, list[datetime]] = defaultdict(list)
@@ -216,7 +224,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         # Skip rate limiting for health check and other system endpoints
-        if request.url.path in self.exempt_paths:
+        path = request.url.path
+        if path in self.exempt_paths or path.startswith(self.exempt_prefixes):
             return await call_next(request)
 
         # The real client behind the proxy; request.client is nginx for every caller.
