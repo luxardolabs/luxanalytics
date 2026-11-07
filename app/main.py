@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from alembic.config import Config
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -46,6 +47,7 @@ from app.db.database import async_engine
 from app.models import App, Device, Event  # noqa: F401
 from app.schemas.event_schema import INGEST_BODY_COMPONENTS
 from app.utils.exception_handlers import general_exception_handler
+from app.utils.validation_handlers import request_validation_handler
 from app.web.routers import router as web_router
 from app.web.templates import error_templates
 
@@ -241,6 +243,8 @@ def create_application() -> FastAPI:
     # The canonical exception handler renders its error page/partial through this instance.
     app.state.templates = error_templates
     app.add_exception_handler(Exception, general_exception_handler)
+    # A refused (422) request: JSON on /api, an HTML partial or page on the web routes.
+    app.add_exception_handler(RequestValidationError, request_validation_handler)
     # Per-route limits (slowapi): the limiter is found on app.state; a refusal is a 429 + Retry-After.
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)

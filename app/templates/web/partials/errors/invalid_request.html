@@ -1,0 +1,3 @@
+{# Swapped into the failing HTMX target by static/js/htmx-error-swap.js (HX-Error-Swap: true). #}
+{% from "macros/layout.html" import alert_banner %}
+{{ alert_banner("The request was refused: " ~ (refused | join(", ")) ~ " is not a value this page accepts. Change the filter and try again.", variant="warning") }}
