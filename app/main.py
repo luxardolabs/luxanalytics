@@ -10,6 +10,7 @@ from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from redis.exceptions import RedisError
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import Connection, text
@@ -20,6 +21,7 @@ from alembic import command
 from app.api.v1.routers import router as api_router
 from app.core.auth import get_session_secret
 from app.core.config import settings
+from app.core.instrumentation import export_otel_settings, instrument_database
 from app.core.limiter import limiter, rate_limit_exceeded_handler
 from app.core.logging_config import configure_logging
 from app.core.middleware import (
@@ -31,7 +33,7 @@ from app.core.middleware import (
 from app.core.rate_limiter import AppRateLimitExceeded
 from app.core.redis_client import close_redis_client
 from app.core.same_origin import SameOriginMiddleware
-from app.core.telemetry import setup_telemetry
+from app.core.telemetry import configure_tracing, current_trace_ids, shutdown_tracing
 from app.core.trusted_host import AllowedHostsMiddleware
 from app.crud.dashboard_session_crud import ensure_session_generation
 from app.db.database import async_engine
@@ -51,6 +53,7 @@ configure_logging(
     # uvicorn's access line logs every path and query string (end-user ids, searches); the
     # LoggingMiddleware line, by route template, replaces it.
     levels={"uvicorn.access": "WARNING"},
+    trace_ids=current_trace_ids,
 )
 logger = logging.getLogger(__name__)
 
@@ -128,6 +131,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     logger.info("Shutting down Analytics Collector API")
+    shutdown_tracing()
     await async_engine.dispose()
     logger.info("Database connections closed")
     try:
@@ -165,8 +169,16 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Setup OpenTelemetry
-    setup_telemetry(app)
+    # Tracing: the provider from the OTEL environment, then the instrumentors. With no endpoint
+    # configure_tracing installs nothing and the instrumentors stay off.
+    export_otel_settings()
+    if configure_tracing(
+        settings.OTEL_SERVICE_NAME,
+        version=settings.APP_VERSION,
+        environment=settings.ENVIRONMENT,
+    ):
+        FastAPIInstrumentor.instrument_app(app)
+        instrument_database(async_engine)
 
     # Static files (for CSS, JS, images)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")

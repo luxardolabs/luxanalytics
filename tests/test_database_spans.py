@@ -13,7 +13,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from app.core.telemetry import instrument_database
+from app.core.instrumentation import instrument_database
 
 pytestmark = pytest.mark.db
 

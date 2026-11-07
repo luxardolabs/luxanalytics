@@ -97,7 +97,9 @@ app/
 │   ├── redis_client.py      # Redis connection
 │   ├── rate_limiter.py      # Rate limiting
 │   ├── logging_config.py    # Fleet stdlib JSON logging (luxarch --emit logging)
-│   ├── telemetry.py         # OpenTelemetry setup + /metrics (default registry; db_pool_* gauges set per scrape)
+│   ├── telemetry.py         # Emitted tracing module (luxarch --emit telemetry): configure_tracing, span helpers, redacting exporter
+│   ├── instrumentation.py   # The app's instrumentors (SQLAlchemy) + the OTEL settings the tracing module reads
+│   ├── metrics.py           # /metrics body: default registry; db_pool_* gauges set per scrape
 │   ├── tracing.py           # Canonical span helpers: create_service_span, record_exception_in_span
 │   ├── constants.py         # App constants
 │   └── middleware/

@@ -57,12 +57,18 @@ os.environ["DATABASE_URL"] = (
     WORKER_DATABASE_URL  # the setting app/db/database.py builds its engine from
 )
 
+# No span leaves the process whatever endpoint the environment holds (the tracing module reads it
+# when the app is built).
+os.environ["OTEL_TRACES_EXPORTER"] = "none"
+
 from httpx import ASGITransport, AsyncClient  # noqa: E402  (after the database is chosen)
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 
 # The app's sessionmaker (the one TEST_DB_SESSION_FACTORY names) and its app factory
 from app.core.config import settings as app_settings  # noqa: E402
 from app.core.redis_client import close_redis_client, get_redis_client  # noqa: E402
+from app.core.telemetry import configure_tracing  # noqa: E402
 from app.crud.dashboard_session_crud import ensure_session_generation  # noqa: E402 - imported once the test database is chosen, like the app modules above
 from app.db.database import AsyncSessionLocal  # noqa: E402
 from app.main import create_application  # noqa: E402
@@ -173,6 +179,27 @@ async def client() -> AsyncIterator[AsyncClient]:
         transport=ASGITransport(app=app), base_url="https://localhost"
     ) as ac:
         yield ac
+
+
+@pytest.fixture(scope="session")
+def _session_span_exporter() -> InMemorySpanExporter:
+    """The process's one tracer provider, exporting into memory (a provider is set once per process).
+    Apps built after the first use of `span_exporter` are traced."""
+    exporter = InMemorySpanExporter()
+    provider = configure_tracing(
+        app_settings.OTEL_SERVICE_NAME,
+        version=app_settings.APP_VERSION,
+        exporter=exporter,
+    )
+    assert provider is not None, "another component installed a tracer provider first"
+    return exporter
+
+
+@pytest.fixture
+def span_exporter(_session_span_exporter: InMemorySpanExporter) -> InMemorySpanExporter:
+    """The spans finished since the test began."""
+    _session_span_exporter.clear()
+    return _session_span_exporter
 
 
 @pytest_asyncio.fixture(autouse=True)

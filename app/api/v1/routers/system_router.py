@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST
 
-from app.core.telemetry import get_prometheus_metrics
+from app.core.metrics import get_prometheus_metrics
 from app.schemas.health_schema import HealthResponse
 from app.services.core.health_core_service import HealthCoreService
 
