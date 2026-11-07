@@ -112,3 +112,31 @@ async def test_bare_events_do_not_hide_older_keyed_ones_from_the_explorer(
     )
     assert data["all_keys"] == ["k"]
     assert data["total_events"] == 1
+
+
+@pytest.mark.db
+async def test_empty_objects_do_not_hide_keyed_events_or_count_as_analyzed(
+    db: AsyncSession,
+) -> None:
+    # `{}` is an object with no keys: it has nothing to analyse either.
+    old = datetime(2026, 1, 1, tzinfo=UTC)
+    rows = [
+        {
+            "id": str(uuid4()),
+            "app_id": "empty_obj_app",
+            "name": name,
+            "timestamp": when,
+            "received_at": when,
+            "properties": properties,
+        }
+        for name, when, properties in [("keyed_event", old, {"k": 1})]
+        + [("empty_event", datetime.now(UTC), {})] * 500
+    ]
+    await db.execute(insert(Event), rows)
+    await db.flush()
+
+    data = await AnalyticsCoreService(db).get_metadata_analysis(
+        app_id="empty_obj_app", hours=0
+    )
+    assert data["all_keys"] == ["k"]
+    assert data["total_events"] == 1
