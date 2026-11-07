@@ -157,7 +157,9 @@ async def test_a_trailing_newline_id_acts_on_that_app_and_no_other(
     assert deleted.status_code == 200
     live = (
         await db.execute(
-            select(App.app_id).where(App.app_id.like("nlapp%"), App.deleted_at.is_(None))
+            select(App.app_id).where(
+                App.app_id.like("nlapp%"), App.deleted_at.is_(None)
+            )
         )
     ).scalars()
     assert list(live) == ["nlapp"]
