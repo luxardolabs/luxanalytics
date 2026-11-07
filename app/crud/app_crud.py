@@ -38,6 +38,11 @@ class AppCRUD:
         result = await db.execute(select(App).where(App.app_id == app_id))
         return result.scalar_one_or_none()
 
+    async def exists_by_app_id(self, db: AsyncSession, app_id: str) -> bool:
+        """Whether a row holds this app_id, in any state: the unique index covers them all."""
+        result = await db.execute(select(App.id).where(App.app_id == app_id).limit(1))
+        return result.first() is not None
+
     async def get_all(
         self, db: AsyncSession, include_inactive: bool = False
     ) -> list[App]:

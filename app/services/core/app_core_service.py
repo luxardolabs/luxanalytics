@@ -11,9 +11,6 @@ from app.crud.app_crud import app_crud
 from app.models.app_model import App
 from app.schemas.app_schema import AppCreate, AppRow, AppStats, AppUpdate
 
-# The unique index on apps.app_id (App.app_id: unique + index).
-_APP_ID_INDEX = "ix_apps_app_id"
-
 
 class AppCoreService:
     def __init__(self, db: AsyncSession):
@@ -29,7 +26,7 @@ class AppCoreService:
         return "".join(secrets.choice(string.digits) for _ in range(length))
 
     async def create_app(self, app_data: AppCreate) -> AppRow | None:
-        """Insert the app; None when the app_id is taken (the unique index decides, so two
+        """Insert the app; None when the app_id is taken (the database decides, so two
         concurrent creates cannot both win)."""
         with create_service_span("AppCoreService", "create_app"):
             app = App(
@@ -45,7 +42,9 @@ class AppCoreService:
                 created = await app_crud.create(self.db, app)
             except IntegrityError as exc:
                 record_exception_in_span(exc)
-                if _APP_ID_INDEX not in str(exc.orig):
+                # Whichever unique constraint refused the insert, the app_id decides: if a row
+                # holds it, this create lost to that row; otherwise the refusal was another one.
+                if not await app_crud.exists_by_app_id(self.db, app_data.app_id):
                     raise
                 return None
             return AppRow.model_validate(created)
