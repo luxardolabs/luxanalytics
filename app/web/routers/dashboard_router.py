@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
 from app.core.query_params import Hours, Page, PathText, TextFilter
+from app.core.route_convertors import SESSION_ID_PARAM, USER_ID_PARAM
 from app.db.database import get_db
 from app.services.views.dashboard_view_service import (
     DashboardViewService,
@@ -373,7 +374,7 @@ async def key_deep_dive_panel(
 
 
 @router.get(
-    "/user/{user_id:path}",
+    f"/user/{USER_ID_PARAM}",
     response_class=HTMLResponse,
     name="dashboard.users.profile_panel",
 )
@@ -393,7 +394,7 @@ async def user_profile_panel(
 
 
 @router.get(
-    "/session/{session_id:path}",
+    f"/session/{SESSION_ID_PARAM}",
     response_class=HTMLResponse,
     name="dashboard.sessions.detail_panel",
 )

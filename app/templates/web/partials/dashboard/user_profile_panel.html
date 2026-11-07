@@ -7,7 +7,7 @@
 
 {% call panel_wrapper(max_width="max-w-2xl") %}
 
-    {{ panel_header("User Profile", subtitle=user_id | truncate(24)) }}
+    {{ panel_header("User Profile", subtitle=(user_id | truncate(24)) ~ (" · All apps" if all_apps else "")) }}
 
     {% call panel_content() %}
         <div class="space-y-4">
@@ -47,6 +47,7 @@
                 <div class="flex items-center justify-between text-sm py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
                     <div>
                         <span class="text-fg font-medium">{{ d.device_model }}</span>
+                        {% if all_apps %}<span class="text-xs text-brand-500 ml-2">{{ d.app_id }}</span>{% endif %}
                         <span class="text-slate-500 text-xs ml-2">iOS {{ d.os_version }} · v{{ d.app_version }}</span>
                     </div>
                     <div class="text-xs text-slate-500 tabular-nums">{{ d.event_count }} events</div>
@@ -95,7 +96,7 @@
             {% call detail_section("Errors (" ~ errors | length ~ " of " ~ total_errors ~ ")") %}
                 {% for e in errors %}
                 <div class="flex items-center justify-between text-sm py-1.5">
-                    <span class="text-red-400">{{ e.name | friendly_name }}</span>
+                    <span class="text-red-400">{{ e.name | friendly_name }}{% if all_apps %} <span class="text-xs text-brand-500">{{ e.app_id }}</span>{% endif %}</span>
                     <span class="text-xs text-slate-500">{{ e.received_at | timeago }}</span>
                 </div>
                 {% endfor %}

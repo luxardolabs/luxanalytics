@@ -456,11 +456,22 @@ class EventCRUD:
     async def get_user_devices(
         self, db: AsyncSession, user_id: str, app_id: str | None = None
     ) -> list[
-        Row[str | None, str | None, str | None, str | None, str | None, int, datetime]
+        Row[
+            str,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            int,
+            datetime,
+        ]
     ]:
-        """Get distinct devices used by a user."""
+        """The user's devices, one row per (app, device): the same device id in two apps is two
+        installs."""
         query = (
             select(
+                Event.app_id,
                 Event.device_id,
                 Event.device_model,
                 Event.os_version,
@@ -475,6 +486,7 @@ class EventCRUD:
                 *self.app_conditions(app_id),
             )
             .group_by(
+                Event.app_id,
                 Event.device_id,
                 Event.device_model,
                 Event.os_version,

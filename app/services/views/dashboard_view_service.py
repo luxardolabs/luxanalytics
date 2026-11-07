@@ -120,15 +120,16 @@ class DashboardViewService:
         self, route: str, id_name: str, id_value: str | None, app_id: str | None
     ) -> str | None:
         """A user or session panel link scoped to `app_id`, or None when no link can reach the
-        row: the id is empty or a dot segment (a browser rewrites `/user/..`), or the row's app is
-        the empty string (a link without it would merge every app). An app_id too long for a URL
-        is left off, as the app cookie leaves it off."""
+        row: the id is a dot segment (a browser rewrites `/user/..`), or the id is empty, or the
+        row's app is the empty string or too long for a URL (dropped from the link, the panel would
+        show another app's row under this one's). A row with no link shows its id as text."""
         if not id_value or id_value in (".", "..") or app_id == "":
             return None
-        fits = app_id is not None and len(quote(app_id, safe="")) <= MAX_ENCODED_APP_ID
-        return self._path(
-            route, {"app_id": app_id} if fits else None, **{id_name: id_value}
-        )
+        if app_id is None:
+            return self._path(route, None, **{id_name: id_value})
+        if len(quote(app_id, safe="")) > MAX_ENCODED_APP_ID:
+            return None
+        return self._path(route, {"app_id": app_id}, **{id_name: id_value})
 
     def _user_panel_url(self, user_id: str | None, app_id: str | None) -> str | None:
         return self._panel_url(
@@ -588,7 +589,9 @@ class DashboardViewService:
                 }
                 for s in profile["sessions"]
             ]
-            return {**profile, "sessions": sessions}
+            # With no app selected the totals span every app: the panel says so and names the app
+            # on each session, device and error row.
+            return {**profile, "sessions": sessions, "all_apps": not app_id}
 
     async def session_detail_context(
         self, session_id: str, app_id: str | None

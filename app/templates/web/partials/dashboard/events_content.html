@@ -21,7 +21,7 @@
                     {{ button(event.user_id | truncate(16), variant='link', size='xs', extra_classes='font-mono',
                               hx_get=row.user_url, hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% else %}
-                    <span class="text-xs text-slate-500">—</span>
+                    <span class="text-xs font-mono text-slate-500">{{ (event.user_id | truncate(16)) if event.user_id else '—' }}</span>
                     {% endif %}
                 {% endcall %}
                 {% call td() %}
@@ -29,7 +29,7 @@
                     {{ button(event.session_id | truncate(10), variant='link', size='xs', extra_classes='font-mono',
                               hx_get=row.session_url, hx_target='#panel-container', hx_swap='innerHTML') }}
                     {% else %}
-                    <span class="text-xs text-slate-500">—</span>
+                    <span class="text-xs font-mono text-slate-500">{{ (event.session_id | truncate(10)) if event.session_id else '—' }}</span>
                     {% endif %}
                 {% endcall %}
                 {% call td() %}

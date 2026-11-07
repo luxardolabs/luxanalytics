@@ -148,19 +148,133 @@ async def test_a_dot_segment_id_has_no_panel_link(
     assert "/dashboard/session/." not in text
 
 
-async def test_an_app_id_too_long_for_a_url_is_left_off_the_link(
+LONG_APP = "a" * 3600
+
+
+async def test_an_app_id_too_long_for_a_url_has_no_panel_link_and_shows_its_ids(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    long_app = "a" * 3600
     await db.execute(
         insert(Event),
-        [_row(long_app, "long_evt", user_id="u7", session_id="s7")],
+        [
+            _row(LONG_APP, "long_evt", user_id="u7", session_id="s7"),
+            _row("cookie_app", "cookie_evt", user_id="u7", session_id="s7"),
+        ],
     )
     await db.flush()
     await _login(client, "198.51.100.148")
-    text = await _event_page(client)
-    assert 'hx-get="/dashboard/user/u7"' in text
-    assert 'hx-get="/dashboard/session/s7"' in text
+    page = await client.get("/dashboard/events/content?hours=24")
+    assert page.status_code == 200
+    assert 'hx-get="/dashboard/user/u7?app_id=cookie_app"' in page.text
+    assert 'hx-get="/dashboard/user/u7"' not in page.text
+    assert 'hx-get="/dashboard/session/s7"' not in page.text
+    assert ">u7<" in page.text.replace(" ", "").replace("\n", "")
+
+
+async def test_an_oversize_apps_session_panel_has_no_user_link_and_its_profile_no_session_links(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    await db.execute(
+        insert(Event),
+        [_row(LONG_APP, "long_evt", user_id="u8", session_id="s8")],
+    )
+    await db.flush()
+    await _login(client, "198.51.100.150")
+    session = await client.get("/dashboard/session/s8", params={"app_id": LONG_APP})
+    assert "Long Evt" in session.text
+    assert "/dashboard/user/" not in session.text
+    profile = await client.get("/dashboard/user/u8", params={"app_id": LONG_APP})
+    assert profile.status_code == 200
+    assert "/dashboard/session/" not in profile.text
+    assert "s8" in profile.text
+
+
+async def test_a_newline_ending_id_opens_its_own_row_not_the_trimmed_one(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    await db.execute(
+        insert(Event),
+        [
+            _row("test_app", "victim_evt", user_id="victim", session_id="victim"),
+            _row("test_app", "nl_evt", user_id="victim\n", session_id="victim\n"),
+            _row("test_app", "blank_evt", user_id="\n", session_id="\n"),
+            _row("test_app", "inner_evt", user_id="a\nb", session_id="a\nb"),
+        ],
+    )
+    await db.flush()
+    await _login(client, "198.51.100.151")
+    page = await client.get("/dashboard/events/content?hours=24")
+    links = [
+        html.unescape(link)
+        for link in re.findall(r'hx-get="([^"]+)"', page.text)
+        if link.startswith(("/dashboard/user/", "/dashboard/session/"))
+    ]
+    assert "/dashboard/session/victim%0A?app_id=test_app" in links
+    for link in links:
+        assert (await client.get(link)).status_code == 200, link
+    session = await client.get("/dashboard/session/victim%0A?app_id=test_app")
+    assert "Nl Evt" in session.text
+    assert "Victim Evt" not in session.text
+    blank = await client.get("/dashboard/session/%0A?app_id=test_app")
+    assert "Blank Evt" in blank.text
+    profile = await client.get("/dashboard/user/victim%0A?app_id=test_app")
+    assert "/dashboard/session/victim%0A?app_id=test_app" in profile.text
+    assert "/dashboard/session/victim?app_id=test_app" not in profile.text
+
+
+async def test_an_unlinkable_id_is_printed_not_dashed(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    await db.execute(
+        insert(Event),
+        [_row("test_app", "dots_evt", user_id="..", session_id="s1")],
+    )
+    await db.flush()
+    await _login(client, "198.51.100.152")
+    page = await client.get("/dashboard/events/content?hours=24")
+    assert re.search(r">\s*\.\.\s*<", page.text)
+
+
+async def test_a_no_app_profile_is_labelled_and_tells_apps_apart_per_device_and_error(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    device = {
+        "device_id": "dev-shared",
+        "device_model": "iPhone16",
+        "os_version": "18",
+        "app_version": "1.0",
+        "platform": "ios",
+    }
+    await db.execute(
+        insert(Event),
+        [
+            _row("test_app", "e", user_id="um", session_id="s", **device)
+            for _ in range(3)
+        ]
+        + [
+            _row("other_app", "e", user_id="um", session_id="s", **device)
+            for _ in range(4)
+        ]
+        + [_row("other_app", "error_occurred", user_id="um", session_id="s")],
+    )
+    await db.flush()
+    await _login(client, "198.51.100.153")
+    text = (await client.get("/dashboard/user/um")).text
+    flat = " ".join(re.sub(r"<[^>]+>", " ", text).split())
+    assert "All apps" in flat
+    assert "7 events" not in flat
+    assert "3 events" in flat
+    assert "4 events" in flat
+    assert "Errors (1 of 1)" in flat
+    assert "other_app" in flat
+    scoped = " ".join(
+        re.sub(
+            r"<[^>]+>",
+            " ",
+            (await client.get("/dashboard/user/um?app_id=test_app")).text,
+        ).split()
+    )
+    assert "All apps" not in scoped
 
 
 async def test_panel_links_carry_the_row_apps_id(

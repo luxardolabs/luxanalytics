@@ -906,6 +906,7 @@ class AnalyticsCoreService:
             for d in devices:
                 device_list.append(
                     {
+                        "app_id": d.app_id,
                         "device_id": d.device_id[:12] + "..."
                         if d.device_id
                         else "Unknown",
