@@ -83,6 +83,19 @@ class RedisOutage:
 redis_outage = RedisOutage()
 
 
+# Takes back what _SLIDING_WINDOW added for one admission: KEYS are the same keys, ARGV the member
+# then each key's cost; removes member:1 .. member:cost from each. Members already expired are
+# simply absent.
+_REFUND = """
+for i, key in ipairs(KEYS) do
+    for j = 1, tonumber(ARGV[i + 1]) do
+        redis.call('ZREM', key, ARGV[1] .. ':' .. j)
+    end
+end
+return 1
+"""
+
+
 def _rate_limit_requests() -> int:
     return settings.RATE_LIMIT_REQUESTS
 
@@ -153,7 +166,7 @@ class RateLimiter:
             Tuple of (is_allowed, metadata)
             metadata contains: remaining, reset_time, retry_after
         """
-        refused, metadata = await admit([Budget(self, identifier, cost)])
+        refused, metadata, _spent = await admit([Budget(self, identifier, cost)])
         return refused is None, metadata
 
     def _memory_entries(
@@ -170,6 +183,12 @@ class RateLimiter:
         self._memory_storage[identifier] = entries
         return entries
 
+    def _memory_refund(self, identifier: str, when: datetime, cost: int) -> None:
+        """Remove the entry an admission added at `when`, if it is still held."""
+        entries = self._memory_storage.get(identifier)
+        if entries is not None and (when, cost) in entries:
+            entries.remove((when, cost))
+
 
 @dataclass(frozen=True)
 class Budget:
@@ -178,6 +197,17 @@ class Budget:
     limiter: RateLimiter
     identifier: str
     cost: int
+
+
+@dataclass(frozen=True)
+class Spent:
+    """What one admission spent, so `refund` can give it back: in Redis, the unique member prefix
+    its entries carry; in memory, the time they were added at. Neither is set when nothing was
+    spent (a refused admission)."""
+
+    budgets: Sequence[Budget]
+    redis_member: str | None = None
+    memory_at: datetime | None = None
 
 
 def _allowed(count: int, budget: Budget, now: float) -> dict[str, Any]:
@@ -206,11 +236,14 @@ def _refused(ready_at: float | None, budget: Budget, now: float) -> dict[str, An
     }
 
 
-async def admit(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
-    """Spend every budget, or none: (None, the first budget's metadata) when each has room, else
-    (the index of the budget without room that is last to have it again, its metadata) and
-    nothing is spent. Redis being unreachable falls back to each limiter's in-memory window; the
-    outage's traceback is logged by its first failed check, and its end by the first check after."""
+async def admit(
+    budgets: Sequence[Budget],
+) -> tuple[int | None, dict[str, Any], Spent]:
+    """Spend every budget, or none: (None, the first budget's metadata, what was spent) when each
+    has room, else (the index of the budget without room that is last to have it again, its
+    metadata, a Spent of nothing) and nothing is spent. Redis being unreachable falls back to each
+    limiter's in-memory window; the outage's traceback is logged by its first failed check, and
+    its end by the first check after."""
     redis_client = await get_redis_client()
     if redis_client:
         try:
@@ -232,11 +265,37 @@ async def admit(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
     return _admit_memory(budgets)
 
 
+async def refund(spent: Spent) -> None:
+    """Give back what an admission spent, for a request that then failed to do its work. A refund
+    that cannot reach Redis is dropped with a warning: the entries leave the window on their own."""
+    if spent.redis_member is not None:
+        redis_client = await get_redis_client()
+        if redis_client:
+            try:
+                await redis_client.eval(
+                    _REFUND,
+                    len(spent.budgets),
+                    *(f"{b.limiter.key_prefix}:{b.identifier}" for b in spent.budgets),
+                    spent.redis_member,
+                    *(b.cost for b in spent.budgets),
+                )
+            except RedisError, OSError:
+                # swallowed-exceptions: handled, not dropped: the failed request's own error is
+                # the one the caller needs, and the unrefunded entries expire with their window.
+                logger.warning("Redis rate limit refund failed")
+    if spent.memory_at is not None:
+        for budget in spent.budgets:
+            budget.limiter._memory_refund(
+                budget.identifier, spent.memory_at, budget.cost
+            )
+
+
 async def _admit_redis(
     redis_client: redis.Redis, budgets: Sequence[Budget]
-) -> tuple[int | None, dict[str, Any]]:
+) -> tuple[int | None, dict[str, Any], Spent]:
     now = time.time()
-    args: list[Any] = [repr(now), uuid.uuid4().hex]
+    member = uuid.uuid4().hex
+    args: list[Any] = [repr(now), member]
     for budget in budgets:
         args += [
             budget.limiter.window_seconds,
@@ -250,12 +309,16 @@ async def _admit_redis(
         *args,
     )
     if int(allowed):
-        return None, _allowed(int(count), budgets[0], now)
+        spent = Spent(budgets, redis_member=member)
+        return None, _allowed(int(count), budgets[0], now), spent
     index = int(refused_key) - 1
-    return index, _refused(float(ready) if ready else None, budgets[index], now)
+    refused = _refused(float(ready) if ready else None, budgets[index], now)
+    return index, refused, Spent(budgets)
 
 
-def _admit_memory(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]]:
+def _admit_memory(
+    budgets: Sequence[Budget],
+) -> tuple[int | None, dict[str, Any], Spent]:
     now = datetime.now(UTC)
     held = []
     # The refused budget last to have room again: (index, when; None for never)
@@ -282,11 +345,19 @@ def _admit_memory(budgets: Sequence[Budget]) -> tuple[int | None, dict[str, Any]
         held.append((entries, count))
     if refused is not None:
         index, ready_at = refused
-        return index, _refused(ready_at, budgets[index], now.timestamp())
+        return (
+            index,
+            _refused(ready_at, budgets[index], now.timestamp()),
+            Spent(budgets),
+        )
     for budget, (entries, _count) in zip(budgets, held, strict=True):
         entries.append((now, budget.cost))
     first_count = held[0][1] + budgets[0].cost
-    return None, _allowed(first_count, budgets[0], now.timestamp())
+    return (
+        None,
+        _allowed(first_count, budgets[0], now.timestamp()),
+        Spent(budgets, memory_at=now),
+    )
 
 
 # Per-app budgets that differ from RATE_LIMIT_*: app_id -> (requests, window seconds). Empty:
@@ -448,7 +519,7 @@ def _device_identifier(app_id: str, device_id: str | None) -> str:
 
 async def enforce_ingest_limits(
     app_id: str, client_ip: str, events_per_device: Mapping[str | None, int]
-) -> None:
+) -> Spent:
     """The ingest limits, for a batch that authenticated (HMAC or DSN) and parsed, counted in
     events and spent all or nothing: the batch against its client address's budget, each device's
     events against that device's, and the batch against the app's ceiling.
@@ -458,7 +529,8 @@ async def enforce_ingest_limits(
     device is refused without costing the app's other devices. Device ids are client-chosen, so
     the address limit bounds what one client can send under any number of them, and the app
     ceiling, set above several addresses' worth, bounds a flood spread over many. Events with no
-    device_id share one budget per app. A refused batch spends nothing."""
+    device_id share one budget per app. A refused batch spends nothing. Returns what the batch
+    spent: `refund` gives it back when the batch then fails to store."""
     total = sum(events_per_device.values())
     budgets = [
         Budget(_ip_event_limiter, _address_identifier(client_ip), total),
@@ -468,9 +540,9 @@ async def enforce_ingest_limits(
         ),
         Budget(_app_event_ceiling, app_id, total),
     ]
-    refused, metadata = await admit(budgets)
+    refused, metadata, spent = await admit(budgets)
     if refused is None:
-        return
+        return spent
     limiter = budgets[refused].limiter
     if limiter is _ip_event_limiter:
         error = "Rate limit exceeded"

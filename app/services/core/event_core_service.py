@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import MAX_BATCH_EVENTS
 from app.core.constants import DEVICE_CONTEXT_KEYS
-from app.core.rate_limiter import enforce_ingest_limits
-from app.core.tracing import create_service_span
+from app.core.rate_limiter import enforce_ingest_limits, refund
+from app.core.tracing import create_service_span, record_exception_in_span
 from app.crud.device_crud import device_crud
 from app.crud.event_crud import EventWriteCRUD, event_crud
 from app.models.event_model import Event
@@ -90,10 +90,12 @@ class EventCoreService:
     ) -> IngestResult:
         """Validate a decoded ingest payload, hold it to the ingest limits and store its events
         (see events_from_payload). AppRateLimitExceeded when the client address, a device or the
-        app is over its limit."""
+        app is over its limit; the limits are given back when the events fail to store."""
         with create_service_span("EventCoreService", "ingest", app_id=app_id):
             events = events_from_payload(payload)
-            await enforce_ingest_limits(app_id, client_ip, _events_per_device(events))
+            spent = await enforce_ingest_limits(
+                app_id, client_ip, _events_per_device(events)
+            )
             logger.debug(
                 "Analytics payload received",
                 extra={
@@ -102,7 +104,14 @@ class EventCoreService:
                     "event_names": [e.name for e in events],
                 },
             )
-            created = await self.create_events(app_id, events)
+            try:
+                created = await self.create_events(app_id, events)
+            except Exception as e:
+                record_exception_in_span(e)
+                # A batch that is not stored costs its senders nothing: their retry is not refused
+                # for what this attempt spent.
+                await refund(spent)
+                raise
             logger.info(
                 "Analytics events processed",
                 extra={
