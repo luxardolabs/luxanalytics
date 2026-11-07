@@ -121,12 +121,16 @@ class DashboardViewService:
         return {
             "event": event,
             "user_url": self._path(
-                "dashboard.users.profile_panel", user_id=event.user_id
+                "dashboard.users.profile_panel",
+                {"app_id": event.app_id},
+                user_id=event.user_id,
             )
             if event.user_id
             else None,
             "session_url": self._path(
-                "dashboard.sessions.detail_panel", session_id=event.session_id
+                "dashboard.sessions.detail_panel",
+                {"app_id": event.app_id},
+                session_id=event.session_id,
             )
             if event.session_id
             else None,
@@ -553,16 +557,21 @@ class DashboardViewService:
 
     # ── Slider panels ────────────────────────────────────────────────────
 
-    async def user_profile_context(self, user_id: str) -> Context:
+    async def user_profile_context(self, user_id: str, app_id: str | None) -> Context:
         with create_service_span(
-            "DashboardViewService", "user_profile_context", user_id=user_id
+            "DashboardViewService",
+            "user_profile_context",
+            user_id=user_id,
+            app_id=app_id,
         ):
-            profile = await self._core.get_user_profile(user_id)
+            profile = await self._core.get_user_profile(user_id, app_id)
             sessions = [
                 {
                     **s,
                     "url": self._path(
-                        "dashboard.sessions.detail_panel", session_id=s["session_id"]
+                        "dashboard.sessions.detail_panel",
+                        {"app_id": app_id},
+                        session_id=s["session_id"],
                     ),
                     "types_shown": s["event_types"][:SESSION_TYPES_SHOWN],
                     "types_more": max(0, len(s["event_types"]) - SESSION_TYPES_SHOWN),
@@ -571,16 +580,23 @@ class DashboardViewService:
             ]
             return {**profile, "sessions": sessions}
 
-    async def session_detail_context(self, session_id: str) -> Context:
+    async def session_detail_context(
+        self, session_id: str, app_id: str | None
+    ) -> Context:
         """A session with no events renders the panel's empty state, not a stats grid of
         values the core never computed (it returns only the id for an empty session)."""
         with create_service_span(
-            "DashboardViewService", "session_detail_context", session_id=session_id
+            "DashboardViewService",
+            "session_detail_context",
+            session_id=session_id,
+            app_id=app_id,
         ):
-            detail = await self._core.get_session_detail(session_id)
+            detail = await self._core.get_session_detail(session_id, app_id)
             user_id = detail.get("user_id")
             user_url = (
-                self._path("dashboard.users.profile_panel", user_id=user_id)
+                self._path(
+                    "dashboard.users.profile_panel", {"app_id": app_id}, user_id=user_id
+                )
                 if user_id
                 else None
             )

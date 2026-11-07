@@ -399,11 +399,15 @@ class EventCRUD:
     # ── User / Session queries ─────────────────────────────────────────
 
     async def get_events_by_session(
-        self, db: AsyncSession, session_id: str, limit: int = 200
+        self,
+        db: AsyncSession,
+        session_id: str,
+        app_id: str | None = None,
+        limit: int = 200,
     ) -> list[Event]:
         query = (
             select(Event)
-            .where(Event.session_id == session_id)
+            .where(Event.session_id == session_id, *self.app_conditions(app_id))
             .order_by(Event.received_at)
             .limit(limit)
         )
@@ -411,7 +415,7 @@ class EventCRUD:
         return list(result.scalars().all())
 
     async def get_session_span(
-        self, db: AsyncSession, session_id: str
+        self, db: AsyncSession, session_id: str, app_id: str | None = None
     ) -> Row[int, datetime | None, datetime | None]:
         """(event count, first received_at, last received_at) over the WHOLE session, which the
         capped event list cannot give."""
@@ -419,11 +423,11 @@ class EventCRUD:
             func.count(Event.id),
             func.min(Event.received_at),
             func.max(Event.received_at),
-        ).where(Event.session_id == session_id)
+        ).where(Event.session_id == session_id, *self.app_conditions(app_id))
         return (await db.execute(query)).one()
 
     async def get_user_sessions(
-        self, db: AsyncSession, user_id: str, limit: int
+        self, db: AsyncSession, user_id: str, limit: int, app_id: str | None = None
     ) -> list[Row[str | None, int, datetime, datetime, Sequence[Any]]]:
         """The user's `limit` most recent sessions, with first/last event and event count."""
         query = (
@@ -434,7 +438,11 @@ class EventCRUD:
                 func.max(Event.received_at).label("last_event"),
                 func.array_agg(func.distinct(Event.name)).label("event_types"),
             )
-            .where(Event.user_id == user_id, Event.session_id.isnot(None))
+            .where(
+                Event.user_id == user_id,
+                Event.session_id.isnot(None),
+                *self.app_conditions(app_id),
+            )
             .group_by(Event.session_id)
             .order_by(desc(func.max(Event.received_at)))
             .limit(limit)
@@ -443,7 +451,7 @@ class EventCRUD:
         return list(result.all())
 
     async def get_user_devices(
-        self, db: AsyncSession, user_id: str
+        self, db: AsyncSession, user_id: str, app_id: str | None = None
     ) -> list[
         Row[str | None, str | None, str | None, str | None, str | None, int, datetime]
     ]:
@@ -458,7 +466,11 @@ class EventCRUD:
                 func.count(Event.id).label("event_count"),
                 func.max(Event.received_at).label("last_seen"),
             )
-            .where(Event.user_id == user_id, Event.device_id.isnot(None))
+            .where(
+                Event.user_id == user_id,
+                Event.device_id.isnot(None),
+                *self.app_conditions(app_id),
+            )
             .group_by(
                 Event.device_id,
                 Event.device_model,
@@ -471,7 +483,9 @@ class EventCRUD:
         result = await db.execute(query)
         return list(result.all())
 
-    async def get_user_summary(self, db: AsyncSession, user_id: str) -> dict[str, Any]:
+    async def get_user_summary(
+        self, db: AsyncSession, user_id: str, app_id: str | None = None
+    ) -> dict[str, Any]:
         """Aggregate stats for a single user."""
         query = select(
             func.count(Event.id).label("total_events"),
@@ -480,7 +494,7 @@ class EventCRUD:
             func.count(func.distinct(Event.name)).label("event_types"),
             func.min(Event.received_at).label("first_seen"),
             func.max(Event.received_at).label("last_seen"),
-        ).where(Event.user_id == user_id)
+        ).where(Event.user_id == user_id, *self.app_conditions(app_id))
         result = (await db.execute(query)).one()
         return {
             "total_events": result.total_events,
@@ -734,6 +748,11 @@ class EventCRUD:
         )
         result = await db.execute(query)
         return list(result.scalars().all())
+
+    @staticmethod
+    def app_conditions(app_id: str | None) -> Conditions:
+        """The app_id filter alone: no app means every app."""
+        return [Event.app_id == app_id] if app_id else []
 
     @staticmethod
     def time_conditions(

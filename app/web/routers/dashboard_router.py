@@ -381,9 +381,12 @@ async def user_profile_panel(
     request: Request,
     user_id: PathText,
     db: AsyncSession = Depends(get_db, scope="function"),
+    app_id: str | None = Depends(selected_app_id),
 ) -> Response:
     """User profile slider panel."""
-    context = await DashboardViewService(db, request).user_profile_context(user_id)
+    context = await DashboardViewService(db, request).user_profile_context(
+        user_id, app_id
+    )
     return templates.TemplateResponse(
         request, "partials/dashboard/user_profile_panel.html", context
     )
@@ -398,9 +401,12 @@ async def session_detail_panel(
     request: Request,
     session_id: PathText,
     db: AsyncSession = Depends(get_db, scope="function"),
+    app_id: str | None = Depends(selected_app_id),
 ) -> Response:
     """Session detail slider panel."""
-    context = await DashboardViewService(db, request).session_detail_context(session_id)
+    context = await DashboardViewService(db, request).session_detail_context(
+        session_id, app_id
+    )
     return templates.TemplateResponse(
         request, "partials/dashboard/session_detail_panel.html", context
     )

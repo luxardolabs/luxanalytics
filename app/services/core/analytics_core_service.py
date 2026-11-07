@@ -856,16 +856,18 @@ class AnalyticsCoreService:
 
     # ── User Profile ──────────────────────────────────────────────────────
 
-    async def get_user_profile(self, user_id: str) -> dict[str, Any]:
+    async def get_user_profile(
+        self, user_id: str, app_id: str | None = None
+    ) -> dict[str, Any]:
         with create_service_span(
-            "AnalyticsCoreService", "get_user_profile", user_id=user_id
+            "AnalyticsCoreService", "get_user_profile", user_id=user_id, app_id=app_id
         ):
-            summary = await event_crud.get_user_summary(self.db, user_id)
+            summary = await event_crud.get_user_summary(self.db, user_id, app_id)
             sessions = await event_crud.get_user_sessions(
-                self.db, user_id, limit=PROFILE_SESSIONS_SHOWN
+                self.db, user_id, limit=PROFILE_SESSIONS_SHOWN, app_id=app_id
             )
-            devices = await event_crud.get_user_devices(self.db, user_id)
-            by_user = [Event.user_id == user_id]
+            devices = await event_crud.get_user_devices(self.db, user_id, app_id)
+            by_user = [Event.user_id == user_id, *event_crud.app_conditions(app_id)]
             errors = await event_crud.get_by_names(
                 self.db, ERROR_EVENT_NAMES, by_user, limit=PROFILE_ERRORS_SHOWN
             )
@@ -927,14 +929,19 @@ class AnalyticsCoreService:
 
     # ── Session Detail ────────────────────────────────────────────────────
 
-    async def get_session_detail(self, session_id: str) -> dict[str, Any]:
+    async def get_session_detail(
+        self, session_id: str, app_id: str | None = None
+    ) -> dict[str, Any]:
         with create_service_span(
-            "AnalyticsCoreService", "get_session_detail", session_id=session_id
+            "AnalyticsCoreService",
+            "get_session_detail",
+            session_id=session_id,
+            app_id=app_id,
         ):
             events = [
                 EventInDB.model_validate(e)
                 for e in await event_crud.get_events_by_session(
-                    self.db, session_id, limit=SESSION_EVENTS_SHOWN
+                    self.db, session_id, app_id, limit=SESSION_EVENTS_SHOWN
                 )
             ]
             if not events:
@@ -942,7 +949,7 @@ class AnalyticsCoreService:
 
             # The list is capped; the count and the span are the whole session's, from SQL
             total_events, started, ended = await event_crud.get_session_span(
-                self.db, session_id
+                self.db, session_id, app_id
             )
             first = events[0]
             first_event = started or first.received_at
