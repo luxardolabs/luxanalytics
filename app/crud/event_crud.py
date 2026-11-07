@@ -132,16 +132,24 @@ class EventCRUD:
         query_str: str,
         search_type: str = "event_name",
         limit: int = 50,
+        app_id: str | None = None,
+        hours: int = 0,
     ) -> list[Event]:
+        """Events matching the text, newest first, within the app and time window of
+        `time_conditions` (no app: every app; hours=0: all time)."""
         if search_type == "user_id":
-            q = select(Event).where(Event.user_id.icontains(query_str, autoescape=True))
+            match = Event.user_id.icontains(query_str, autoescape=True)
         elif search_type == "metadata":
-            q = select(Event).where(
-                Event.properties.astext.icontains(query_str, autoescape=True)
-            )
+            match = Event.properties.astext.icontains(query_str, autoescape=True)
         else:
-            q = select(Event).where(Event.name.icontains(query_str, autoescape=True))
-        q = q.order_by(desc(Event.received_at)).limit(limit)
+            match = Event.name.icontains(query_str, autoescape=True)
+        conditions = self.time_conditions(hours, app_id)
+        q = (
+            select(Event)
+            .where(and_(true(), *conditions), match)
+            .order_by(desc(Event.received_at))
+            .limit(limit)
+        )
         result = await db.execute(q)
         return list(result.scalars().all())
 

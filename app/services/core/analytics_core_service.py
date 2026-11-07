@@ -82,10 +82,20 @@ class AnalyticsCoreService:
             return [EventInDB.model_validate(e) for e in events], total
 
     async def search_events(
-        self, query: str, search_type: str = "event_name", limit: int = 50
+        self,
+        query: str,
+        search_type: str = "event_name",
+        limit: int = 50,
+        app_id: str | None = None,
+        hours: int = 0,
     ) -> list[EventInDB]:
-        with create_service_span("AnalyticsCoreService", "search_events"):
-            events = await event_crud.search(self.db, query, search_type, limit)
+        """Events matching the text, within the app and time window (hours=0: all time)."""
+        with create_service_span(
+            "AnalyticsCoreService", "search_events", app_id=app_id
+        ):
+            events = await event_crud.search(
+                self.db, query, search_type, limit, app_id=app_id, hours=hours
+            )
             return [EventInDB.model_validate(e) for e in events]
 
     # ── Overview Stats ────────────────────────────────────────────────────

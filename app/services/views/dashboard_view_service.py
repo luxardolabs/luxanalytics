@@ -284,7 +284,11 @@ class DashboardViewService:
         ):
             if search_q:
                 events = await self._core.search_events(
-                    query=search_q, search_type="event_name", limit=SEARCH_LIMIT
+                    query=search_q,
+                    search_type="event_name",
+                    limit=SEARCH_LIMIT,
+                    app_id=app_id,
+                    hours=hours,
                 )
                 pagination = build_pagination(
                     page=1, total=len(events), per_page=SEARCH_LIMIT
