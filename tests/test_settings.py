@@ -592,3 +592,99 @@ def test_a_traces_endpoint_is_the_full_url_and_may_name_the_traces_path() -> Non
             OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=url
         ).OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
     )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://otel_collector:4318",
+        "http://luxanalytics_otel:4318",
+        "http://collector.internal.:4318",
+        "http://otel-collector:4318",
+        "http://127.0.0.1:4318",
+        "http://[::1]:4318",
+        "https://Collector.Example.COM",
+    ],
+)
+def test_a_resolvable_collector_host_starts(url: str) -> None:
+    assert url == _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url).OTEL_EXPORTER_OTLP_ENDPOINT
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://[:]:4318",
+        "http://[::::]:4318",
+        "http://[1.2.3.4]:4318",
+        "http://a..b:4318",
+        "http://.a:4318",
+        "http://a.-b:4318",
+        "http://[::1",
+    ],
+)
+def test_a_collector_host_no_exporter_can_parse_is_refused(url: str) -> None:
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_ENDPOINT"):
+        _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url)
+
+
+@pytest.mark.parametrize(
+    "url", ["http://collector:4318", "http://collector:4318/", "http://collector"]
+)
+def test_a_traces_endpoint_without_a_path_is_refused(url: str) -> None:
+    """The exporter uses it verbatim and would post to `/`."""
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+        _settings(OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=url)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/V1/TRACES",
+        "/v1/traces/.",
+        "/v1/traces/",
+        "/x/../v1/traces",
+        "/v1/%74races",
+        "/v1/./traces",
+    ],
+)
+def test_a_base_endpoint_naming_the_traces_path_is_refused_in_any_spelling(
+    path: str,
+) -> None:
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_ENDPOINT"):
+        _settings(OTEL_EXPORTER_OTLP_ENDPOINT=f"http://collector:4318{path}")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "api-key:tail-secret",
+        "authorization",
+        "=tail-secret",
+        "x-api-key=",
+        "a b=tail-secret",
+        "x-api-key=tail-secret,broken",
+        "x-api-key=tail\nsecret",
+    ],
+)
+def test_a_malformed_otlp_headers_value_is_refused_without_printing_it(
+    value: str,
+) -> None:
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_HEADERS") as refused:
+        _settings(OTEL_EXPORTER_OTLP_HEADERS=value)
+
+    assert "tail-secret" not in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "authorization=Bearer abc.def-123",
+        "x-api-key=k3y",
+        "x-api-key=k3y,x-team=analytics",
+        "authorization=Basic%20dTpw",
+    ],
+)
+def test_an_otlp_headers_value_in_the_standard_form_starts(value: str) -> None:
+    assert (
+        value == _settings(OTEL_EXPORTER_OTLP_HEADERS=value).OTEL_EXPORTER_OTLP_HEADERS
+    )

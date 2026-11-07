@@ -1,4 +1,6 @@
+import ipaddress
 import math
+import posixpath
 import re
 import string
 import unicodedata
@@ -6,7 +8,7 @@ from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import parse_qsl, unquote, urlparse, urlsplit
 
 from pydantic import (
     ConfigDict,
@@ -46,15 +48,45 @@ def _visible(text: str) -> str:
         if c in string.whitespace
         or (unicodedata.category(c) not in _INVISIBLE_CATEGORIES and c not in _FILLERS)
     )
-# A collector URL: scheme, a hostname or bracketed IPv6 address, an optional port, a path of plain
-# characters. No `@`, `?`, `#`, backslash, space or control character can appear anywhere in it.
+
+
+# A collector URL: scheme, a hostname (dot-separated labels of letters, digits, `_` and `-`, as a
+# container or service name is, with an optional root dot) or a bracketed IPv6 address, an optional
+# port, a path of plain characters. No `@`, `?`, `#`, backslash, space or control character can
+# appear anywhere in it.
+_HOST_LABEL = r"[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?"
 _COLLECTOR_URL = re.compile(
-    r"https?://(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:.]+\])"
+    rf"https?://(?P<host>{_HOST_LABEL}(?:\.{_HOST_LABEL})*\.?|\[[0-9A-Fa-f:.]+\])"
     r"(?::(?P<port>[0-9]{1,5}))?"
     r"(?P<path>(?:/[A-Za-z0-9._~%!$&'()*+,;=:-]*)*)",
     re.IGNORECASE,
 )
+# One `name=value` pair of OTEL_EXPORTER_OTLP_HEADERS: an HTTP token name, a printable value.
+_HEADER_NAME = re.compile(r"[A-Za-z0-9!#$%&'*+.^_`|~-]+")
+_HEADER_VALUE = re.compile(r"[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?")
 _MAX_PORT = 65535
+
+
+def _readable_collector_url(url: str, *, base: bool) -> bool:
+    """Whether an OTLP exporter can use `url`. A base endpoint is not the traces path (the exporter
+    appends it, in any spelling); the traces endpoint is the full URL and names a path."""
+    match = _COLLECTOR_URL.fullmatch(url)
+    if match is None or int(match["port"] or 0) > _MAX_PORT:
+        return False
+    host = match["host"]
+    if host.startswith("["):
+        try:
+            ipaddress.IPv6Address(host[1:-1])
+        except ValueError:
+            return False
+    try:
+        _ = urlsplit(url).port
+    except ValueError:
+        return False
+    path = match["path"]
+    if base:
+        return not posixpath.normpath(unquote(path).lower()).endswith("/v1/traces")
+    return bool(path.strip("/"))
 
 
 def _blank(secret: str) -> bool:
@@ -223,6 +255,7 @@ class Settings(BaseSettings):
     # OpenTelemetry
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: str | None = None
+    OTEL_EXPORTER_OTLP_HEADERS: str | None = None
     OTEL_SERVICE_NAME: str = "luxanalytics"
 
     @property
@@ -291,14 +324,8 @@ class Settings(BaseSettings):
         which the exporter appends; OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is the full URL."""
         if not v:
             return v
-        match = _COLLECTOR_URL.fullmatch(v)
-        refused = (
-            match is None
-            or int(match["port"] or 0) > _MAX_PORT
-            or (
-                info.field_name == "OTEL_EXPORTER_OTLP_ENDPOINT"
-                and match["path"].rstrip("/").endswith("/v1/traces")
-            )
+        refused = not _readable_collector_url(
+            v, base=info.field_name == "OTEL_EXPORTER_OTLP_ENDPOINT"
         )
         if refused:
             raise ValueError(
@@ -311,6 +338,25 @@ class Settings(BaseSettings):
                     else ""
                 )
             )
+        return v
+
+    @field_validator("OTEL_EXPORTER_OTLP_HEADERS")
+    @classmethod
+    def otlp_headers_are_name_value_pairs(cls, v: str | None) -> str | None:
+        """`name=value` pairs, comma-separated. The SDK logs a malformed value raw at WARNING, and
+        the value is a credential; refused here, the log names only the setting."""
+        if not v:
+            return v
+        for pair in v.split(","):
+            name, equals, value = pair.partition("=")
+            if not (
+                equals
+                and _HEADER_NAME.fullmatch(name.strip())
+                and _HEADER_VALUE.fullmatch(value.strip())
+            ):
+                raise ValueError(
+                    "OTEL_EXPORTER_OTLP_HEADERS must be comma-separated name=value pairs"
+                )
         return v
 
     @field_validator("DATABASE_URL")

@@ -70,3 +70,15 @@ def test_the_traces_endpoint_in_settings_reaches_the_otel_environment(
         os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]
         == "http://collector:4318/v1/traces"
     )
+
+
+def test_the_headers_in_settings_reach_the_otel_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", "placeholder=1")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_HEADERS")
+    monkeypatch.setattr(settings, "OTEL_EXPORTER_OTLP_HEADERS", "x-api-key=k3y")
+
+    export_otel_settings()
+
+    assert os.environ["OTEL_EXPORTER_OTLP_HEADERS"] == "x-api-key=k3y"

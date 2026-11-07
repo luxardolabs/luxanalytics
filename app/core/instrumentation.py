@@ -76,9 +76,18 @@ class _NoCallerContext(TextMapPropagator):
         return set()
 
 
+# Captured headers (OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_*) carry cookies, tokens, the agent
+# and the forwarded address under keys of this shape.
+CAPTURED_HEADER_PREFIXES = ("http.request.header.", "http.response.header.")
+
+
 def drop_personal_attributes(fields: dict[str, object]) -> dict[str, object]:
-    """`fields` without the end user's id and the caller's address and agent."""
-    return {k: v for k, v in fields.items() if k not in PERSONAL_ATTRIBUTES}
+    """`fields` without the end user's id, the caller's address and agent, and any captured header."""
+    return {
+        k: v
+        for k, v in fields.items()
+        if k not in PERSONAL_ATTRIBUTES and not k.startswith(CAPTURED_HEADER_PREFIXES)
+    }
 
 
 def configure_app_tracing(
@@ -105,7 +114,11 @@ def configure_app_tracing(
 def export_otel_settings() -> None:
     """Hand the endpoints Settings holds (a `.env` file included) to the OTEL environment, which
     the tracing module and the exporter read. An endpoint already in the environment wins."""
-    for name in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+    for name in (
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_HEADERS",
+    ):
         value: str | None = getattr(settings, name)
         if value:
             os.environ.setdefault(name, value)

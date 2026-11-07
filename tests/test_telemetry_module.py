@@ -7,6 +7,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import SpanKind, StatusCode
 
 from app.core.config import settings
+from app.core.instrumentation import drop_personal_attributes
 from app.core.telemetry import (
     RedactingSpanExporter,
     add_event_to_span,
@@ -236,3 +237,35 @@ def test_flushing_and_shutting_down_reach_the_wrapped_exporter() -> None:
 
     assert exporter.force_flush()
     exporter.shutdown()
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "http.request.header.cookie",
+        "http.request.header.x_forwarded_for",
+        "http.request.header.user_agent",
+        "http.request.header.authorization",
+        "http.response.header.set_cookie",
+    ],
+)
+def test_a_captured_header_is_not_exported(key: str) -> None:
+    kept = drop_personal_attributes({key: ("secret",), "app_id": "demo"})
+
+    assert kept == {"app_id": "demo"}
+
+
+def test_a_captured_cookie_does_not_reach_the_exporter() -> None:
+    seen = InMemorySpanExporter()
+    span = ReadableSpan(
+        name="GET /login",
+        attributes={
+            "http.user_agent": "agent",
+            "http.request.header.cookie": ("analytics_session=secret",),
+            "app_id": "demo",
+        },
+    )
+
+    RedactingSpanExporter(seen, drop_personal_attributes).export([span])
+
+    assert _only(seen).attributes == {"app_id": "demo"}
