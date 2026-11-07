@@ -3,16 +3,18 @@
 `{app_id:appid}` takes everything between the routes' fixed parts, slashes included, because an
 app_id can hold a "/". Starlette's own `path` convertor matches `.*`, which stops at a newline
 (and `$` then accepts a trailing one), so an id ending in a newline would reach the route cut short
-and act on another app: this one matches every character. It does not match an id ending in "/":
-`/apps/list/` then falls through to the slash redirect to `/apps/list` instead of being a 405 from
-the PUT/DELETE route, and no app can be created with such an id.
+and act on another app: this one matches every character.
+
+It also matches an id that ends in "/". Were it to refuse one, the router would answer PUT
+`/apps/victim%2F` with a slash redirect (a 307, which repeats the method) to `/apps/victim`, and
+the update or delete would land on another app; matching it makes that request an unknown app id.
 """
 
 from starlette.convertors import Convertor, register_url_convertor
 
 
 class AppIdConvertor(Convertor[str]):
-    regex = r"(?:[\s\S]*[^/])?"
+    regex = r"[\s\S]*"
 
     def convert(self, value: str) -> str:
         return value

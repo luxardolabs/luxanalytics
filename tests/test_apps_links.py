@@ -174,13 +174,33 @@ async def test_the_panels_of_an_id_with_a_newline_inside_open(
 
 
 @pytest.mark.db
-@pytest.mark.parametrize("path", ["/apps/list/", "/apps/new/", "/apps/export/json/"])
-async def test_a_trailing_slash_on_a_fixed_route_redirects_to_it(
-    dashboard_client: AsyncClient, path: str
+@pytest.mark.parametrize(
+    "path", ["/apps/victim%2F", "/apps/victim%2F%2F", "/apps/vic%252Ftim/"]
+)
+@pytest.mark.parametrize("method", ["PUT", "DELETE"])
+async def test_an_unsafe_request_for_a_path_ending_in_a_slash_is_never_redirected(
+    dashboard_client: AsyncClient, db: AsyncSession, method: str, path: str
 ) -> None:
-    response = await dashboard_client.get(path, follow_redirects=False)
-    assert response.status_code in (301, 307, 308)
-    assert response.headers["location"].endswith(path.rstrip("/"))
+    # A redirect to the slash-less path would repeat the PUT or DELETE against another app.
+    victim, other = _app("victim"), _app("vic%2Ftim")
+    db.add_all([victim, other])
+    await db.flush()
+
+    response = await dashboard_client.request(
+        method, path, data={"name": "overwritten"}, follow_redirects=False
+    )
+    assert response.status_code not in (301, 302, 303, 307, 308)
+    assert "location" not in response.headers
+    await db.refresh(victim)
+    await db.refresh(other)
+    assert victim.name == "name of victim"
+    assert other.name == "name of vic%2Ftim"
+    remaining = (
+        await db.execute(
+            select(App.app_id).where(App.app_id.in_(["victim", "vic%2Ftim"]))
+        )
+    ).scalars()
+    assert sorted(remaining) == ["vic%2Ftim", "victim"]
 
 
 @pytest.mark.db
