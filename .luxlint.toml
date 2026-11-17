@@ -26,6 +26,6 @@ reason = "slowapi 0.1.10 Limiter.limit calls the deprecated asyncio.iscoroutinef
 
 # The coverage ratchet (luxlint --coverage-ratchet, run by the emitted `make test` block): the
 # measured BRANCH coverage of app/ may never drop below this floor. Raise it when coverage improves;
-# never lower it. 84% measured 2026-10-08 (175 tests, coverage.py --branch, COVERAGE_CORE=sysmon).
+# never lower it. 85% (85.41% measured 2026-11-16: 1253 tests, coverage.py --branch, COVERAGE_CORE=sysmon).
 [test]
-coverage_min = 84
+coverage_min = 85

@@ -23,7 +23,7 @@ make dev-deploy                     # build + push this commit, pin it in .env.d
 make migrate                        # alembic upgrade head
 ```
 
-The app listens on `http://localhost:4000`; the dashboard is `/dashboard/overview`.
+The dev stack runs on the fleet's dev host (`DEV_HOST` in the Makefile, an ssh alias) and is reached at its dev name, `https://dev-analytics.luxardolabs.com` (`SMOKE_URL`), through that host's edge; the dashboard is `/dashboard/overview`. The app itself listens on port 4000 inside the `luxardolabs` network, which the examples below call `localhost:4000`.
 
 ## Development
 
@@ -188,7 +188,7 @@ The values that matter in `.env.prod`:
 - `ENVIRONMENT=production`, `SECRET_KEY` (32+ characters), `DASHBOARD_PASSWORD` (12+ characters, not a default), `DASHBOARD_SESSION_SECRET` (required, 32+ characters), `EXTERNAL_URL=https://<your host>`. Startup refuses an unsafe production configuration and says which setting is wrong.
 - Leave the commented keys commented unless you change one: a blank value overrides the default.
 
-The database migrates itself at startup. The app listens on port 4000 inside the `luxardolabs` network (`luxanalytics_app:4000`) and publishes no port: put your proxy on that network and forward `Host` and `X-Forwarded-For`. Keep `/health` and `/metrics` off the public internet; `deploy/prod/analytics.luxardolabs.com.conf` is a working nginx example. Then sign in at `/dashboard/overview`, register an app under Apps, and give its DSN to the SDK ([docs/event-format.md](docs/event-format.md) is the wire format).
+The database migrates itself at startup. The app listens on port 4000 inside the `luxardolabs` network (`luxanalytics_app:4000`) and publishes no port: put your proxy on that network and forward `Host` and `X-Forwarded-For`. The app also joins `luxanalytics_front`, a network compose creates with the fixed subnet `172.28.44.0/24` (the dev proxy's, at fixed addresses): if `docker compose up` reports overlapping IPv4 subnets, a network on your host already holds that range (`docker network inspect $(docker network ls -q) --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'` names it). Keep `/health` and `/metrics` off the public internet; `deploy/prod/analytics.luxardolabs.com.conf` is a working nginx example. Then sign in at `/dashboard/overview`, register an app under Apps, and give its DSN to the SDK ([docs/event-format.md](docs/event-format.md) is the wire format).
 
 ## Production
 

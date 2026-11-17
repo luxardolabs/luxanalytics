@@ -1,18 +1,19 @@
 {
   "guard": "luxaudit",
-  "guard_version": "0.16.0",
+  "guard_version": "0.18.0",
   "repo": "/repo",
-  "packages": 149,
+  "packages": 146,
   "source": "poetry.lock, package-lock.json",
   "summary": {
-    "PASS": 149,
-    "FAIL": 10,
+    "PASS": 146,
+    "FAIL": 11,
     "XFAIL": 0
   },
   "vulnerable": [],
   "deferred": [],
   "banned": [],
   "not_audited": [],
+  "by_public_version": [],
   "warnings": [],
   "image": {
     "ref": "luxardolabs/luxanalytics:2026.10.2",
@@ -120,6 +121,16 @@
         "path": "",
         "image": "luxardolabs/luxanalytics:2026.10.2",
         "fix": "8.14.1-2+deb13u7"
+      },
+      {
+        "package": "zlib1g",
+        "installed": "1:1.3.dfsg+really1.3.1-1+b1",
+        "vuln_id": "CVE-2026-85091",
+        "severity": "HIGH",
+        "layer": "os",
+        "path": "",
+        "image": "luxardolabs/luxanalytics:2026.10.2",
+        "fix": "1:1.3.dfsg+really1.3.1-1+deb13u1"
       }
     ],
     "deferred": []
@@ -129,6 +140,6 @@
     "expired": [],
     "unjudged": []
   },
-  "commit": "0584a7242eface56275879c369c377652218c154",
-  "generated_at": "2026-11-06T19:05:25Z"
+  "commit": "bb2598cfa15f4dfbcb2f730a5a7d8266fa6b662f",
+  "generated_at": "2026-11-17T03:19:19Z"
 }

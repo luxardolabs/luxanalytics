@@ -46,7 +46,7 @@ from app.db.database import async_engine
 # Every model registered on Base.metadata before anything migrates or queries.
 from app.models import App, Device, Event  # noqa: F401
 from app.schemas.event_schema import INGEST_BODY_COMPONENTS
-from app.utils.exception_handlers import general_exception_handler
+from app.utils.exception_handlers import install_error_handlers
 from app.utils.validation_handlers import request_validation_handler
 from app.web.routers import router as web_router
 from app.web.templates import error_templates
@@ -145,9 +145,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except (RedisError, OSError) as e:
         # Shutdown proceeds either way; record that the close failed instead of hiding it.
         logger.warning("Redis close failed during shutdown", extra={"error": str(e)})
-    # Last, and off the loop: the flush waits on the collector, which can hang for longer than
-    # the orchestrator's stop timeout, and the connections above are closed by then.
-    await asyncio.to_thread(shutdown_tracing)
+    # Last, after the connections above are closed: it returns within its 5 s timeout however the
+    # collector behaves, inside the container's 10 s stop grace.
+    shutdown_tracing()
 
 
 def _publish_ingest_schemas(app: FastAPI) -> None:
@@ -248,8 +248,10 @@ def create_application() -> FastAPI:
 
     # The canonical exception handler renders its error page/partial through this instance.
     app.state.templates = error_templates
-    app.add_exception_handler(Exception, general_exception_handler)
-    # A refused (422) request: JSON on /api, an HTML partial or page on the web routes.
+    # The canonical handlers, on the app and on every sub-app mounted on it (after the mounts above).
+    install_error_handlers(app)
+    # A refused (422) request: JSON on /api, an HTML partial or page on the web routes, and a toast
+    # for a route whose caller swaps nothing. Replaces the asset's validation handler on this app.
     app.add_exception_handler(RequestValidationError, request_validation_handler)
     # Per-route limits (slowapi): the limiter is found on app.state; a refusal is a 429 + Retry-After.
     app.state.limiter = limiter

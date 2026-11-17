@@ -1,4 +1,4 @@
-# luxarch:telemetry asset v2 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit telemetry`.
+# luxarch:telemetry asset v5 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit telemetry`.
 """The fleet's ONE tracing setup: an OpenTelemetry provider configured from the standard `OTEL_*`
 environment, the span helpers the `obs.*` rules name, redaction at the exporter, and trace ids on log
 lines.
@@ -18,6 +18,8 @@ Then, in services (`luxarch --playbook observability`):
 
     with create_service_span("OrderCoreService", "place_order", order_id=order_id):
         ...
+    @spanned(ids=("order_id",))           # the same span, for a whole method
+    async def place_order(self, order_id: UUID) -> Order: ...
     with create_client_span("StripeClient", "create_payment_intent"):
         ...                               # an outbound call nothing instruments
     enrich_span_from_user(current_user)   # first statement of a handler taking the user
@@ -31,9 +33,24 @@ adds `/v1/traces`) or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (the full URL), `OTEL
 `OTEL_TRACES_EXPORTER` names no `otlp` exporter (`none`, `console`) or `OTEL_SDK_DISABLED=true`: a
 laptop or a test run with no collector exports nothing and retries nothing. If another component already
 installed a tracer provider (the `opentelemetry-instrument` launcher, a library), nothing is installed
-and an error is logged: its spans would bypass this module's redaction. The protocol is OTLP over HTTP (`http/protobuf`), the
+and an error is logged: its spans would bypass this module's redaction. Any span processor added to
+this module's provider afterwards is refused and logged, so no second exporter sends spans unredacted.
+The protocol is OTLP over HTTP (`http/protobuf`), the
 specification's default: the gRPC exporter costs 19 MB of grpc and ~0.5 s of import for nothing a
 collector needs. Every collector accepts both on 4318 (HTTP) and 4317 (gRPC); point the endpoint at 4318.
+
+FASTAPI EXPORTS BY ITSELF on some versions (`auto_configure` is on by default on 0.142.4, and on any
+version with `FASTAPI_OTEL_AUTO_CONFIGURE=true`). At lifespan start it adds an OTLP span exporter to the
+provider, or installs its own provider if none is set yet, which leaves this module installing nothing, and
+it sends metrics and logs too, which this module cannot see. So build the app with
+`FastAPI(..., telemetry={"auto_configure": False})` (`repo.otel_instrumentors_effective` reds an app without
+it).
+
+SHUTDOWN is bounded: `shutdown_tracing(timeout_millis)` returns within its timeout even if the collector
+never answers, and logs what it left behind. It blocks for that long, so call it last in the teardown, after
+the database pool closes, and keep the timeout under the container's stop grace (Docker's is 10 s). The same
+call runs at a normal interpreter exit, not on a signal a server re-raises (uvicorn on SIGTERM), so a server
+calls it in its teardown. The process is bounded only with FastAPI's own export off: its flush has no bound.
 
 THE SPAN HELPERS never check configuration. With tracing off the API hands out non-recording spans at
 next to no cost, so `create_service_span` always yields a `Span` (never None) and callers never branch.
@@ -53,16 +70,25 @@ REDACTION happens at the exporter, the one place every span crosses, including s
 instrumentation the app does not own. Spans carry templates, not values: a URL or path attribute
 (`url.full`, `http.url`, `url.path`, `http.target`), and the span's name and its links' attributes, are
 exported with the span's route template in place of its path (`/auth/magic/S3CR3T` becomes
-`/auth/magic/{token}`), and a span with no route (a 404, a redirect, an outbound call) keeps no path.
+`/auth/magic/{token}`), and a span with no route (a 404, a redirect, an outbound call) keeps no path. A span
+from the plain ASGI middleware is named from its method, its own route and the middleware's suffix alone:
+`GET /auth/magic/{token}`, `GET` with no route, and `GET http send` on a child, which holds no route. Any other
+span keeps the name it was given, with its raw path replaced: FastAPIInstrumentor names its spans from the route
+already, and a span an app names after a host (`evil.example /x`) keeps that first word.
 The route is the instrumentation's: FastAPIInstrumentor on FastAPI before 0.137.2 reports a `Host`
 route's raw path as its route, so that path is exported as written. Query values are always dropped, keys kept
-(`?page=REDACTED&token=REDACTED`); user:password and fragments are never exported. Nothing guesses which
+(`?page=REDACTED&token=REDACTED`), and a key is caller-chosen text, so one that is not a short plain name is
+dropped too (`qkey.plain` is a plain name, whatever it holds); user:password and fragments are never exported.
+On a server span the host is the caller's `Host` header, and an instrumentor records it on a request a
+trusted-host check refused, so the host and port attributes and the URL's host are replaced, on the span and its
+events and links; the service's name is on the resource. A client span keeps its host, which the app chose. Nothing guesses which
 values are secret, so there is nothing to slip past. The concrete ids a trace needs ride as span
 attributes, which `obs.entity_id_forwarded` already requires. A value that cannot be parsed is replaced
 whole, and never costs the batch its other spans.
 
-Free text (an exception's message and stack trace, the status description, a captured header) is
-exported as written, exactly as the logging module writes it: pass `configure_tracing(redact=scrub)`,
+Free text (an exception's message and stack trace, the status description, a captured header, and the
+caller's `http.user_agent` / `user_agent.original`, `http.request.method_original`, and `client.address` /
+`net.peer.ip` behind a proxy-headers server) is exported as written, exactly as the logging module writes it: pass `configure_tracing(redact=scrub)`,
 the same `Redactor` `configure_logging(redact=)` takes, and one scrubber serves logs and traces. It sees
 span attributes, event attributes and the status description; a redactor that raises fails closed (the
 fields are dropped, never exported unscrubbed).
@@ -119,17 +145,20 @@ luxarch at runtime. Do not hand-edit: re-emit to update; repo.emitted_assets_cur
 
 from __future__ import annotations
 
+import atexit
+import functools
+import inspect
 import logging
 import os
 import re
 import threading
 import traceback
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
-from typing import Any, ClassVar, Literal, Protocol, cast
+from typing import Any, ClassVar, Literal, ParamSpec, Protocol, TypeVar, cast, overload
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
@@ -137,7 +166,12 @@ from opentelemetry import trace
 from opentelemetry.context import Context
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import Event, ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace import (
+    Event,
+    ReadableSpan,
+    SpanProcessor,
+    TracerProvider,
+)
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
     SimpleSpanProcessor,
@@ -160,6 +194,31 @@ _PATH_KEYS = frozenset({"url.path", "http.target"})
 _QUERY_KEYS = frozenset({"url.query"})
 _QUERY_SEPARATORS = re.compile(r"[&;]")
 _REDACTED = "REDACTED"
+# A query key worth keeping: a plain name. Anything else is text the caller wrote.
+_PLAIN_KEY = re.compile(r"^[A-Za-z0-9_.\-\[\]]{1,64}$")
+# Where a server span holds the host the caller sent
+_HOST_KEYS = frozenset(
+    {
+        "http.authority",
+        "http.host",
+        "http.request.header.host",
+        "http.server_name",
+        "net.host.name",
+        "net.host.port",
+        "server.address",
+        "server.port",
+        "url.domain",
+    }
+)
+# The instrumentation that names a span after the raw request, when it runs as plain middleware
+_ASGI_SCOPE = "opentelemetry.instrumentation.asgi"
+_HTTP_METHODS = frozenset(
+    {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT"}
+)
+# What the ASGI middleware adds to its child spans' names
+_ASGI_SUFFIX = re.compile(
+    r" ((?:http|websocket) (?:send|receive|connect|disconnect|close))$"
+)
 
 # The key on an exception object listing the span ids it was recorded on, so it is recorded once each.
 _RECORDED = "_otel_recorded_on"
@@ -180,6 +239,32 @@ class _Tracing:
     provider: ClassVar[TracerProvider | None] = None
     injected: ClassVar[bool] = False
     withhold_exception_text: ClassVar[bool] = False
+
+
+class _SealedTracerProvider(TracerProvider):
+    """A provider whose only span processor is the redacting one this module installs."""
+
+    sealed = False
+
+    def add_span_processor(self, span_processor: SpanProcessor) -> None:
+        if not self.sealed:
+            super().add_span_processor(span_processor)
+            return
+        logger.error(
+            "span_processor_refused",
+            extra={
+                "processor": type(span_processor).__name__,
+                "reason": "its spans would bypass this module's redaction",
+            },
+        )
+        try:
+            span_processor.shutdown()
+        except (
+            Exception
+        ) as exc:  # the refusal has been logged; a startup must not die of it
+            logger.warning(
+                "span_processor_shutdown_failed", extra={"error": type(exc).__name__}
+            )
 
 
 class HasId(Protocol):
@@ -286,7 +371,10 @@ def configure_tracing(
         if namespace:
             attributes["service.namespace"] = namespace
 
-        provider = TracerProvider(resource=Resource.create(attributes))
+        # no exit hook of the SDK's: it has no bound, and this module registers `shutdown_tracing`
+        provider = _SealedTracerProvider(
+            resource=Resource.create(attributes), shutdown_on_exit=False
+        )
         if exporter is None:
             provider.add_span_processor(
                 BatchSpanProcessor(
@@ -303,6 +391,7 @@ def configure_tracing(
                     )
                 )
             )
+        provider.sealed = True
         trace.set_tracer_provider(provider)
         if trace.get_tracer_provider() is not provider:
             provider.shutdown()
@@ -317,6 +406,8 @@ def configure_tracing(
         _Tracing.provider = provider
         _Tracing.injected = exporter is not None
         _Tracing.withhold_exception_text = withhold
+        if exporter is None:
+            atexit.register(shutdown_tracing)
     logger.info(
         "tracing_configured",
         extra={
@@ -328,18 +419,31 @@ def configure_tracing(
 
 
 def shutdown_tracing(timeout_millis: int = 5000) -> None:
-    """Flush the spans still queued and shut the provider down. Call from the process's teardown.
-    Safe to call when tracing is off, and more than once. A provider a test built with `exporter=` is
-    only flushed: the test that built it owns it."""
+    """Flush the spans still queued and shut the provider down, within `timeout_millis` however the
+    collector behaves. Call last in the process's teardown. Safe to call when tracing is off, and more
+    than once. A provider a test built with `exporter=` is only flushed: the test that built it owns it."""
     with _Tracing.lock:
         provider = _Tracing.provider
         if provider is None:
             return
+        injected = _Tracing.injected
+        if not injected:
+            _Tracing.provider = None
+
+    def finish() -> None:
         provider.force_flush(timeout_millis)
-        if _Tracing.injected:
-            return
-        _Tracing.provider = None
-    provider.shutdown()
+        if not injected:
+            provider.shutdown()
+
+    # a daemon: the SDK's shutdown has no bound of its own, and must not hold the process open
+    worker = threading.Thread(target=finish, name="tracing-shutdown", daemon=True)
+    worker.start()
+    worker.join(timeout_millis / 1000)
+    if worker.is_alive():
+        logger.warning(
+            "tracing_shutdown_timed_out",
+            extra={"timeout_millis": timeout_millis},
+        )
 
 
 def current_trace_ids() -> tuple[str, str] | None:
@@ -544,6 +648,97 @@ def create_client_span(
         yield span
 
 
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+class _Spanned(Protocol):
+    """What `spanned()` returns: the decorated function keeps its exact type, a coroutine function
+    stays one."""
+
+    @overload
+    def __call__(
+        self, func: Callable[_P, Coroutine[Any, Any, _R]], /
+    ) -> Callable[_P, Coroutine[Any, Any, _R]]: ...
+
+    @overload
+    def __call__(self, func: Callable[_P, _R], /) -> Callable[_P, _R]: ...
+
+
+def _defining_class(func: Callable[..., Any]) -> str:
+    """The class whose body defines `func` (`XCoreService` for `XCoreService.load`), else its
+    module's last name."""
+    parts = [p for p in func.__qualname__.split(".") if p != "<locals>"]
+    return parts[-2] if len(parts) > 1 else func.__module__.rpartition(".")[2]
+
+
+def spanned(
+    *,
+    ids: Sequence[str] = (),
+    component: str | None = None,
+    operation: str | None = None,
+) -> _Spanned:
+    """Run a service method inside `create_service_span(<class>, <method>)`: the class whose body
+    defines the method (a `@staticmethod` too), and the method's name. `obs.method_span` reads it as
+    the method's span, `obs.span_name_matches_class` as named for its class, and
+    `obs.entity_id_forwarded` as carrying each parameter named in `ids`.
+
+    `ids` names the parameters that ride on the span as attributes, under their own names, with the
+    value each call passes (or the default): the entity ids the repo lists in
+    `[observability].entity_id_params`. A name that is not a parameter of the method, or `root`, is
+    refused when the method is decorated. `component` replaces the class name, and
+    `obs.span_name_matches_class` reds any value but the class's own; `operation` replaces the
+    method's name.
+
+    A coroutine function stays one. A generator or async generator function is refused: its body runs
+    after the call has returned, outside the span. An exception leaving the method marks the span
+    ERROR, recorded once (`create_service_span`)."""
+    if isinstance(ids, str):
+        raise TypeError(
+            "spanned(ids=...) takes a sequence of parameter names, not one string"
+        )
+    names = tuple(ids)
+
+    def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
+        if inspect.isgeneratorfunction(func) or inspect.isasyncgenfunction(func):
+            raise TypeError(f"@spanned cannot span the generator {func.__qualname__}")
+        signature = inspect.signature(func)
+        unknown = [n for n in names if n not in signature.parameters or n == "root"]
+        if unknown:
+            raise TypeError(
+                f"@spanned(ids=...) on {func.__qualname__}: not a parameter: {unknown}"
+            )
+        service = component if component is not None else _defining_class(func)
+        method = operation if operation is not None else func.__name__
+
+        def carried(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+            if not names:
+                return {}
+            bound = signature.bind(
+                *args, **kwargs
+            )  # a wrong call raises TypeError here
+            bound.apply_defaults()
+            return {n: bound.arguments[n] for n in names}
+
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def run_async(*args: Any, **kwargs: Any) -> Any:
+                with create_service_span(service, method, **carried(args, kwargs)):
+                    return await func(*args, **kwargs)
+
+            return run_async
+
+        @functools.wraps(func)
+        def run(*args: Any, **kwargs: Any) -> Any:
+            with create_service_span(service, method, **carried(args, kwargs)):
+                return func(*args, **kwargs)
+
+        return run
+
+    return cast(_Spanned, decorate)
+
+
 def record_exception_in_span(exc: BaseException, /, **attributes: object) -> None:
     """Record `exc` on the current span and mark it ERROR. `obs.record_exception` requires it in a
     spanned `try`/`except`, and `obs.record_before_raise` requires it BEFORE the `raise`: after it, the
@@ -588,12 +783,14 @@ def add_event_to_span(name: str, /, **attributes: object) -> None:
 
 
 def _keys_only(query: str) -> str:
-    """`query` with every value dropped and every key kept. A piece with no `=` may be the value
-    itself, so it goes too."""
+    """`query` with every value dropped and each plain key kept. A piece with no `=` may be the
+    value itself, and a key that is not a plain name is text the caller wrote, so both go too."""
     if not query:
         return query
     return "&".join(
-        f"{piece.partition('=')[0]}={_REDACTED}" if "=" in piece else _REDACTED
+        f"{key}={_REDACTED}"
+        if "=" in piece and _PLAIN_KEY.match(key := piece.partition("=")[0])
+        else _REDACTED
         for piece in _QUERY_SEPARATORS.split(query)
         if piece
     )
@@ -606,27 +803,33 @@ def _template_path(path: str, route: str | None) -> str:
     return path if path in ("", "/") else f"/{_REDACTED}"
 
 
-def _template_url(url: str, route: str | None) -> str:
-    """`url` as scheme, host, port, the route template and the query's keys: nothing a caller wrote."""
+def _template_url(url: str, route: str | None, hide_host: bool = False) -> str:
+    """`url` as scheme, host, port, the route template and the query's keys: nothing a caller wrote.
+    `hide_host`: the host is the caller's too."""
     parts = urlsplit(url)
-    host = parts.hostname or ""
+    host = _REDACTED if hide_host else parts.hostname or ""
     if ":" in host:
         host = f"[{host}]"
-    port = parts.port
+    port = None if hide_host else parts.port
     netloc = f"{host}:{port}" if port is not None else host
     path = _template_path(parts.path, route)
     query = _keys_only(parts.query)
     return urlunsplit((parts.scheme, netloc, path, query, ""))
 
 
-def _templated(attributes: Mapping[str, Any], route: str | None) -> dict[str, Any]:
+def _templated(
+    attributes: Mapping[str, Any], route: str | None, hide_host: bool = False
+) -> dict[str, Any]:
     out = dict(attributes)
     for key, value in out.items():
+        if hide_host and key in _HOST_KEYS:  # a port is an int
+            out[key] = _REDACTED
+            continue
         if not isinstance(value, str):
             continue
         try:
             if key in _URL_KEYS:
-                out[key] = _template_url(value, route)
+                out[key] = _template_url(value, route, hide_host)
             elif key in _PATH_KEYS:
                 path, question, query = value.partition("?")
                 templated = _template_path(path, route)
@@ -768,12 +971,39 @@ def _raw_paths(attributes: Mapping[str, Any]) -> set[str]:
 
 
 def _templated_name(name: str, attributes: Mapping[str, Any], route: str | None) -> str:
-    """`name` with each raw path from the span's attributes replaced the way the attributes are: the
-    ASGI middleware names a span `GET /reset/<token>`."""
+    """`name` with each raw path from the span's attributes replaced the way the attributes are."""
     for raw in sorted(_raw_paths(attributes), key=len, reverse=True):
         if raw in name:
             name = name.replace(raw, _template_path(raw, route))
     return name
+
+
+def _asgi_name(name: str, route: str | None) -> str:
+    """An ASGI span's name built from what no caller wrote: the method, the span's own route, and the
+    middleware's suffix. The raw name holds the request's target, in any spelling a client sends, and
+    its child spans carry no attribute to compare it with, so nothing is kept from it but those."""
+    first = name.split(" ", 1)[0]
+    method = first if first in _HTTP_METHODS else "HTTP"
+    suffix = _ASGI_SUFFIX.search(name)
+    parts = [method, route, suffix.group(1) if suffix else None]
+    return " ".join(p for p in parts if p)
+
+
+def _without_host(name: str, attributes: Mapping[str, Any]) -> str:
+    """`name` with any word after its first that is the caller's host, with or without a port. Only a
+    whole word: a `Host: a` must not rewrite the name."""
+    hosts = {
+        str(attributes[key]).rsplit(":", 1)[0]
+        for key in _HOST_KEYS
+        if key in attributes and attributes[key] not in ("", None)
+    }
+    words = name.split(" ")
+    return " ".join(
+        word
+        if i == 0 or word.startswith("/") or word.rsplit(":", 1)[0] not in hosts
+        else _REDACTED
+        for i, word in enumerate(words)
+    )
 
 
 def _redacted_span(
@@ -782,6 +1012,14 @@ def _redacted_span(
     raw = span.attributes or {}
     own = raw.get("http.route")
     route = own if isinstance(own, str) else None
+    hide_host = span.kind is SpanKind.SERVER
+    scope = span.instrumentation_scope
+    if scope is not None and scope.name == _ASGI_SCOPE:
+        name = _asgi_name(span.name, route)
+    else:
+        name = _templated_name(span.name, raw, route)
+        if hide_host and not (route and route in name):
+            name = _without_host(name, raw)
     status = span.status
     description = status.description
     if withhold_exception_text and status.status_code is StatusCode.ERROR:
@@ -792,15 +1030,15 @@ def _redacted_span(
         )
         description = scrubbed if isinstance(scrubbed, str) else None
     return ReadableSpan(
-        name=_templated_name(span.name, raw, route),
+        name=name,
         context=span.context,
         parent=span.parent,
         resource=span.resource,
-        attributes=_through(redact, _templated(raw, route)),
+        attributes=_through(redact, _templated(raw, route, hide_host)),
         events=tuple(
             Event(
                 e.name,
-                _through(redact, _templated(e.attributes or {}, route)),
+                _through(redact, _templated(e.attributes or {}, route, hide_host)),
                 e.timestamp,
             )
             for e in (
@@ -811,7 +1049,8 @@ def _redacted_span(
         ),
         links=tuple(
             Link(
-                link.context, _through(redact, _templated(link.attributes or {}, None))
+                link.context,
+                _through(redact, _templated(link.attributes or {}, None, hide_host)),
             )
             for link in span.links
         ),
@@ -823,7 +1062,7 @@ def _redacted_span(
     )
 
 
-def _withheld(span: ReadableSpan, reason: str) -> ReadableSpan:
+def _span_withheld(span: ReadableSpan, reason: str) -> ReadableSpan:
     """`span` with nothing it carried: the first word of its name (an HTTP method, a service span's
     name), its timing, kind, status code and the reason."""
     return ReadableSpan(
@@ -861,7 +1100,7 @@ class RedactingSpanExporter(SpanExporter):
         try:
             return _redacted_span(span, self._redact, self._withhold_exception_text)
         except Exception as exc:
-            return _withheld(span, type(exc).__qualname__)
+            return _span_withheld(span, type(exc).__qualname__)
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         return self._inner.export([self._one(s) for s in spans])

@@ -1,6 +1,6 @@
 {
   "guard": "luxarch",
-  "guard_version": "0.348.0",
+  "guard_version": "0.369.2",
   "repo": "/repo",
   "targets": [
     {
@@ -988,12 +988,12 @@
         },
         {
           "rule": "fw.no_orphan_pages",
-          "status": "PASS",
+          "status": "INERT",
           "since": "0.54.0",
           "violations": 0,
           "deferred": false,
-          "inert": false,
-          "inert_reason": "",
+          "inert": true,
+          "inert_reason": "this app renders a page by a computed name (a non-literal TemplateResponse), so an unreferenced page can't be proven dead. Orphan detection runs only when every render uses a literal template name.",
           "fix": "",
           "example": ""
         },
@@ -1131,12 +1131,12 @@
         },
         {
           "rule": "fw.no_orphan_partials",
-          "status": "PASS",
+          "status": "INERT",
           "since": "0.79.0",
           "violations": 0,
           "deferred": false,
-          "inert": false,
-          "inert_reason": "",
+          "inert": true,
+          "inert_reason": "this app renders a template by a non-literal TemplateResponse, or includes one by a computed name with no pinnable literal prefix ({% include some_var %}), so an unreferenced partial can't be proven dead. (A computed include WITH a literal prefix \u2014 {% include 'x/' ~ v %}, or a var set to one \u2014 is scoped to that subtree, not a global stand-down.) Run `--sweep orphan-templates` to LIST the no-static-reference partials for review (NOT a clearance).",
           "fix": "",
           "example": ""
         },
@@ -1647,6 +1647,17 @@
           "example": ""
         },
         {
+          "rule": "fw.first_party_imports_app_prefixed",
+          "status": "PASS",
+          "since": "0.356.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": false,
+          "inert_reason": "",
+          "fix": "",
+          "example": ""
+        },
+        {
           "rule": "fw.file_size",
           "status": "PASS",
           "since": "0.235.0",
@@ -1900,6 +1911,17 @@
           "example": ""
         },
         {
+          "rule": "fw.api_only_has_no_web_surface",
+          "status": "INERT",
+          "since": "0.356.0",
+          "violations": 0,
+          "deferred": false,
+          "inert": true,
+          "inert_reason": "target does not declare api_only = true \u2014 no attestation to check",
+          "fix": "",
+          "example": ""
+        },
+        {
           "rule": "obs.method_span",
           "status": "PASS",
           "since": "0.10.0",
@@ -2044,11 +2066,11 @@
         }
       ],
       "summary": {
-        "PASS": 158,
+        "PASS": 157,
         "FAIL": 0,
         "XFAIL": 0,
         "XPASS": 0,
-        "INERT": 27
+        "INERT": 30
       }
     }
   ],
@@ -2451,6 +2473,17 @@
         "example": ""
       },
       {
+        "rule": "repo.ops_scripts_in_runbook",
+        "status": "INERT",
+        "since": "0.358.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": true,
+        "inert_reason": "no `scripts/ops/` directory beside any app package, so there is no one-off operator script to judge (a script kept elsewhere is not seen: its home is `<component>/scripts/ops/`)",
+        "fix": "",
+        "example": ""
+      },
+      {
         "rule": "repo.github_release_wired",
         "status": "PASS",
         "since": "0.150.0",
@@ -2660,6 +2693,17 @@
         "example": ""
       },
       {
+        "rule": "repo.compose_pg_healthcheck_tcp",
+        "status": "FAIL",
+        "since": "0.358.0",
+        "violations": 1,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "Probe over TCP so the check cannot pass against initdb's temporary socket-only server: `test: [\"CMD-SHELL\", \"pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB\"]`, or an authenticated query, `PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB -tAc 'select 1'`. See --playbook compose-hygiene.",
+        "example": ""
+      },
+      {
         "rule": "repo.compose_up_selects_services",
         "status": "PASS",
         "since": "0.264.0",
@@ -2685,6 +2729,17 @@
         "rule": "repo.stack_smoke_wired",
         "status": "PASS",
         "since": "0.268.0",
+        "violations": 0,
+        "deferred": false,
+        "inert": false,
+        "inert_reason": "",
+        "fix": "",
+        "example": ""
+      },
+      {
+        "rule": "repo.dev_host_declared",
+        "status": "PASS",
+        "since": "0.365.0",
         "violations": 0,
         "deferred": false,
         "inert": false,
@@ -2848,20 +2903,20 @@
       }
     ],
     "summary": {
-      "PASS": 70,
-      "FAIL": 1,
+      "PASS": 71,
+      "FAIL": 2,
       "XFAIL": 0,
       "XPASS": 0,
-      "INERT": 1
+      "INERT": 2
     }
   },
   "summary": {
     "PASS": 228,
-    "FAIL": 1,
+    "FAIL": 2,
     "XFAIL": 0,
     "XPASS": 0,
-    "INERT": 28
+    "INERT": 32
   },
-  "commit": "0584a7242eface56275879c369c377652218c154",
-  "generated_at": "2026-11-06T19:05:25Z"
+  "commit": "bb2598cfa15f4dfbcb2f730a5a7d8266fa6b662f",
+  "generated_at": "2026-11-17T03:19:19Z"
 }

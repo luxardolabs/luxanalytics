@@ -1,4 +1,4 @@
-# luxarch:schema-drift asserter v8 — DO NOT edit the marker line above.
+# luxarch:schema-drift asserter v9 — DO NOT edit the marker line above.
 #
 # WHY THIS FILE EXISTS
 # The guards are STATIC — luxarch/luxlint/luxaudit read files; none of them ever opens your database.
@@ -48,7 +48,7 @@
 #      the un-applied migrations themselves as drift (a real fact, but a different one).
 #   4) Under `make test` it SKIPS, saying so: the suite's database cannot answer its question, and the
 #      test block's stack cannot reach the dev database by design. luxarch can EMIT this file; it can
-#      never RUN it (it has no DB). Stated limit: two spellings of one host (`localhost`, `127.0.0.1`)
+#      never RUN it (it has no DB). Two spellings of one host (`localhost`, `127.0.0.1`)
 #      are two databases to the premise check.
 from __future__ import annotations
 

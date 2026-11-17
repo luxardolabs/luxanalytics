@@ -72,3 +72,9 @@ evidence = "EventInDB.device_type mirrors events.device_type: UIDevice.current.m
 # since onboarding (origin/main 9dc3f97 and every release before it).
 [agents]
 push = "agent"
+
+# How the dev stack is reached on the dev host (repo.dev_host_declared): its own nginx takes the
+# request from the dev host's edge, as the host's nginx does in production.
+[dev_host]
+front = "nginx"
+service = "luxanalytics_nginx"

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code when working with this repository.
 
-<!-- luxarch:claude-pointer asset v12 - DO NOT edit this marker line; it is how repo.claude_pointer_present knows your copy is current. Re-emit with `luxarch --emit claude-pointer`. -->
+<!-- luxarch:claude-pointer asset v14 - DO NOT edit this marker line; it is how repo.claude_pointer_present knows your copy is current. Re-emit with `luxarch --emit claude-pointer`. -->
 
 ## How to work here (fleet conduct — read the standard, not just this block)
 
@@ -20,6 +20,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 - **Ask** — deleting anything; changing scope; a deferral/allowlist/exemption; publishing outward (pushing another repo, a force-push, a history rewrite); a genuine product fork where the choice is taste, not correctness.
 - **Do it** — aligning code to a ratified standard or a guard red; anything you have evidence for that is reversible in one commit. The standard already decided; say what you did.
+- **Work what you find.** A finding in the work at hand is fixed in that change, with its test; the only other routes are `/escalate` for another repo's guard or emitted asset and one question to the owner, never a follow-up issue, `dropped`, a stated limit or a self-parked `on_hold` (the conduct standard, "Work what you find; never defer it").
 
 **Work the guard reds in `luxarch --plan` order. Never ask which family or sweep is next.** The order is decided. An escalation covers ONE site: its family keeps going.
 
@@ -37,7 +38,7 @@ When you do ask: **one decision per message**, the evidence that makes it answer
 
 **Align or escalate; never route around.** A guard red is fixed by changing the code, or escalated to the guard maintainer as genuinely wrong. Never by an exemption, a `# noqa`, a deferral, or a local config. Verification is not authorization: proving something is unreferenced does not license deleting it.
 
-**Search LuxPM for a file before you change it to clear a red.** `luxpm_list_issues(search="<path>")`, every hit read, then `git log -- <file>`. A site that is on hold, in another agent's work, or under an open escalation is skipped and named, never changed. A red moved to another file, or out of a rule's sight, is not fixed: `/wrap-up` compares the whole repo's per-rule counts.
+**Search LuxPM for a file before you change it to clear a red.** `luxpm_list_issues(path="<path>")` (the `edit-history` hook reads its result; on a LuxPM without `path`, `search="<path>"` with every hit read), then `git log -- <file>`. A site that is on hold for someone else (the owner, another agent, a maintainer), in another agent's work, or under an open escalation is skipped and named, never changed. A red moved to another file, or out of a rule's sight, is not fixed: `/wrap-up` compares the whole repo's per-rule counts.
 
 **Escalations go in THIS repo's LuxPM project** — label `fleet-escalation`, title `[<guard> ESCALATION] …`, self-contained enough to forward whole. **Search LuxPM for an existing issue first** (and comment on it if found); filing a new one is pre-authorized. **Never a GitHub issue** — there is no fallback. The maintainer sweeps the label across every project and picks it up where you filed it.
 
@@ -145,8 +146,8 @@ app/
 ### Development
 
 ```bash
-make network          # Create the shared luxardolabs docker network (once per host)
-make dev-deploy       # Build + push this commit (:sha-…), pin TAG in .env.dev, restart the dev stack
+make network          # Create the shared luxardolabs docker network on the dev host (once per host)
+make dev-deploy       # Build + push this commit (:sha-…), pin TAG in .env.dev, restart the dev stack on DEV_HOST
 make dev              # Start with logs (compose up --env-file .env.dev)
 make up               # Start detached
 make down             # Stop all

@@ -87,7 +87,8 @@ async def test_an_unhandled_500_is_logged_by_its_route_template(
 
     errors = [r for r in caplog.records if r.getMessage() == "unhandled_exception"]
     assert len(errors) == 1
-    assert vars(errors[0])["route"].endswith("/user/{user_id}")
+    # The full template, router prefix included: the same value the request lines log.
+    assert vars(errors[0])["route"] == "/dashboard/user/{user_id}"
     assert END_USER not in str(vars(errors[0]))
 
 

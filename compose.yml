@@ -36,7 +36,8 @@ services:
       - luxanalytics_postgres_data:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U luxanalytics"]
+      # Over TCP with the real role: over the socket it answers while initdb's temporary server runs.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "luxanalytics", "-d", "luxanalytics"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -79,9 +80,15 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - luxardolabs
+      luxardolabs: {}
+      # The dev nginx proxies to this address, never to a name: Docker's DNS answers a name from
+      # every network nginx is on, and any container on the shared dev-edge network could take it.
+      luxanalytics_front:
+        ipv4_address: 172.28.44.20
 
-  # Dev only: TLS on https://localhost:4000. A pass-through proxy; the app serves /static.
+  # Dev only: TLS on 443 for https://dev-analytics.luxardolabs.com, reached through the dev host's
+  # edge; it publishes no host port (repo.dev_host_declared). A pass-through proxy; the app serves
+  # /static.
   luxanalytics_nginx:
     image: nginx:1.31-alpine
     container_name: luxanalytics_nginx
@@ -93,13 +100,17 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       # TLS certificates from the host: TLS_CERTS_DIR in .env.dev
       - ${TLS_CERTS_DIR:-./nginx/ssl}:/etc/nginx/ssl:ro
-    ports:
-      - "4000:4000"
     depends_on:
       luxanalytics_app:
         condition: service_healthy
     networks:
-      - luxardolabs
+      # Its fixed address here is the one proxy the app believes (TRUSTED_PROXIES in .env.dev).
+      luxanalytics_front:
+        ipv4_address: 172.28.44.10
+      # The dev host's edge sends the dev name to this address, assigned in the edge's address table:
+      # it routes by address, never by a name another container could claim.
+      dev-edge:
+        ipv4_address: 172.30.0.24
 
   # Daily pg_dump keeping the newest 14 (scripts/backup.sh; LUXANALYTI-14), on when
   # COMPOSE_PROFILES includes `backup` (prod). Dumps land in ./backups beside the stack; `make prod-backup` still pulls one off-node.
@@ -173,4 +184,15 @@ networks:
   # The fleet's shared network (make network creates it on a fresh host).
   luxardolabs:
     name: luxardolabs
+    external: true
+  # The dev nginx and the app. The subnet is pinned so nginx's address, the one the app trusts, is
+  # fixed; infra assigned it outside every other stack's range, with unpinned containers above .128.
+  luxanalytics_front:
+    name: luxanalytics_front
+    ipam:
+      config:
+        - subnet: 172.28.44.0/24
+          ip_range: 172.28.44.128/25
+  # The dev host's edge network, which only the dev host has; only the dev nginx joins it.
+  dev-edge:
     external: true
