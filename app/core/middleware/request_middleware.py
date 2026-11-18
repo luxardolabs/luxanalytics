@@ -139,7 +139,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "Request started",
             extra={
                 "method": request.method,
-                "path": request.url.path,
                 "content_type": request.headers.get("content-type"),
                 "user_agent": request.headers.get("user-agent"),
                 "key_id": request.headers.get("x-key-id"),
@@ -158,7 +157,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 "Request completed",
                 extra={
                     "method": request.method,
-                    "path": request.url.path,
+                    # The route's template, never the URL: a client can put its key in the path
+                    "route": route_template(request),
                     "status_code": response.status_code,
                     "process_time": round(process_time, 4),
                 },
@@ -273,7 +273,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # Client disconnected during processing
             logger.debug(
                 "Client disconnected during request processing",
-                extra={"client_ip": client_ip, "path": request.url.path},
+                extra={"client_ip": client_ip, "route": route_template(request)},
             )
             return Response(status_code=499)
 
@@ -375,7 +375,6 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                     extra={
                         "content_length": content_length,
                         "max_size": self.max_size,
-                        "path": request.url.path,
                     },
                 )
                 return JSONResponse(
@@ -401,7 +400,6 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                             extra={
                                 "size_read": body_size,
                                 "max_size": self.max_size,
-                                "path": request.url.path,
                             },
                         )
                         return JSONResponse(
@@ -416,7 +414,7 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                 # Client disconnected while streaming - this is normal
                 logger.debug(
                     "Client disconnected during request streaming",
-                    extra={"path": request.url.path, "bytes_read": body_size},
+                    extra={"bytes_read": body_size},
                 )
                 # Return early with a 499 Client Closed Request status
                 return Response(status_code=499)

@@ -91,7 +91,8 @@ async def verify_project_dsn(
         else await AppCoreService(db).get_app_by_project_id(project_id)
     )
     if not app:
-        logger.warning("Invalid project_id in URL", extra={"project_id": project_id})
+        # The unmatched segment is not logged: a client may have put its DSN key there.
+        logger.warning("Invalid project_id in URL")
         raise HTTPException(status_code=404, detail="Invalid project")
 
     if not authorization or not authorization.startswith("Basic "):
