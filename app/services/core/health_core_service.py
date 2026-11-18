@@ -47,6 +47,13 @@ class HealthCoreService:
                 redis_client = await get_redis_client()
                 if redis_client:
                     await redis_client.ping()
+                elif settings.REDIS_URL:
+                    # Configured, but the client could not be created: the rate limits are
+                    # counting per process, in memory.
+                    redis = RedisHealth(
+                        status="unhealthy",
+                        error="REDIS_URL is set but the Redis client could not connect",
+                    )
                 else:
                     redis = RedisHealth(status="not configured")
             except (RedisError, OSError) as e:
