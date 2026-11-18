@@ -305,6 +305,33 @@ async def test_another_apps_install_never_feeds_a_row(db: AsyncSession) -> None:
     assert await event_crud.get_user_devices(db, "ten", "other_app") == []
 
 
+async def test_an_empty_device_id_is_no_device_in_the_rows_or_the_card(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """Ingest treats an empty device id as none (it upserts no devices row): the profile lists no
+    device for it and its Devices card does not count it."""
+    ingest = EventCoreService(db)
+    await ingest.create_events(
+        "test_app",
+        [
+            _event_of(
+                "emp1",
+                "user_empty",
+                datetime.now(UTC),
+                device_id="",
+                device_model="iPhone15",
+            )
+        ],
+    )
+    await db.flush()
+    await _login(client, "198.51.100.162")
+
+    rows = await event_crud.get_user_devices(db, "user_empty", "test_app")
+    flat = _flat((await client.get("/dashboard/user/user_empty?app_id=test_app")).text)
+
+    assert rows == []
+    assert "Devices 0" in flat
+
 
 async def test_a_long_app_id_is_cut_in_the_profile_rows(
     client: AsyncClient, db: AsyncSession

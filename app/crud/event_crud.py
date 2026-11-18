@@ -39,8 +39,8 @@ def _has_value(expr: ColumnElement[str]) -> ColumnElement[bool]:
 
 
 def _has_device() -> ColumnElement[bool]:
-    """An event that names a device."""
-    return Event.device_id.isnot(None)
+    """An event that names a device: ingest treats a missing or empty device id as none."""
+    return and_(Event.device_id.isnot(None), Event.device_id != "")
 
 
 def _latest_sent(column: InstrumentedAttribute[str | None]) -> ColumnElement[str | None]:
