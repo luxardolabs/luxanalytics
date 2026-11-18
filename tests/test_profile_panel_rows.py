@@ -3,6 +3,7 @@ rows show, a long app id is cut, an id with nothing visible gets no link, an exp
 newline opens its own key, and signing in from a panel URL lands on that panel."""
 
 import re
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -42,6 +43,32 @@ async def test_a_no_app_profile_counts_a_device_once_per_app(
 
     assert "Devices 2" in everywhere
     assert "Devices 1" in scoped
+
+
+async def test_an_install_that_upgraded_is_one_device_row_with_its_latest_values(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """The rows are one per (app, device), as the Devices card counts them: an install that moved
+    to a new iOS or app version is one row, showing the values it sent last."""
+    install = {"user_id": "up", "device_id": "d1", "device_model": "iPhone15"}
+    await db.execute(
+        insert(Event),
+        [
+            _row("test_app", "e", os_version="17", app_version="1.0", **install),
+            {
+                **_row("test_app", "e", os_version="18", app_version="1.1", **install),
+                "received_at": datetime.now(UTC) + timedelta(seconds=5),
+            },
+        ],
+    )
+    await db.flush()
+    await _login(client, "198.51.100.160")
+
+    flat = _flat((await client.get("/dashboard/user/up?app_id=test_app")).text)
+
+    assert "Devices 1" in flat
+    assert flat.count("iPhone15") == 1
+    assert "iOS 18 · v1.1 2 events" in flat
 
 
 async def test_a_long_app_id_is_cut_in_the_profile_rows(
@@ -121,6 +148,37 @@ async def test_a_signed_out_panel_url_is_kept_whole_as_the_login_next(
     login_url = refused.headers["location"]
     assert login_url.startswith("/login?next=")
     assert parse_qs(urlsplit(login_url).query)["next"][0] == raw_path
+
+
+@pytest.mark.parametrize(
+    "next_url",
+    [
+        "//evil.example",
+        "/%2F%2Fevil.example",
+        "/%5Cevil.example",
+        "/%09/evil.example",
+        "/.//evil.example",
+        "/%2e//evil.example",
+        "https://evil.example",
+    ],
+)
+async def test_signing_in_never_leaves_the_site(
+    client: AsyncClient, next_url: str
+) -> None:
+    client.base_url = "https://test"
+    signed_in = await client.post(
+        "/login",
+        data={
+            "username": settings.DASHBOARD_USERNAME,
+            "password": settings.DASHBOARD_PASSWORD,
+            "next": next_url,
+        },
+        headers={"X-Forwarded-For": "198.51.100.161"},
+        follow_redirects=False,
+    )
+
+    location = signed_in.headers["location"]
+    assert not location.startswith(("//", "/\\")) and "://" not in location
 
 
 async def test_signing_in_from_a_panel_url_lands_on_that_panel(

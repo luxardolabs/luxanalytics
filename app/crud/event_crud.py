@@ -21,6 +21,7 @@ from sqlalchemy import (
     true,
     tuple_,
 )
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
@@ -471,9 +472,26 @@ class EventCRUD:
             datetime,
         ]
     ]:
-        """The user's devices, one row per (app, device): the same device id in two apps is two
-        installs."""
-        query = (
+        """The user's devices, one row per (app, device), as the profile's Devices card counts
+        them: the same device id in two apps is two installs, and an install that moved to a new
+        OS or app version is one, with the model, OS, version and platform it sent last."""
+        scope = (
+            Event.user_id == user_id,
+            Event.device_id.isnot(None),
+            *self.app_conditions(app_id),
+        )
+        totals = (
+            select(
+                Event.app_id,
+                Event.device_id,
+                func.count(Event.id).label("event_count"),
+                func.max(Event.received_at).label("last_seen"),
+            )
+            .where(*scope)
+            .group_by(Event.app_id, Event.device_id)
+            .subquery()
+        )
+        latest = (
             select(
                 Event.app_id,
                 Event.device_id,
@@ -481,23 +499,31 @@ class EventCRUD:
                 Event.os_version,
                 Event.app_version,
                 Event.platform,
-                func.count(Event.id).label("event_count"),
-                func.max(Event.received_at).label("last_seen"),
             )
-            .where(
-                Event.user_id == user_id,
-                Event.device_id.isnot(None),
-                *self.app_conditions(app_id),
+            .where(*scope)
+            .ext(distinct_on(Event.app_id, Event.device_id))
+            .order_by(Event.app_id, Event.device_id, desc(Event.received_at))
+            .subquery()
+        )
+        query = (
+            select(
+                latest.c.app_id,
+                latest.c.device_id,
+                latest.c.device_model,
+                latest.c.os_version,
+                latest.c.app_version,
+                latest.c.platform,
+                totals.c.event_count,
+                totals.c.last_seen,
             )
-            .group_by(
-                Event.app_id,
-                Event.device_id,
-                Event.device_model,
-                Event.os_version,
-                Event.app_version,
-                Event.platform,
+            .join(
+                totals,
+                and_(
+                    totals.c.app_id == latest.c.app_id,
+                    totals.c.device_id == latest.c.device_id,
+                ),
             )
-            .order_by(desc(func.max(Event.received_at)))
+            .order_by(desc(totals.c.last_seen))
         )
         result = await db.execute(query)
         return list(result.all())
