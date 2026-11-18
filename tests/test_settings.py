@@ -733,8 +733,26 @@ def test_a_trusted_proxy_that_is_not_an_address_is_refused(value: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "value",
-    ["127.0.0.1,::1,172.31.0.10", "127.0.0.0/8,::1/128,172.31.0.10/32", "", "::1"],
+    "value", ["", " , ", ",", "127.0.0.1,::1", "127.0.0.0/8", "::1", "127.0.0.0/8,::1/128"]
 )
-def test_loopback_and_single_proxy_addresses_start(value: str) -> None:
+def test_production_refuses_a_trusted_proxies_that_names_no_proxy(value: str) -> None:
+    """Blank or loopback only names no proxy in front of the app: every client behind it would
+    share the proxy's one budget."""
+    with pytest.raises(ValidationError, match="TRUSTED_PROXIES") as refused:
+        _settings(TRUSTED_PROXIES=value)
+
+    assert "TRUSTED_PROXIES=127.0.0.1,::1,<" in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["127.0.0.1,::1,172.31.0.10", "127.0.0.0/8,::1/128,172.31.0.10/32", "172.31.0.10"],
+)
+def test_production_starts_with_a_proxy_address_named(value: str) -> None:
     assert value == _settings(TRUSTED_PROXIES=value).TRUSTED_PROXIES
+
+
+@pytest.mark.parametrize("value", ["", "127.0.0.1,::1", "::1", "127.0.0.0/8"])
+def test_development_starts_with_loopback_only_or_no_proxy(value: str) -> None:
+    loaded = _settings(ENVIRONMENT="dev", TRUSTED_PROXIES=value)
+    assert value == loaded.TRUSTED_PROXIES

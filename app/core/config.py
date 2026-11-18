@@ -145,6 +145,16 @@ def _redis_options_usable(url: str) -> bool:
     )
 
 
+def _names_a_proxy(trusted: str) -> bool:
+    """At least one entry that is not loopback: an address a reverse proxy in front of the app
+    can have. Run after the field's own check, so every entry parses."""
+    return any(
+        not ipaddress.ip_network(entry.strip(), strict=False).is_loopback
+        for entry in trusted.split(",")
+        if entry.strip()
+    )
+
+
 def _guessable(password: str, username: str) -> bool:
     """A default or the username, bare or padded: "admin1234567" and "password!!!!" are as
     guessable as "admin". Invisible characters do not count."""
@@ -487,8 +497,9 @@ class Settings(BaseSettings):
             )
         if self.DEBUG:
             raise ValueError("DEBUG must be false in production")
-        if "TRUSTED_PROXIES" not in self.model_fields_set:
-            # Behind a proxy that loopback is not, every client would share the proxy's budget.
+        if not _names_a_proxy(self.TRUSTED_PROXIES):
+            # Unset, blank or loopback only: behind a proxy on any other address, every client
+            # would share the proxy's one budget.
             raise ValueError(
                 "TRUSTED_PROXIES is required in production: set "
                 "TRUSTED_PROXIES=127.0.0.1,::1,<each reverse proxy's own fixed IP address>, "
