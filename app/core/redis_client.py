@@ -3,7 +3,7 @@
 import logging
 import time
 from collections.abc import Callable
-from urllib.parse import parse_qsl, urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit
 
 import redis.asyncio as redis
 from redis.exceptions import RedisError
@@ -26,20 +26,26 @@ REDIS_SOCKET_TIMEOUT_SECONDS = 2.0
 
 def with_default_timeouts(url: str) -> str:
     """The URL both Redis clients open: each of socket_connect_timeout and socket_timeout as the URL
-    sets it, else its default added to the query."""
+    sets it, else its default added to the query. A blank value counts as unset: redis-py ignores
+    it, which would leave the client unbounded."""
     parts = urlsplit(url)
-    names = {name for name, _ in parse_qsl(parts.query, keep_blank_values=True)}
     defaults = {
         "socket_connect_timeout": REDIS_CONNECT_TIMEOUT_SECONDS,
         "socket_timeout": REDIS_SOCKET_TIMEOUT_SECONDS,
     }
-    options = [
-        f"{name}={value:g}" for name, value in defaults.items() if name not in names
+    given = parts.query.split("&") if parts.query else []
+    kept = [
+        part
+        for part in given
+        if not (part.partition("=")[0] in defaults and not part.partition("=")[2].strip())
     ]
-    if not options:
+    named = {part.partition("=")[0] for part in kept}
+    options = [
+        f"{name}={value:g}" for name, value in defaults.items() if name not in named
+    ]
+    if not options and kept == given:
         return url
-    query = "&".join([parts.query, *options] if parts.query else options)
-    return urlunsplit(parts._replace(query=query))
+    return urlunsplit(parts._replace(query="&".join([*kept, *options])))
 
 
 # A Redis failure that repeats on every request logs at most once per this many seconds.

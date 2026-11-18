@@ -228,3 +228,15 @@ async def test_a_failed_init_closes_the_pool_it_opened(
 
     assert len(closed) == 3
     assert len(set(map(id, closed))) == 3
+
+
+def test_a_blank_timeout_in_the_url_is_treated_as_unset() -> None:
+    """redis-py ignores a blank value, which would leave the client with no timeout at all."""
+    assert (
+        redis_client.with_default_timeouts("redis://h:6379/0?socket_timeout=&db=1")
+        == "redis://h:6379/0?db=1&socket_connect_timeout=1&socket_timeout=2"
+    )
+    assert (
+        redis_client.with_default_timeouts("redis://h:6379/0?socket_connect_timeout=")
+        == "redis://h:6379/0?socket_connect_timeout=1&socket_timeout=2"
+    )

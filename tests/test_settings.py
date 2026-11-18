@@ -756,3 +756,9 @@ def test_production_starts_with_a_proxy_address_named(value: str) -> None:
 def test_development_starts_with_loopback_only_or_no_proxy(value: str) -> None:
     loaded = _settings(ENVIRONMENT="dev", TRUSTED_PROXIES=value)
     assert value == loaded.TRUSTED_PROXIES
+
+
+@pytest.mark.parametrize("name", ["socket_timeout", "socket_connect_timeout"])
+def test_a_blank_redis_timeout_is_refused(name: str) -> None:
+    with pytest.raises(ValidationError, match="REDIS_URL"):
+        _settings(REDIS_URL=f"redis://h:6379/0?{name}=")
