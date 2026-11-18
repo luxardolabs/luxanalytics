@@ -125,7 +125,12 @@ class DashboardViewService:
         (a link with no label is nothing to click), or the row's app is the empty string or too
         long for a URL (dropped from the link, the panel would show another app's row under this
         one's). A row with no link shows its id as text."""
-        if id_value is None or blank(id_value) or id_value in (".", "..") or app_id == "":
+        if (
+            id_value is None
+            or blank(id_value)
+            or id_value in (".", "..")
+            or app_id == ""
+        ):
             return None
         if app_id is None:
             return self._path(route, None, **{id_name: id_value})

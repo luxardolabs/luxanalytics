@@ -83,7 +83,9 @@ async def test_a_name_with_a_visible_character_beside_invisible_ones_is_kept(
     )
 
     assert response.status_code == 200
-    stored = (await db.execute(select(App).where(App.app_id == "zwj_name"))).scalar_one()
+    stored = (
+        await db.execute(select(App).where(App.app_id == "zwj_name"))
+    ).scalar_one()
     assert stored.name == "A​B"
 
 

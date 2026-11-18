@@ -53,6 +53,8 @@ class SlashRedirect:
         if not raw.startswith("/") or raw.startswith(("//", "/\\")):
             return None
         moved = {**scope, "path": path}
-        if not any(route.matches(moved)[0] != Match.NONE for route in self._router.routes):
+        if not any(
+            route.matches(moved)[0] != Match.NONE for route in self._router.routes
+        ):
             return None
         return with_requested_query(raw, scope)

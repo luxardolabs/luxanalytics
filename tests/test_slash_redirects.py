@@ -13,7 +13,10 @@ pytestmark = pytest.mark.db
     ("path", "location"),
     [
         ("/dashboard/events/", "/dashboard/events"),
-        ("/dashboard/events/?hours=24&app_id=a%2Fb", "/dashboard/events?hours=24&app_id=a%2Fb"),
+        (
+            "/dashboard/events/?hours=24&app_id=a%2Fb",
+            "/dashboard/events?hours=24&app_id=a%2Fb",
+        ),
         ("/apps", "/apps/"),
         ("/dashboard/overview/?app_id=a%3Fb", "/dashboard/overview?app_id=a%3Fb"),
     ],
@@ -50,7 +53,9 @@ async def test_an_unsafe_method_is_never_redirected(
     )
 
 
-@pytest.mark.parametrize("path", ["//evil.example/", "//evil.example", "/\\evil.example/"])
+@pytest.mark.parametrize(
+    "path", ["//evil.example/", "//evil.example", "/\\evil.example/"]
+)
 async def test_a_slash_redirect_never_leaves_the_site(
     dashboard_client: AsyncClient, path: str
 ) -> None:
