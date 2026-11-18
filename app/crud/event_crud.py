@@ -21,11 +21,11 @@ from sqlalchemy import (
     true,
     tuple_,
 )
-from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.models.device_model import Device
 from app.models.event_model import Event
 
 # A WHERE clause as built by time_conditions(): SQLAlchemy boolean predicates, AND-ed by callers.
@@ -474,12 +474,11 @@ class EventCRUD:
     ]:
         """The user's devices, one row per (app, device), as the profile's Devices card counts
         them: the same device id in two apps is two installs, and an install that moved to a new
-        OS or app version is one, with the model, OS, version and platform it sent last."""
-        scope = (
-            Event.user_id == user_id,
-            Event.device_id.isnot(None),
-            *self.app_conditions(app_id),
-        )
+        OS or app version is one. The model, OS, version and platform are the install's row of
+        the devices table, as the Devices page shows them: its upsert orders a batch by event time
+        and keeps a value a later event did not send, which no pick among the user's events (one
+        received_at for a whole batch) can. The counts and last seen are over the user's events;
+        an install with no devices row is listed with no values."""
         totals = (
             select(
                 Event.app_id,
@@ -487,40 +486,30 @@ class EventCRUD:
                 func.count(Event.id).label("event_count"),
                 func.max(Event.received_at).label("last_seen"),
             )
-            .where(*scope)
-            .group_by(Event.app_id, Event.device_id)
-            .subquery()
-        )
-        latest = (
-            select(
-                Event.app_id,
-                Event.device_id,
-                Event.device_model,
-                Event.os_version,
-                Event.app_version,
-                Event.platform,
+            .where(
+                Event.user_id == user_id,
+                Event.device_id.isnot(None),
+                *self.app_conditions(app_id),
             )
-            .where(*scope)
-            .ext(distinct_on(Event.app_id, Event.device_id))
-            .order_by(Event.app_id, Event.device_id, desc(Event.received_at))
+            .group_by(Event.app_id, Event.device_id)
             .subquery()
         )
         query = (
             select(
-                latest.c.app_id,
-                latest.c.device_id,
-                latest.c.device_model,
-                latest.c.os_version,
-                latest.c.app_version,
-                latest.c.platform,
+                totals.c.app_id,
+                totals.c.device_id,
+                Device.device_model,
+                Device.os_version,
+                Device.app_version,
+                Device.platform,
                 totals.c.event_count,
                 totals.c.last_seen,
             )
-            .join(
-                totals,
+            .outerjoin(
+                Device,
                 and_(
-                    totals.c.app_id == latest.c.app_id,
-                    totals.c.device_id == latest.c.device_id,
+                    Device.app_id == totals.c.app_id,
+                    Device.device_id == totals.c.device_id,
                 ),
             )
             .order_by(desc(totals.c.last_seen))

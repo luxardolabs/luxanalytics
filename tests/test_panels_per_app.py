@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.device_model import Device
 from app.models.event_model import Event
 from tests.test_apps_web import _login
 
@@ -50,6 +51,22 @@ async def _seed_two_apps(db: AsyncSession) -> None:
                 device_model="ModelInOtherApp",
             ),
             _row("other_app", "b_only_evt", user_id="u1", session_id="only_other"),
+        ],
+    )
+    # The install rows ingest would have upserted, which the profile's device rows show.
+    await db.execute(
+        insert(Device),
+        [
+            {
+                "app_id": "test_app",
+                "device_id": "dev-a",
+                "device_model": "ModelInTestApp",
+            },
+            {
+                "app_id": "other_app",
+                "device_id": "dev-b",
+                "device_model": "ModelInOtherApp",
+            },
         ],
     )
     await db.flush()
@@ -256,6 +273,14 @@ async def test_a_no_app_profile_is_labelled_and_tells_apps_apart_per_device_and_
             for _ in range(4)
         ]
         + [_row("other_app", "error_occurred", user_id="um", session_id="s")],
+    )
+    install = {k: v for k, v in device.items() if k != "device_id"}
+    await db.execute(
+        insert(Device),
+        [
+            {"app_id": app, "device_id": "dev-shared", **install}
+            for app in ("test_app", "other_app")
+        ],
     )
     await db.flush()
     await _login(client, "198.51.100.153")
