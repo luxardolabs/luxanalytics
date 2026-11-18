@@ -67,7 +67,7 @@ async def test_a_url_without_a_connect_timeout_gets_one(
     silent_server: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "REDIS_URL", f"rediss://127.0.0.1:{silent_server}/0")
-    monkeypatch.setattr(redis_client, "_redis_client", None)
+    await redis_client.close_redis_client()
 
     loop = asyncio.get_running_loop()
     started = loop.time()
@@ -98,7 +98,7 @@ async def test_a_url_that_sets_its_connect_timeout_keeps_it(
         "REDIS_URL",
         f"rediss://127.0.0.1:{silent_server}/0?socket_connect_timeout=0.2",
     )
-    monkeypatch.setattr(redis_client, "_redis_client", None)
+    await redis_client.close_redis_client()
 
     loop = asyncio.get_running_loop()
     started = loop.time()
@@ -118,10 +118,11 @@ def _init_failures(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
     return [r for r in caplog.records if r.getMessage() == INIT_FAILED]
 
 
-@pytest.fixture
-def unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest_asyncio.fixture
+async def unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No client yet, and a REDIS_URL nothing answers: each request tries to create one."""
     monkeypatch.setattr(settings, "REDIS_URL", "redis://127.0.0.1:1/0")
-    monkeypatch.setattr(redis_client, "_redis_client", None)
+    await redis_client.close_redis_client()
 
 
 @pytest.mark.usefixtures("unreachable")

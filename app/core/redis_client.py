@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
 
 
-
 def with_connect_timeout(url: str) -> str:
     """The URL both Redis clients open: its own socket_connect_timeout, else
     REDIS_CONNECT_TIMEOUT_SECONDS added to its query."""
@@ -46,7 +45,10 @@ class LogThrottle:
     def due(self) -> bool:
         """True, and the interval restarts, when this failure may be logged now."""
         now = self.clock()
-        if self.last_logged is not None and now - self.last_logged < OUTAGE_LOG_INTERVAL:
+        if (
+            self.last_logged is not None
+            and now - self.last_logged < OUTAGE_LOG_INTERVAL
+        ):
             return False
         self.last_logged = now
         return True
