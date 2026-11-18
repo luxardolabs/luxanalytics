@@ -1,10 +1,13 @@
 """Deleting an app keeps its row, so its app_id stays taken and its events stay with it."""
 
+from datetime import UTC, datetime
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.crud.event_crud import event_crud
 from app.models.app_model import App
 from app.models.event_model import Event
 from app.scripts.seed_sdk_app import SDK_APP_ID, ensure_sdk_app
@@ -120,3 +123,28 @@ async def test_the_seed_restores_a_deleted_sdk_app(db: AsyncSession) -> None:
     assert restored.deleted_at is None
     assert restored.is_active
     assert (restored.id, restored.public_id) == (created.id, created.public_id)
+
+
+@pytest.mark.db
+async def test_a_deleted_app_is_gone_from_the_app_dropdown(
+    db: AsyncSession, sample_app: App, sample_events: list[dict[str, object]]
+) -> None:
+    listed = {row.app_id for row in await event_crud.get_apps_for_dropdown(db)}
+    assert sample_app.app_id in listed
+
+    await AppCoreService(db).delete_app(sample_app.app_id)
+
+    listed = {row.app_id for row in await event_crud.get_apps_for_dropdown(db)}
+    assert sample_app.app_id not in listed
+
+
+@pytest.mark.db
+async def test_an_app_id_with_events_but_no_app_row_stays_in_the_dropdown(
+    db: AsyncSession,
+) -> None:
+    """An HMAC_KEYS key ingests without a registered app: its events are listed."""
+    db.add(Event(app_id="hmac-only", name="screen_viewed", timestamp=datetime.now(UTC)))
+    await db.flush()
+
+    listed = {row.app_id for row in await event_crud.get_apps_for_dropdown(db)}
+    assert "hmac-only" in listed

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.selectable import ScalarSelect, Subquery
 
+from app.models.app_model import App
 from app.models.event_model import Event
 
 # A WHERE clause as built by time_conditions(): SQLAlchemy boolean predicates, AND-ed by callers.
@@ -380,9 +381,14 @@ class EventCRUD:
         return list(result.all())
 
     async def get_apps_for_dropdown(self, db: AsyncSession) -> list[Row[str, int]]:
-        """Get app_ids with event counts for dropdown."""
+        """App ids with their event counts for the dropdown. An app that was deleted is left out;
+        an id with events and no app row (an HMAC_KEYS key) is listed."""
+        deleted = select(App.app_id).where(
+            App.app_id == Event.app_id, App.deleted_at.is_not(None)
+        )
         query = (
             select(Event.app_id, func.count(Event.id).label("total_events"))
+            .where(~deleted.exists())
             .group_by(Event.app_id)
             .order_by(Event.app_id)
         )
