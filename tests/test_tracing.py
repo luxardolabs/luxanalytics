@@ -72,9 +72,14 @@ async def test_a_core_service_span_is_the_emitted_helpers(
     await AnalyticsCoreService(db).search_events(query="screen")
 
     spans = [
-        s for s in span_exporter.get_finished_spans() if s.name == "AnalyticsCoreService.search_events"
+        s
+        for s in span_exporter.get_finished_spans()
+        if s.name == "AnalyticsCoreService.search_events"
     ]
     assert len(spans) == 1
     assert spans[0].attributes is not None
-    assert spans[0].attributes["code.function.name"] == "AnalyticsCoreService.search_events"
+    assert (
+        spans[0].attributes["code.function.name"]
+        == "AnalyticsCoreService.search_events"
+    )
     assert "code.namespace" not in spans[0].attributes
