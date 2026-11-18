@@ -65,3 +65,32 @@ async def test_a_search_honours_the_time_window(
         "/dashboard/events/content?app_id=app_a&search_q=evt&hours=0"
     )
     assert "Recent Evt" in everything.text and "Old Evt" in everything.text
+
+
+@pytest.mark.db
+async def test_a_search_keeps_the_event_filter_beside_it(
+    dashboard_client: AsyncClient, db: AsyncSession
+) -> None:
+    await db.execute(
+        insert(Event), [_event("app_a", "tap_evt"), _event("app_a", "view_evt")]
+    )
+    await db.flush()
+
+    filtered = await dashboard_client.get(
+        "/dashboard/events/content?app_id=app_a&search_q=evt&event_name=tap"
+    )
+
+    assert "Tap Evt" in filtered.text
+    assert "View Evt" not in filtered.text
+
+
+@pytest.mark.db
+async def test_the_search_box_says_what_it_searches(
+    dashboard_client: AsyncClient,
+) -> None:
+    """The search matches event names only; it must not promise user or session search."""
+    page = await dashboard_client.get("/dashboard/events")
+
+    assert page.status_code == 200
+    assert "Search user" not in page.text
+    assert 'placeholder="Search event names...' in page.text

@@ -88,13 +88,21 @@ class AnalyticsCoreService:
         limit: int = 50,
         app_id: str | None = None,
         hours: int = 0,
+        event_name: str | None = None,
     ) -> list[EventInDB]:
-        """Events matching the text, within the app and time window (hours=0: all time)."""
+        """Events matching the text, within the app, the time window (hours=0: all time) and
+        the event-name filter."""
         with create_service_span(
             "AnalyticsCoreService", "search_events", app_id=app_id
         ):
             events = await event_crud.search(
-                self.db, query, search_type, limit, app_id=app_id, hours=hours
+                self.db,
+                query,
+                search_type,
+                limit,
+                app_id=app_id,
+                hours=hours,
+                event_name=event_name,
             )
             return [EventInDB.model_validate(e) for e in events]
 

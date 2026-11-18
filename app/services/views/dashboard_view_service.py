@@ -21,6 +21,7 @@ from app.core.pagination import build_pagination, fetch_page
 from app.core.query_params import MAX_ENCODED_APP_ID, TextFilter
 from app.core.safe_redirect import safe_redirect_target
 from app.core.tracing import create_service_span
+from app.core.visible_text import blank
 from app.schemas.event_schema import EventInDB
 from app.services.core.analytics_core_service import AnalyticsCoreService
 from app.web.template_filters import friendly_name
@@ -109,7 +110,7 @@ class DashboardViewService:
         (luxarch --playbook url-in-view). A path, not an absolute URL: behind the proxy the request
         scheme can read http, and an http:// link inside the https dashboard is blocked."""
         # Path values are SDK input (user ids, session ids, property keys): percent-encode them, so a
-        # "?" or "#" stays part of the value and a "/" reaches the route's {…:path} parameter.
+        # "?" or "#" stays part of the value and a "/" reaches the route's {…:sdkid} parameter.
         path = self._request.app.url_path_for(
             route, **{k: quote(v, safe="") for k, v in params.items()}
         )
@@ -120,10 +121,11 @@ class DashboardViewService:
         self, route: str, id_name: str, id_value: str | None, app_id: str | None
     ) -> str | None:
         """A user or session panel link scoped to `app_id`, or None when no link can reach the
-        row: the id is a dot segment (a browser rewrites `/user/..`), or the id is empty, or the
-        row's app is the empty string or too long for a URL (dropped from the link, the panel would
-        show another app's row under this one's). A row with no link shows its id as text."""
-        if not id_value or id_value in (".", "..") or app_id == "":
+        row: the id is a dot segment (a browser rewrites `/user/..`), or the id has nothing visible
+        (a link with no label is nothing to click), or the row's app is the empty string or too
+        long for a URL (dropped from the link, the panel would show another app's row under this
+        one's). A row with no link shows its id as text."""
+        if id_value is None or blank(id_value) or id_value in (".", "..") or app_id == "":
             return None
         if app_id is None:
             return self._path(route, None, **{id_name: id_value})
@@ -308,6 +310,7 @@ class DashboardViewService:
                     limit=SEARCH_LIMIT,
                     app_id=app_id,
                     hours=hours,
+                    event_name=event_name,
                 )
                 pagination = build_pagination(
                     page=1, total=len(events), per_page=SEARCH_LIMIT

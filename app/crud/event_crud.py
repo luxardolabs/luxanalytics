@@ -135,9 +135,11 @@ class EventCRUD:
         limit: int = 50,
         app_id: str | None = None,
         hours: int = 0,
+        event_name: str | None = None,
     ) -> list[Event]:
         """Events matching the text, newest first, within the app and time window of
-        `time_conditions` (no app: every app; hours=0: all time)."""
+        `time_conditions` (no app: every app; hours=0: all time) and the event-name filter the
+        list beside it applies."""
         if search_type == "user_id":
             match = Event.user_id.icontains(query_str, autoescape=True)
         elif search_type == "metadata":
@@ -145,6 +147,8 @@ class EventCRUD:
         else:
             match = Event.name.icontains(query_str, autoescape=True)
         conditions = self.time_conditions(hours, app_id)
+        if event_name:
+            conditions.append(Event.name.icontains(event_name, autoescape=True))
         q = (
             select(Event)
             .where(and_(true(), *conditions), match)
@@ -501,13 +505,16 @@ class EventCRUD:
     async def get_user_summary(
         self, db: AsyncSession, user_id: str, app_id: str | None = None
     ) -> dict[str, Any]:
-        """Aggregate stats for a single user."""
+        """Aggregate stats for a single user. Sessions and devices are counted per (app, id), as
+        the profile lists them: the same id in two apps is two."""
         query = select(
             func.count(Event.id).label("total_events"),
             func.count(func.distinct(tuple_(Event.app_id, Event.session_id)))
             .filter(Event.session_id.isnot(None))
             .label("total_sessions"),
-            func.count(func.distinct(Event.device_id)).label("total_devices"),
+            func.count(func.distinct(tuple_(Event.app_id, Event.device_id)))
+            .filter(Event.device_id.isnot(None))
+            .label("total_devices"),
             func.count(func.distinct(Event.name)).label("event_types"),
             func.min(Event.received_at).label("first_seen"),
             func.max(Event.received_at).label("last_seen"),
