@@ -1,0 +1,1 @@
+- Heads-up for SDK users: ingest cuts an event's `screen`, `operation` or `button` metadata value to 2000 bytes (UTF-8, on a character boundary) and stores the event. Values already stored are unchanged.
