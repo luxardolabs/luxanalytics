@@ -101,18 +101,20 @@ def _ships(path: str, rules: Rules) -> bool:
 def _unmodelled(text: str) -> list[str]:
     """The pattern lines whose shape `_rules` does not model, so it could read them differently
     from BuildKit: a BOM, a `#` after a space, a space after `!`, a `.`, `..` or empty path
-    segment (`./`, `x/../`, `//`, `/./`), and `**` not a whole path segment (`a**b`, `***`)."""
+    segment (`./`, `x/../`, `//`, `/./`), and `**` not a whole path segment (`a**b`, `***`).
+    Whitespace around a line is no part of its pattern: BuildKit and `_rules` both drop it."""
     lines = text.splitlines()
     found = [line for line in lines if "\ufeff" in line]
     for line in lines:
-        pattern = line.removeprefix("!")
+        stripped = line.strip()
+        pattern = stripped.removeprefix("!")
         segments = pattern.strip("/").split("/")
         bare_stars = re.sub(r"(?<![^/])\*\*(?![^/])", "", pattern)
         if (
-            (line.startswith((" ", "\t")) and line.strip().startswith("#"))
-            or (line.startswith("!") and pattern[:1].isspace())
+            (line.startswith((" ", "\t")) and stripped.startswith("#"))
+            or (stripped.startswith("!") and pattern[:1].isspace())
             or (
-                line.strip()
+                stripped
                 and not line.startswith("#")
                 and (
                     {".", "..", ""} & set(segments)
@@ -342,6 +344,8 @@ def test_the_dockerignore_has_only_lines_the_parser_models() -> None:
         "d//drop",
         "d/./drop",
         "! keep.tok",
+        "  ! keep.tok",
+        "\t!\tkeep.tok",
         "a**b",
         "d/***/z",
         "!app/**.py",
@@ -360,7 +364,10 @@ def test_a_line_whose_shape_the_parser_does_not_model_is_named(line: str) -> Non
         "d/**/z",
         "**/*.log",
         "app/**",
-        "!app/**/*.py",
+        "app/** ",
+        "  app/**",
+        "!app/**/*.py\t",
+        "  !app/**/*.py",
         "[a-c]x",
         "# a comment",
         "",
