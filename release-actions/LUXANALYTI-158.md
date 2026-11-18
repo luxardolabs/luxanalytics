@@ -1,0 +1,1 @@
+- Before deploying, set `TRUSTED_PROXIES=127.0.0.1,::1,<the prod nginx container's fixed IPv4>` in `deploy/prod/.env.prod`: production refuses to start without a non-loopback proxy address. The address must be fixed first (a pinned `ipv4_address` on a network with a pinned subnet, in the nginx repo), never a range or the network's gateway.
