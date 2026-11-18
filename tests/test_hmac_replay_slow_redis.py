@@ -4,11 +4,17 @@ traceback, per interval rather than per request."""
 
 import asyncio
 import logging
+import time
+from collections.abc import Iterator
 
 import pytest
 
 import app.core.hmac_replay as hmac_replay
+import app.core.rate_limiter as rate_limiter
+import app.core.redis_client as redis_client
+from app.core.config import settings
 from app.core.redis_client import OUTAGE_LOG_INTERVAL
+from tests.redis_proxy import StallingProxy, stalling_proxy
 
 SLOW = hmac_replay.REDIS_WAIT_SECONDS + 0.05
 
@@ -101,3 +107,79 @@ async def test_slow_replies_log_again_once_the_interval_has_passed(
     assert len(logged) == 2
     assert {r.levelno for r in logged} == {logging.WARNING}
     assert all(r.exc_info is None for r in logged)
+
+
+class _Counting:
+    """Answers after SLOW seconds, counting the commands it was sent and the most at once."""
+
+    def __init__(self) -> None:
+        self.sent = 0
+        self.running = 0
+        self.most_at_once = 0
+
+    async def exists(self, key: str) -> int:
+        self.sent += 1
+        self.running += 1
+        self.most_at_once = max(self.most_at_once, self.running)
+        try:
+            await asyncio.sleep(SLOW)
+        finally:
+            self.running -= 1
+        return 0
+
+
+async def test_replay_commands_in_flight_are_capped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Past the cap a check fails open at once and sends nothing, so a slow Redis cannot fill the
+    pool the rate limits share."""
+    counting = _Counting()
+
+    async def get_counting() -> _Counting:
+        return counting
+
+    monkeypatch.setattr(hmac_replay, "get_redis_client", get_counting)
+
+    results = await asyncio.gather(
+        *(hmac_replay.signature_is_marked("k", f"burst-{i}") for i in range(100))
+    )
+    await asyncio.sleep(SLOW + 0.1)
+
+    assert results == [False] * 100
+    # A handful, a small share of the 50-connection pool, never one per request.
+    assert counting.sent <= 16
+    assert counting.most_at_once <= hmac_replay.MAX_COMMANDS_IN_FLIGHT
+
+
+@pytest.fixture
+def stalled_app_redis(monkeypatch: pytest.MonkeyPatch) -> Iterator[StallingProxy]:
+    """The app's own Redis client, through a proxy the test stalls, with a 1 s reply timeout."""
+    with stalling_proxy(settings.REDIS_URL or "") as proxy:
+        monkeypatch.setattr(redis_client, "REDIS_SOCKET_TIMEOUT_SECONDS", 1.0)
+        monkeypatch.setattr(settings, "REDIS_URL", proxy.url)
+        monkeypatch.setattr(rate_limiter, "redis_outage", rate_limiter.RedisOutage())
+        yield proxy
+
+
+@pytest.mark.db
+async def test_a_limit_check_beside_a_replay_burst_on_a_stalled_redis_takes_its_own_timeout(
+    stalled_app_redis: StallingProxy,
+) -> None:
+    await redis_client.close_redis_client()
+    try:
+        assert await redis_client.get_redis_client() is not None
+        stalled_app_redis.stall()
+        await asyncio.gather(
+            *(hmac_replay.signature_is_marked("k", f"stall-{i}") for i in range(300))
+        )
+        limiter = rate_limiter.RateLimiter(1000, 60, key_prefix="beside_replays")
+        started = time.monotonic()
+        await rate_limiter.admit([rate_limiter.Budget(limiter, "y", 1)])
+        took = time.monotonic() - started
+        stalled_app_redis.resume()
+    finally:
+        await asyncio.sleep(1.2)
+        await redis_client.close_redis_client()
+
+    # Its own 1 s reply timeout, not a wait behind replay commands for a pool connection.
+    assert took < 1.6

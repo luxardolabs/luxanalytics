@@ -11,13 +11,15 @@ answering within REDIS_WAIT_SECONDS (a slow Redis or a busy worker) fails open o
 the write: every request is processed, as the rate limiter does.
 
 A command that outlives the wait is not cancelled: cancelling one closes its connection, and the
-next command pays the reconnect. It finishes on its own and its connection goes back to the pool.
+next command pays the reconnect. It finishes on its own (the client's read timeout bounds it) and
+its connection goes back to the pool. At most MAX_COMMANDS_IN_FLIGHT run at once; past that a
+check or mark fails open without sending anything.
 A slow reply logs one warning, without a traceback, per OUTAGE_LOG_INTERVAL; any other Redis
 failure logs its traceback."""
 
 import asyncio
 import logging
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 
 from redis.exceptions import RedisError
 from redis.exceptions import TimeoutError as RedisTimeoutError
@@ -34,9 +36,14 @@ REDIS_WAIT_SECONDS = 0.25
 # When a slow reply was last logged: once per interval, not per signed request.
 slow_replies = LogThrottle()
 
-# Commands that outlived their wait, held until they finish (the loop keeps only weak references to
-# tasks, and a collected task would never return its connection).
+# Commands in flight, held until they finish (the loop keeps only weak references to tasks, and a
+# collected task would never return its connection).
 _unanswered: set[asyncio.Task[object]] = set()
+
+# At most this many replay commands in flight at once: past it, a check or mark fails open at once
+# and sends nothing. A slow Redis then holds no more than these of the 50 pool connections the
+# rate limits share, however many signed requests arrive while it is slow.
+MAX_COMMANDS_IN_FLIGHT = 8
 
 
 def _key(key_id: str, signature: str) -> str:
@@ -59,10 +66,14 @@ def _finished(task: asyncio.Task[object]) -> None:
         task.exception()
 
 
-async def _within_wait(command: Awaitable[object]) -> tuple[bool, object]:
+async def _within_wait(command: Callable[[], Awaitable[object]]) -> tuple[bool, object]:
     """(True, the command's result) when it answers within REDIS_WAIT_SECONDS; (False, None) when
-    it does not, and it is left to finish. Its RedisError or OSError raises here."""
-    task: asyncio.Task[object] = asyncio.ensure_future(command)
+    it does not, and it is left to finish, or when MAX_COMMANDS_IN_FLIGHT are already in flight,
+    and it is not sent. Its RedisError or OSError raises here."""
+    loop = asyncio.get_running_loop()
+    if sum(task.get_loop() is loop for task in _unanswered) >= MAX_COMMANDS_IN_FLIGHT:
+        return False, None
+    task: asyncio.Task[object] = asyncio.ensure_future(command())
     _unanswered.add(task)
     task.add_done_callback(_finished)
     done, _pending = await asyncio.wait({task}, timeout=REDIS_WAIT_SECONDS)
@@ -93,7 +104,7 @@ async def _set(key: str) -> None:
 async def signature_is_marked(key_id: str, signature: str) -> bool:
     """True when a request with this signature was already stored inside its window."""
     try:
-        answered, marked = await _within_wait(_exists(_key(key_id, signature)))
+        answered, marked = await _within_wait(lambda: _exists(_key(key_id, signature)))
     except RedisTimeoutError, TimeoutError:
         answered, marked = False, False
     except RedisError, OSError:
@@ -109,7 +120,7 @@ async def signature_is_marked(key_id: str, signature: str) -> bool:
 async def mark_signature(key_id: str, signature: str) -> None:
     """Remember that the request with this signature was stored."""
     try:
-        answered, _ = await _within_wait(_set(_key(key_id, signature)))
+        answered, _ = await _within_wait(lambda: _set(_key(key_id, signature)))
     except RedisTimeoutError, TimeoutError:
         answered = False
     except RedisError, OSError:
