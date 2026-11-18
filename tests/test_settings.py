@@ -733,7 +733,8 @@ def test_a_trusted_proxy_that_is_not_an_address_is_refused(value: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "value", ["", " , ", ",", "127.0.0.1,::1", "127.0.0.0/8", "::1", "127.0.0.0/8,::1/128"]
+    "value",
+    ["", " , ", ",", "127.0.0.1,::1", "127.0.0.0/8", "::1", "127.0.0.0/8,::1/128"],
 )
 def test_production_refuses_a_trusted_proxies_that_names_no_proxy(value: str) -> None:
     """Blank or loopback only names no proxy in front of the app: every client behind it would
@@ -762,3 +763,31 @@ def test_development_starts_with_loopback_only_or_no_proxy(value: str) -> None:
 def test_a_blank_redis_timeout_is_refused(name: str) -> None:
     with pytest.raises(ValidationError, match="REDIS_URL"):
         _settings(REDIS_URL=f"redis://h:6379/0?{name}=")
+
+
+TEMPLATE = Path(__file__).resolve().parents[1] / ".env.example"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "DATABASE_URL",
+        "SECRET_KEY",
+        "ALLOWED_HOSTS",
+        "EXTERNAL_URL",
+        "DASHBOARD_PASSWORD",
+        "DASHBOARD_SESSION_SECRET",
+        "TRUSTED_PROXIES",
+    ],
+)
+def test_the_env_template_lists_each_setting_production_needs_as_required(
+    key: str,
+) -> None:
+    """The template sets ENVIRONMENT=production: each setting production refuses to start without
+    is one of its blank (required) keys, not a commented optional one."""
+    required = {
+        line.partition("=")[0]
+        for line in TEMPLATE.read_text().splitlines()
+        if line and not line.startswith("#") and line.endswith("=")
+    }
+    assert key in required
