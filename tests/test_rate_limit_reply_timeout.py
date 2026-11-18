@@ -1,7 +1,7 @@
-"""A limit check whose script reached Redis but whose reply timed out has spent its budget there: it
-is admitted, not checked again in the in-memory window. A check that never reached Redis (no
-connection) still falls back to that window, and so does every check after a timeout until one
-succeeds: a Redis that keeps timing out is not a Redis without a limit."""
+"""A limit check whose script was sent but whose reply timed out is decided by the in-memory window:
+admitted, and spent there, only when that window has room. The script may have spent in Redis too,
+so what it returns carries both spends and a refund gives back both. A check that never reached
+Redis (no connection) falls back to the same window."""
 
 from types import TracebackType
 from typing import Self
@@ -19,13 +19,8 @@ from app.core.redis_client import get_redis_client
 pytestmark = pytest.mark.db
 
 
-class _RepliesLost:
-    """Runs each script on the real Redis, then loses its reply: `fault` is raised instead."""
-
-    def __init__(self, real: redis.Redis, fault: Exception) -> None:
-        self.real = real
-        self.fault = fault
-        self.scripts_run = 0
+class _Session:
+    """The one-connection session a check runs in: the stub itself."""
 
     def client(self) -> Self:
         return self
@@ -41,34 +36,44 @@ class _RepliesLost:
     ) -> None:
         return None
 
+
+class _RepliesLost(_Session):
+    """Runs each script on the real Redis; while `losing`, its reply is lost and `fault` raised."""
+
+    def __init__(self, real: redis.Redis, fault: Exception) -> None:
+        self.real = real
+        self.fault = fault
+        self.losing = True
+        self.scripts_run = 0
+
     async def eval(
         self, script: str, numkeys: int, *keys_and_args: str | int | float
     ) -> list[object]:
-        await self.real.eval(script, numkeys, *keys_and_args)
+        reply: list[object] = await self.real.eval(script, numkeys, *keys_and_args)
         self.scripts_run += 1
-        raise self.fault
+        if self.losing:
+            raise self.fault
+        return reply
 
 
-class _NoConnection:
+class _NeverAnswers(_Session):
+    """Connects, takes every script, and times out on every reply."""
+
+    async def eval(
+        self, script: str, numkeys: int, *keys_and_args: str | int | float
+    ) -> list[object]:
+        raise RedisTimeoutError("Timeout reading from redis:6379")
+
+
+class _NoConnection(_Session):
     """Cannot connect: the script is never sent."""
 
     def __init__(self) -> None:
         self.attempts = 0
 
-    def client(self) -> Self:
-        return self
-
     async def __aenter__(self) -> Self:
         self.attempts += 1
         raise RedisConnectionError("Error 111 connecting to redis:6379. Refused.")
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        return None
 
     async def eval(self, *args: str | int | float) -> list[object]:
         self.attempts += 1
@@ -80,16 +85,7 @@ def _fresh_outage(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(rate_limiter, "redis_outage", rate_limiter.RedisOutage())
 
 
-@pytest.mark.parametrize(
-    "fault",
-    [
-        RedisTimeoutError("Timeout reading from redis:6379"),
-        TimeoutError(),
-    ],
-)
-async def test_a_reply_timeout_after_the_script_ran_is_admitted_without_a_memory_spend(
-    monkeypatch: pytest.MonkeyPatch, fault: Exception
-) -> None:
+async def _lossy(monkeypatch: pytest.MonkeyPatch, fault: Exception) -> _RepliesLost:
     real = await get_redis_client()
     assert real is not None
     lossy = _RepliesLost(real, fault)
@@ -98,6 +94,20 @@ async def test_a_reply_timeout_after_the_script_ran_is_admitted_without_a_memory
         return lossy
 
     monkeypatch.setattr(rate_limiter, "get_redis_client", get_lossy)
+    return lossy
+
+
+def _memory_spent(limiter: rate_limiter.RateLimiter, identifier: str) -> int:
+    return sum(cost for _, cost in limiter._memory_storage.get(identifier, []))
+
+
+@pytest.mark.parametrize(
+    "fault", [RedisTimeoutError("Timeout reading from redis:6379"), TimeoutError()]
+)
+async def test_a_reply_timeout_is_decided_and_spent_in_the_memory_window(
+    monkeypatch: pytest.MonkeyPatch, fault: Exception
+) -> None:
+    lossy = await _lossy(monkeypatch, fault)
     limiter = rate_limiter.RateLimiter(5, 60, key_prefix="reply_timeout")
 
     refused, _metadata, spent = await rate_limiter.admit(
@@ -106,27 +116,37 @@ async def test_a_reply_timeout_after_the_script_ran_is_admitted_without_a_memory
 
     assert refused is None
     assert lossy.scripts_run == 1
-    # Spent once, in Redis, where the script ran: the memory window holds nothing.
-    assert await real.zcard("reply_timeout:client-a") == 2
-    assert limiter._memory_storage == {}
-    assert spent.memory_at is None
-    # A refund can still take back what the script added.
-    assert spent.redis_member is not None
-    await rate_limiter.refund(spent)
-    assert await real.zcard("reply_timeout:client-a") == 0
+    assert await lossy.real.zcard("reply_timeout:client-a") == 2
+    assert _memory_spent(limiter, "client-a") == 2
+    assert spent.memory_at is not None
+
+
+async def test_stalls_between_working_checks_admit_an_over_budget_client_only_within_memory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A client over its Redis budget, during stall-then-recover cycles, gets no more than the
+    memory window's own limit: a lost reply is not a free admission."""
+    lossy = await _lossy(monkeypatch, RedisTimeoutError("Timeout reading from redis"))
+    limiter = rate_limiter.RateLimiter(2, 60, key_prefix="reply_timeout_cycles")
+    budget = [rate_limiter.Budget(limiter, "client-x", 1)]
+    lossy.losing = False
+    assert [(await rate_limiter.admit(budget))[0] for _ in range(3)] == [None, None, 0]
+
+    admitted_during_stalls = 0
+    for _ in range(5):
+        lossy.losing = True
+        if (await rate_limiter.admit(budget))[0] is None:
+            admitted_during_stalls += 1
+        lossy.losing = False
+        assert (await rate_limiter.admit(budget))[0] == 0
+
+    assert admitted_during_stalls == 2
 
 
 async def test_a_reply_timeout_is_counted_as_a_failed_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    real = await get_redis_client()
-    assert real is not None
-    lossy = _RepliesLost(real, RedisTimeoutError("Timeout reading from redis:6379"))
-
-    async def get_lossy() -> _RepliesLost:
-        return lossy
-
-    monkeypatch.setattr(rate_limiter, "get_redis_client", get_lossy)
+    await _lossy(monkeypatch, RedisTimeoutError("Timeout reading from redis:6379"))
     limiter = rate_limiter.RateLimiter(100, 60, key_prefix="reply_timeout_count")
     for _ in range(3):
         await rate_limiter.admit([rate_limiter.Budget(limiter, "client-b", 1)])
@@ -150,37 +170,10 @@ async def test_a_connection_failure_before_the_script_is_sent_uses_the_memory_wi
 
     assert outcomes == [None, None, None, 0]
     assert unreachable.attempts == 4
-    assert sum(cost for _, cost in limiter._memory_storage["client-c"]) == 3
+    assert _memory_spent(limiter, "client-c") == 3
 
 
-class _NeverAnswers:
-    """Connects, takes every script, and times out on every reply."""
-
-    def __init__(self) -> None:
-        self.scripts = 0
-
-    def client(self) -> Self:
-        return self
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        return None
-
-    async def eval(
-        self, script: str, numkeys: int, *keys_and_args: str | int | float
-    ) -> list[object]:
-        self.scripts += 1
-        raise RedisTimeoutError("Timeout reading from redis:6379")
-
-
-async def test_after_a_reply_timeout_the_following_checks_use_the_memory_window(
+async def test_a_redis_that_keeps_timing_out_is_held_to_the_memory_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hung = _NeverAnswers()
@@ -194,9 +187,8 @@ async def test_after_a_reply_timeout_the_following_checks_use_the_memory_window(
 
     outcomes = [(await rate_limiter.admit([budget]))[0] for _ in range(6)]
 
-    # The first timeout is admitted without a memory spend; the rest are held to memory.
-    assert outcomes == [None, None, None, None, 0, 0]
-    assert sum(cost for _, cost in limiter._memory_storage["client-d"]) == 3
+    assert outcomes == [None, None, None, 0, 0, 0]
+    assert _memory_spent(limiter, "client-d") == 3
 
 
 async def test_a_redis_that_keeps_timing_out_still_refuses_past_the_request_limit(
@@ -215,29 +207,4 @@ async def test_a_redis_that_keeps_timing_out_still_refuses_past_the_request_limi
         (await client.get("/login", headers=headers)).status_code for _ in range(5)
     ]
 
-    assert codes == [200, 200, 200, 429, 429]
-
-
-async def test_a_working_check_ends_the_memory_fallback(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    real = await get_redis_client()
-    assert real is not None
-    hung = _NeverAnswers()
-    current: object = hung
-
-    async def get_current() -> object:
-        return current
-
-    monkeypatch.setattr(rate_limiter, "get_redis_client", get_current)
-    limiter = rate_limiter.RateLimiter(100, 60, key_prefix="breaker_ends")
-    budget = rate_limiter.Budget(limiter, "client-e", 1)
-    await rate_limiter.admit([budget])
-    await rate_limiter.admit([budget])
-    current = real
-    await rate_limiter.admit([budget])
-    current = hung
-    await rate_limiter.admit([budget])
-
-    # Memory was spent once (the second timeout); the timeout after the working check was not.
-    assert sum(cost for _, cost in limiter._memory_storage["client-e"]) == 1
+    assert codes == [200, 200, 429, 429, 429]
