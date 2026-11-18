@@ -337,6 +337,7 @@ async def test_an_unreachable_redis_lets_ingest_through_and_logs_it(
         return unreachable
 
     monkeypatch.setattr(hmac_replay, "get_redis_client", get_unreachable_client)
+    monkeypatch.setattr(hmac_replay.failures, "last_logged", None)
     body = _event()
     headers = _signed(body, sample_app.app_id)
 
@@ -351,8 +352,10 @@ async def test_an_unreachable_redis_lets_ingest_through_and_logs_it(
 
     assert codes == [200, 200]
     assert await _stored(db, sample_app.app_id) == 2
-    messages = {r.getMessage() for r in caplog.records}
-    assert {"HMAC replay check failed", "HMAC replay mark failed"} <= messages
+    # One traceback for the outage, not one per command.
+    logged = [r for r in caplog.records if r.name == "app.core.hmac_replay"]
+    assert [r.getMessage() for r in logged] == ["HMAC replay check failed"]
+    assert logged[0].exc_info is not None
 
 
 async def test_ingest_works_when_redis_is_not_configured(

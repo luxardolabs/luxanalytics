@@ -8,6 +8,7 @@ import time
 from collections.abc import Iterator
 
 import pytest
+import redis.asyncio as redis
 
 import app.core.hmac_replay as hmac_replay
 import app.core.rate_limiter as rate_limiter
@@ -183,3 +184,23 @@ async def test_a_limit_check_beside_a_replay_burst_on_a_stalled_redis_takes_its_
 
     # Its own 1 s reply timeout, not a wait behind replay commands for a pool connection.
     assert took < 1.6
+
+
+@pytest.mark.db
+async def test_a_redis_refusing_connections_logs_at_most_one_replay_traceback(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    refusing = redis.from_url("redis://127.0.0.1:1/0")
+
+    async def get_refusing() -> redis.Redis:
+        return refusing
+
+    monkeypatch.setattr(hmac_replay, "get_redis_client", get_refusing)
+    with caplog.at_level(logging.WARNING, logger="app.core.hmac_replay"):
+        for i in range(50):
+            await hmac_replay.signature_is_marked("k", f"refused-{i}")
+            await hmac_replay.mark_signature("k", f"refused-{i}")
+    await refusing.aclose()
+
+    tracebacks = [r for r in _replay_logs(caplog) if r.exc_info is not None]
+    assert len(tracebacks) <= 1

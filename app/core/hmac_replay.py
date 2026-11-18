@@ -15,7 +15,7 @@ next command pays the reconnect. It finishes on its own (the client's read timeo
 its connection goes back to the pool. At most MAX_COMMANDS_IN_FLIGHT run at once; past that a
 check or mark fails open without sending anything.
 A slow reply logs one warning, without a traceback, per OUTAGE_LOG_INTERVAL; any other Redis
-failure logs its traceback."""
+failure logs one traceback per OUTAGE_LOG_INTERVAL."""
 
 import asyncio
 import logging
@@ -33,8 +33,10 @@ logger = logging.getLogger(__name__)
 # a signed request this much here, rather than holding it until the command answers.
 REDIS_WAIT_SECONDS = 0.25
 
-# When a slow reply was last logged: once per interval, not per signed request.
+# When a slow reply, and any other Redis failure, was last logged: each once per interval, not per
+# signed request.
 slow_replies = LogThrottle()
+failures = LogThrottle()
 
 # Commands in flight, held until they finish (the loop keeps only weak references to tasks, and a
 # collected task would never return its connection).
@@ -109,7 +111,8 @@ async def signature_is_marked(key_id: str, signature: str) -> bool:
         answered, marked = False, False
     except RedisError, OSError:
         # swallowed-exceptions: handled, not dropped: an unreachable Redis fails open (logged).
-        logger.exception("HMAC replay check failed")
+        if failures.due():
+            logger.exception("HMAC replay check failed")
         return False
     if not answered:
         _slow("HMAC replay check: Redis did not answer in time, failing open")
@@ -125,7 +128,8 @@ async def mark_signature(key_id: str, signature: str) -> None:
         answered = False
     except RedisError, OSError:
         # swallowed-exceptions: handled, not dropped: the request was stored; its replay will be too.
-        logger.exception("HMAC replay mark failed")
+        if failures.due():
+            logger.exception("HMAC replay mark failed")
         return
     if not answered:
         _slow("HMAC replay mark: Redis did not answer in time, failing open")
