@@ -201,7 +201,7 @@ async def test_a_device_in_two_apps_shows_each_installs_own_values(
     assert [(r.app_id, r.app_version) for r in scoped] == [("other_app", "9.0")]
 
 
-async def test_a_device_with_events_but_no_devices_row_is_still_listed(
+async def test_a_device_with_no_devices_row_shows_its_events_values(
     db: AsyncSession,
 ) -> None:
     await db.execute(
@@ -213,8 +213,97 @@ async def test_a_device_with_events_but_no_devices_row_is_still_listed(
     rows = await event_crud.get_user_devices(db, "no-row", "test_app")
 
     assert [(r.device_id, r.device_model, r.event_count) for r in rows] == [
-        ("orphan", None, 1)
+        ("orphan", "M", 1)
     ]
+
+
+def _event_of(
+    client_id: str, user_id: str, at: datetime, **metadata: str
+) -> EventCreate:
+    return EventCreate.model_validate(
+        {
+            "client_event_id": client_id,
+            "name": "e",
+            "timestamp": at.isoformat(),
+            "user_id": user_id,
+            "metadata": metadata,
+        }
+    )
+
+
+async def test_a_shared_install_shows_each_user_the_values_of_their_own_events(
+    db: AsyncSession,
+) -> None:
+    """Two users of one app on one device id share its devices row, which the later user's events
+    rewrite: each user's row describes what that user's events sent."""
+    ingest = EventCoreService(db)
+    now = datetime.now(UTC)
+    install = {"device_id": "shared-dev", "device_model": "iPhone12"}
+    await ingest.create_events(
+        "test_app",
+        [
+            _event_of(
+                "x1",
+                "user_x",
+                now - timedelta(days=3),
+                system_version="17.0",
+                app_version="1.0",
+                **install,
+            )
+        ],
+    )
+    await db.flush()
+    await ingest.create_events(
+        "test_app",
+        [
+            _event_of(
+                "y1", "user_y", now, system_version="18.0", app_version="2.0", **install
+            )
+        ],
+    )
+    await db.flush()
+
+    x_rows = await event_crud.get_user_devices(db, "user_x", "test_app")
+    y_rows = await event_crud.get_user_devices(db, "user_y", "test_app")
+
+    assert [(r.os_version, r.app_version, r.event_count) for r in x_rows] == [
+        ("17.0", "1.0", 1)
+    ]
+    assert [(r.os_version, r.app_version, r.event_count) for r in y_rows] == [
+        ("18.0", "2.0", 1)
+    ]
+
+
+async def test_another_apps_install_never_feeds_a_row(db: AsyncSession) -> None:
+    await db.execute(
+        insert(Event), [_row("test_app", "e", user_id="ten", device_id="tdev")]
+    )
+    await db.execute(
+        insert(Device),
+        [
+            {
+                "app_id": "other_app",
+                "device_id": "tdev",
+                "device_model": "LEAK",
+                "os_version": "LEAK",
+                "app_version": "LEAK",
+                "platform": "LEAK",
+            }
+        ],
+    )
+    await db.flush()
+
+    for app in ("test_app", None):
+        rows = await event_crud.get_user_devices(db, "ten", app)
+        assert len(rows) == 1
+        assert "LEAK" not in {
+            rows[0].device_model,
+            rows[0].os_version,
+            rows[0].app_version,
+            rows[0].platform,
+        }
+    assert await event_crud.get_user_devices(db, "ten", "other_app") == []
+
 
 
 async def test_a_long_app_id_is_cut_in_the_profile_rows(

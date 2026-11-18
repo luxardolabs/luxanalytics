@@ -21,11 +21,11 @@ from sqlalchemy import (
     true,
     tuple_,
 )
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
-from app.models.device_model import Device
 from app.models.event_model import Event
 
 # A WHERE clause as built by time_conditions(): SQLAlchemy boolean predicates, AND-ed by callers.
@@ -36,6 +36,24 @@ def _has_value(expr: ColumnElement[str]) -> ColumnElement[bool]:
     """A JSONB property that carries a value: present, not JSON null, not an empty string.
     One rule for every property aggregate, so a panel's totals and its rows agree."""
     return and_(expr.isnot(None), expr != "")
+
+
+def _has_device() -> ColumnElement[bool]:
+    """An event that names a device."""
+    return Event.device_id.isnot(None)
+
+
+def _latest_sent(column: InstrumentedAttribute[str | None]) -> ColumnElement[str | None]:
+    """In a GROUP BY, the latest value the group's events sent for `column`, in the order the
+    devices upsert applies them (event time, then arrival, then id): a later event that did not
+    send it keeps the earlier value."""
+    ordered = func.array_agg(
+        aggregate_order_by(
+            column, Event.timestamp.desc(), Event.received_at.desc(), Event.id.desc()
+        )
+    )
+    latest: ColumnElement[str | None] = ordered.filter(column.isnot(None))[1]
+    return latest
 
 
 class EventWriteCRUD:
@@ -474,45 +492,30 @@ class EventCRUD:
     ]:
         """The user's devices, one row per (app, device), as the profile's Devices card counts
         them: the same device id in two apps is two installs, and an install that moved to a new
-        OS or app version is one. The model, OS, version and platform are the install's row of
-        the devices table, as the Devices page shows them: its upsert orders a batch by event time
-        and keeps a value a later event did not send, which no pick among the user's events (one
-        received_at for a whole batch) can. The counts and last seen are over the user's events;
-        an install with no devices row is listed with no values."""
-        totals = (
+        OS or app version is one. Its model, OS, version and platform are each the latest value
+        THIS user's events sent, in the order the devices upsert uses (event time, then arrival,
+        then id): a value a later event did not send is kept, an offline batch (one received_at
+        for all of it) still resolves by event time, and another user of a shared install never
+        shows through, as the per-install devices row would. An empty device id is no device, as
+        ingest treats it."""
+        query = (
             select(
                 Event.app_id,
                 Event.device_id,
+                _latest_sent(Event.device_model).label("device_model"),
+                _latest_sent(Event.os_version).label("os_version"),
+                _latest_sent(Event.app_version).label("app_version"),
+                _latest_sent(Event.platform).label("platform"),
                 func.count(Event.id).label("event_count"),
                 func.max(Event.received_at).label("last_seen"),
             )
             .where(
                 Event.user_id == user_id,
-                Event.device_id.isnot(None),
+                _has_device(),
                 *self.app_conditions(app_id),
             )
             .group_by(Event.app_id, Event.device_id)
-            .subquery()
-        )
-        query = (
-            select(
-                totals.c.app_id,
-                totals.c.device_id,
-                Device.device_model,
-                Device.os_version,
-                Device.app_version,
-                Device.platform,
-                totals.c.event_count,
-                totals.c.last_seen,
-            )
-            .outerjoin(
-                Device,
-                and_(
-                    Device.app_id == totals.c.app_id,
-                    Device.device_id == totals.c.device_id,
-                ),
-            )
-            .order_by(desc(totals.c.last_seen))
+            .order_by(desc(func.max(Event.received_at)))
         )
         result = await db.execute(query)
         return list(result.all())
@@ -528,7 +531,7 @@ class EventCRUD:
             .filter(Event.session_id.isnot(None))
             .label("total_sessions"),
             func.count(func.distinct(tuple_(Event.app_id, Event.device_id)))
-            .filter(Event.device_id.isnot(None))
+            .filter(_has_device())
             .label("total_devices"),
             func.count(func.distinct(Event.name)).label("event_types"),
             func.min(Event.received_at).label("first_seen"),
