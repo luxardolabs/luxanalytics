@@ -853,9 +853,11 @@ def test_concurrent_header_checks_leave_the_sdk_logger_as_they_found_it(
         return real(pair, liberal=liberal)
 
     monkeypatch.setattr(config_module, "parse_env_headers", overlapping)
-    first = threading.Thread(target=config_module._otlp_headers_readable, args=("a=1",))
+    first = threading.Thread(
+        target=_settings, kwargs={"OTEL_EXPORTER_OTLP_HEADERS": "a=1"}
+    )
     second = threading.Thread(
-        target=config_module._otlp_headers_readable, args=("b=1",)
+        target=_settings, kwargs={"OTEL_EXPORTER_OTLP_HEADERS": "b=1"}
     )
     first.start()
     second.start()
@@ -876,7 +878,7 @@ def test_a_failing_header_check_leaves_the_sdk_logger_as_it_found_it(
 
     monkeypatch.setattr(config_module, "parse_env_headers", broken)
     with pytest.raises(RuntimeError):
-        config_module._otlp_headers_readable("a=1")
+        _settings(OTEL_EXPORTER_OTLP_HEADERS="a=1")
 
     assert sdk_logger.disabled is False
     assert sdk_logger.filters == []

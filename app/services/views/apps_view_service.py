@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, status
 from fastapi.responses import Response
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,6 +43,21 @@ def page_context(request: Request) -> dict[str, Any]:
 def new_panel_context(request: Request) -> dict[str, Any]:
     """The New App form: no app yet, and the route it posts to."""
     return {"app": None, "create_url": request.app.url_path_for("apps.create")}
+
+
+_FORM_MEDIA_TYPES = frozenset(
+    {"application/x-www-form-urlencoded", "multipart/form-data"}
+)
+
+
+def form_body(request: Request) -> None:
+    """The edit route's dependency: it reads a form only. Any other body (JSON, plain text, none)
+    would parse as a form of no fields and change nothing behind a 200, so it is a 415."""
+    media_type = request.headers.get("content-type", "").partition(";")[0]
+    if media_type.strip().lower() not in _FORM_MEDIA_TYPES:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "The edit takes a form body"
+        )
 
 
 class AppFormError(ValueError):
