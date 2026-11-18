@@ -3,7 +3,7 @@
 import io
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,7 +108,27 @@ async def create_app(
     return await view.list_with_toast(message)
 
 
-@router.put(f"/{APP_ID_PARAM}", response_class=HTMLResponse, name="apps.update")
+_FORM_MEDIA_TYPES = frozenset(
+    {"application/x-www-form-urlencoded", "multipart/form-data"}
+)
+
+
+def form_body(request: Request) -> None:
+    """The edit route reads a form only: any other body (JSON, plain text, none) would parse as a
+    form of no fields and change nothing behind a 200, so it is a 415."""
+    media_type = request.headers.get("content-type", "").partition(";")[0]
+    if media_type.strip().lower() not in _FORM_MEDIA_TYPES:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "The edit takes a form body"
+        )
+
+
+@router.put(
+    f"/{APP_ID_PARAM}",
+    response_class=HTMLResponse,
+    name="apps.update",
+    dependencies=[Depends(form_body)],
+)
 async def update_app(
     request: Request,
     app_id: PathText,

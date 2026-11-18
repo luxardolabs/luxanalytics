@@ -83,7 +83,15 @@ def _update_form(form: AppEditForm) -> AppUpdate:
 
     The Active toggle is a checkbox, which a browser OMITS when unchecked: on the browser's form,
     which always sends the name, a missing is_active means False. A request without the name is
-    not that form, and leaves is_active as it is: inactive is the ingest kill switch."""
+    not that form, and leaves is_active as it is: inactive is the ingest kill switch. A form with
+    none of the fields is refused: it would change nothing behind a success."""
+    if all(
+        value is None
+        for value in (form.name, form.organization, form.description, form.is_active)
+    ):
+        raise AppFormError(
+            "The form sent none of name, organization, description or is_active"
+        )
     fields: dict[str, str | bool | None] = {}
     if form.is_active is not None:
         fields["is_active"] = form.is_active

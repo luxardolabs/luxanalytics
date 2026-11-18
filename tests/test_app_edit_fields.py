@@ -26,7 +26,7 @@ INVISIBLE_NAMES = [
 
 @pytest.mark.db
 @pytest.mark.parametrize(
-    "data", [{}, {"description": "only this"}, {"organization": "Org"}]
+    "data", [{"description": "only this"}, {"organization": "Org"}]
 )
 async def test_a_put_without_the_name_field_leaves_the_app_active(
     dashboard_client: AsyncClient,
@@ -44,14 +44,48 @@ async def test_a_put_without_the_name_field_leaves_the_app_active(
 
 
 @pytest.mark.db
-async def test_a_json_put_leaves_the_app_active(
-    dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
+@pytest.mark.parametrize(
+    ("body", "content_type"),
+    [
+        (b'{"is_active": false, "name": "Renamed"}', "application/json"),
+        (b"is_active=false&name=Renamed", "text/plain"),
+        (b"", None),
+    ],
+)
+async def test_an_edit_that_is_not_a_form_is_refused_and_writes_nothing(
+    dashboard_client: AsyncClient,
+    db: AsyncSession,
+    sample_app: App,
+    body: bytes,
+    content_type: str | None,
 ) -> None:
+    """The edit route reads a form only: any other body would change nothing behind a 200."""
+    headers = {"content-type": content_type} if content_type else {}
     response = await dashboard_client.put(
-        f"/apps/{sample_app.app_id}", json={"description": "x"}
+        f"/apps/{sample_app.app_id}", content=body, headers=headers
     )
 
-    assert response.status_code in (200, 422)
+    assert response.status_code == 415
+    await db.refresh(sample_app)
+    assert (sample_app.name, sample_app.is_active) == ("Test Application", True)
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("data", [{}, {"unknown": "x"}])
+async def test_an_edit_form_with_none_of_the_fields_is_a_form_error(
+    dashboard_client: AsyncClient,
+    db: AsyncSession,
+    sample_app: App,
+    data: dict[str, str],
+) -> None:
+    response = await dashboard_client.put(
+        f"/apps/{sample_app.app_id}",
+        data=data,
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 400
+    assert response.headers["hx-retarget"] == "#form-errors"
     await db.refresh(sample_app)
     assert sample_app.is_active is True
 
@@ -146,3 +180,35 @@ async def test_a_blank_organization_or_description_on_edit_clears_it(
     await db.refresh(sample_app)
     assert sample_app.organization is None
     assert sample_app.description is None
+
+
+@pytest.mark.db
+async def test_a_put_of_the_description_alone_changes_nothing_else(
+    dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
+) -> None:
+    response = await dashboard_client.put(
+        f"/apps/{sample_app.app_id}", data={"description": "d"}
+    )
+
+    assert response.status_code == 200
+    await db.refresh(sample_app)
+    assert (
+        sample_app.name,
+        sample_app.organization,
+        sample_app.is_active,
+        sample_app.description,
+    ) == ("Test Application", "Test Org", True, "d")
+
+
+@pytest.mark.db
+async def test_a_put_of_is_active_alone_deactivates_and_keeps_the_name(
+    dashboard_client: AsyncClient, db: AsyncSession, sample_app: App
+) -> None:
+    response = await dashboard_client.put(
+        f"/apps/{sample_app.app_id}", data={"is_active": "false"}
+    )
+
+    assert response.status_code == 200
+    await db.refresh(sample_app)
+    assert sample_app.is_active is False
+    assert sample_app.name == "Test Application"
