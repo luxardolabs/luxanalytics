@@ -2,7 +2,16 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
+
+from app.core.visible_text import blank
 
 
 def _no_nul(value: str | None) -> str | None:
@@ -12,11 +21,25 @@ def _no_nul(value: str | None) -> str | None:
     return value
 
 
+def _has_visible_character(value: str) -> str:
+    """A name of only zero-width, format or filler characters lists as an empty row."""
+    if blank(value):
+        raise ValueError("must have a visible character")
+    return value
+
+
+def _blank_is_none(value: object) -> object:
+    """A written optional text field holding nothing visible is cleared, not stored."""
+    return None if isinstance(value, str) and blank(value) else value
+
+
 # A name written by a form: surrounding whitespace is dropped and something visible must remain.
 # Only the write models use it; AppRow reads a stored name as it is, so an app stored with a blank
 # name still lists and opens.
 AppName = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+    AfterValidator(_has_visible_character),
 ]
 
 
@@ -38,6 +61,10 @@ class AppCreate(AppBase):
         ..., min_length=1, max_length=255, pattern=r"^[a-z0-9][a-z0-9_-]*$"
     )
 
+    _blank_text_is_none = field_validator("organization", "description", mode="before")(
+        _blank_is_none
+    )
+
 
 class AppUpdate(BaseModel):
     name: AppName | None = None
@@ -47,18 +74,22 @@ class AppUpdate(BaseModel):
     app_metadata: dict[str, Any] | None = None
 
     _text_has_no_nul = field_validator("name", "organization", "description")(_no_nul)
+    _blank_text_is_none = field_validator("organization", "description", mode="before")(
+        _blank_is_none
+    )
 
 
 class AppEditForm(BaseModel):
     """The edit form as the browser posts it: every field optional and unconstrained, because the
     limits live on AppUpdate, which answers a refused field in the form's own error box. A text
     field the browser sent empty is "" (the person cleared it); one it did not send is None
-    (leave it). The Active checkbox is omitted when unchecked, so absent means False."""
+    (leave it). The Active checkbox is omitted when unchecked, so is_active is None when absent:
+    the view reads that as False only on the browser's form, which always sends the name."""
 
     name: str | None = None
     organization: str | None = None
     description: str | None = None
-    is_active: bool = False
+    is_active: bool | None = None
 
 
 class AppRow(AppBase):

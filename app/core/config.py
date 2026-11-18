@@ -29,6 +29,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 from app.core.trusted_host import AllowedHosts
+from app.core.visible_text import blank, visible
 
 # Parses HMAC_KEYS, so a refusal must not print what it refused: the value holds secrets.
 _STR_DICT = TypeAdapter(dict[str, str], config=ConfigDict(hide_input_in_errors=True))
@@ -36,20 +37,7 @@ _STR_DICT = TypeAdapter(dict[str, str], config=ConfigDict(hide_input_in_errors=T
 # names a socket differently from redis-py, so no socket form works for both.
 _REDIS_URL_PREFIXES = ("redis://", "rediss://")
 _STR_LIST = TypeAdapter(list[str], config=ConfigDict(hide_input_in_errors=True))
-_INVISIBLE_CATEGORIES = {"Cc", "Cf", "Cn", "Co", "Cs", "Me", "Mn"}
-_FILLERS = {"ᅟ", "ᅠ", "⠀", "ㅤ", "ﾠ", "￼"}
 MAX_REDIS_TIMEOUT_SECONDS = 86400
-
-
-def _visible(text: str) -> str:
-    """The text without what renders as nothing: controls, format characters, unassigned and
-    private code points, combining marks and the blank fillers. Whitespace stays."""
-    return "".join(
-        c
-        for c in text
-        if c in string.whitespace
-        or (unicodedata.category(c) not in _INVISIBLE_CATEGORIES and c not in _FILLERS)
-    )
 
 
 # A collector URL: scheme, a hostname (dot-separated labels of letters, digits, `_` and `-`, as a
@@ -142,11 +130,6 @@ def _readable_collector_url(url: str, *, base: bool) -> bool:
     return bool(path.strip("/"))
 
 
-def _blank(secret: str) -> bool:
-    """Nothing but whitespace and invisible characters: a key anyone can guess."""
-    return not _visible(secret).strip()
-
-
 def _split_after_authority(url: str) -> tuple[str, str]:
     """The URL after its scheme, split at the first of `/ ? #`: (authority, the rest)."""
     after_scheme = url.partition("://")[2]
@@ -211,9 +194,9 @@ def _names_a_proxy(trusted: str) -> bool:
 def _guessable(password: str, username: str) -> bool:
     """A default or the username, bare or padded: "admin1234567" and "password!!!!" are as
     guessable as "admin". Invisible characters do not count."""
-    visible = _visible(password)
-    core = visible.lower().strip(string.digits + string.punctuation + string.whitespace)
-    return len(visible.strip()) < MIN_PRODUCTION_PASSWORD or core in {
+    shown = visible(password)
+    core = shown.lower().strip(string.digits + string.punctuation + string.whitespace)
+    return len(shown.strip()) < MIN_PRODUCTION_PASSWORD or core in {
         *WEAK_PASSWORDS,
         username.strip().lower(),
     }
@@ -471,7 +454,7 @@ class Settings(BaseSettings):
         length is a key anyone can guess."""
         if v == "":
             return None
-        if isinstance(v, str) and _blank(v):
+        if isinstance(v, str) and blank(v):
             raise ValueError("DASHBOARD_SESSION_SECRET must not be blank")
         return v
 
@@ -492,7 +475,7 @@ class Settings(BaseSettings):
             raise ValueError(
                 'HMAC_KEYS must be a JSON object of {"<key id>": "<secret>"}'
             ) from None
-        if any(_blank(secret) for secret in keys.values()):
+        if any(blank(secret) for secret in keys.values()):
             raise ValueError("HMAC_KEYS must not hold a blank secret")
         return self
 

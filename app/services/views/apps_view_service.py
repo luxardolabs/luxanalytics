@@ -78,9 +78,17 @@ def _create_form(
 
 def _update_form(form: AppEditForm) -> AppUpdate:
     """The edit form as a validated DTO, built in one call: a field the form did not send stays
-    unset (unchanged), an optional text field it sent empty is cleared, and an empty name is
-    refused; AppFormError names what the form got wrong."""
-    fields: dict[str, str | bool | None] = {"is_active": form.is_active}
+    unset (unchanged), an optional text field it sent blank is cleared, and an empty name is
+    refused; AppFormError names what the form got wrong.
+
+    The Active toggle is a checkbox, which a browser OMITS when unchecked: on the browser's form,
+    which always sends the name, a missing is_active means False. A request without the name is
+    not that form, and leaves is_active as it is: inactive is the ingest kill switch."""
+    fields: dict[str, str | bool | None] = {}
+    if form.is_active is not None:
+        fields["is_active"] = form.is_active
+    elif form.name is not None:
+        fields["is_active"] = False
     if form.name is not None:
         fields["name"] = form.name
     for field, value in (
@@ -112,7 +120,7 @@ class AppsViewService:
         is blocked as mixed content."""
         path_for = self._request.app.url_path_for
         dashboard = path_for("dashboard.overview.page")
-        # The app routes take {app_id:path}, which the server fills from the decoded path, so a "/"
+        # The app routes take {app_id:appid}, which the server fills from the decoded path, so a "/"
         # travels as %2F: a literal "/" would let a browser resolve a ".." id segment away and send
         # the request to another app.
         encoded = quote(app_id, safe="")
@@ -199,12 +207,8 @@ class AppsViewService:
         app_id: str,
         form: AppEditForm,
     ) -> str:
-        """Apply the edit form; returns the toast message. Raises AppFormError.
-
-        The Active toggle is a checkbox, which a browser OMITS when unchecked: absent means
-        False, never "leave unchanged" (a None would write NULL into a NOT NULL column, and an app
-        could not be deactivated).
-        """
+        """Apply the edit form (see `_update_form` for the Active toggle); returns the toast
+        message. Raises AppFormError."""
         with create_service_span("AppsViewService", "update", app_id=app_id):
             update = _update_form(form)
             app = await self._core.update_app(app_id, update)
