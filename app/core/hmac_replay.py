@@ -2,22 +2,31 @@
 recognised.
 
 The signature covers the body and the timestamp, so the same signed request verifies until the
-timestamp leaves the window. Once a request has been stored its signature is marked in Redis for as
-long as it can verify; a request whose signature is marked is a replay. The mark is written after
-the events are committed, so a request that failed before that leaves none and its retry is stored.
-The worst case is a duplicate row (a crash between the commit and the mark, or two identical
-requests in flight together), never a lost event. Redis being unreachable, not configured, or not
-answering within REDIS_WAIT_SECONDS (a slow Redis or a busy worker) fails open on both the read and
-the write: every request is processed, as the rate limiter does.
+timestamp leaves the window. The check runs only after the signature is verified
+(app.core.security), so a request that fails authentication never reaches Redis for it. Once a
+request has been stored its signature is marked in Redis for as long as it can verify (twice the
+tolerance); a request whose signature is marked is a replay. The mark is written after the events
+are committed, so a request that failed before that leaves none and its retry is stored.
 
-The check and the mark use their own small connection pools (app.core.redis_client.ReplayRedis),
-apart from the rate limits', so a slow Redis cannot make a limit check wait behind them. The check
-waits REDIS_WAIT_SECONDS, a free connection included, then fails open; a command that outlives the
-wait is not cancelled (cancelling one closes its connection) and finishes on its own, bounded by the
-client's read timeout. A mark is never dropped for want of a connection: it runs as a task that
-waits for its pool as long as the pool allows, and the request waits on it no longer than
-REDIS_WAIT_SECONDS. A slow reply logs one warning, without a traceback, per OUTAGE_LOG_INTERVAL;
-any other Redis failure logs one traceback per OUTAGE_LOG_INTERVAL."""
+The check and the mark use their own Redis clients (app.core.redis_client.ReplayRedis), apart from
+the rate limits', so a slow Redis cannot make a limit check wait behind them. The check waits
+REDIS_WAIT_SECONDS, a free connection included, then fails open; a command that outlives the wait
+is not cancelled (cancelling one closes its connection) and finishes on its own, bounded by the
+client's read timeout. Marks are queued and one drainer writes every pending mark in one
+pipelined round trip, so a burst is not limited by connections; the request waits on its mark at
+most REDIS_WAIT_SECONDS, and the mark is still written after that. Closing the clients gives
+pending marks a short drain and cancels the rest.
+
+What it does not stop, each storing a duplicate row and never losing an event:
+- two identical requests in flight together (neither is marked when the other is checked);
+- a crash between the commit and the mark;
+- a mark that fails because Redis failed (it is logged);
+- a request stored while protection was off (REDIS_URL unset, Redis unreachable, or a check that
+  got no answer in time): it has no mark, so it stays replayable for twice the tolerance after
+  Redis recovers.
+
+A slow reply logs one warning, without a traceback, per OUTAGE_LOG_INTERVAL; any other Redis
+failure logs one traceback per OUTAGE_LOG_INTERVAL."""
 
 import asyncio
 import logging
