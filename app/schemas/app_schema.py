@@ -11,7 +11,7 @@ from pydantic import (
     field_validator,
 )
 
-from app.core.visible_text import blank
+from app.core.visible_text import blank, hides_characters
 
 
 def _no_nul(value: str | None) -> str | None:
@@ -22,9 +22,12 @@ def _no_nul(value: str | None) -> str | None:
 
 
 def _has_visible_character(value: str) -> str:
-    """A name of only zero-width, format or filler characters lists as an empty row."""
+    """A name of only zero-width, format or filler characters lists as an empty row, and one that
+    holds any renders unlike what is stored (a lookalike of another app's name)."""
     if blank(value):
         raise ValueError("must have a visible character")
+    if hides_characters(value):
+        raise ValueError("must not contain zero-width or text-direction characters")
     return value
 
 

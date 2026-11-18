@@ -120,19 +120,47 @@ async def test_renaming_an_app_to_an_invisible_name_is_a_form_error(
     assert sample_app.name == "Test Application"
 
 
+HIDDEN_CHARACTER_NAMES = [
+    "Prod​App",  # zero-width space
+    "Prod‍App",  # zero-width joiner
+    "Prod⁠App",  # word joiner
+    "Prod﻿App",  # zero-width no-break space
+    "Pay‮lapyaP",  # right-to-left override
+    "App ⁦x⁩",  # bidi isolates
+    "App‏",  # right-to-left mark
+]
+
+
 @pytest.mark.db
-async def test_a_name_with_a_visible_character_beside_invisible_ones_is_kept(
-    dashboard_client: AsyncClient, db: AsyncSession
+@pytest.mark.parametrize("name", HIDDEN_CHARACTER_NAMES)
+async def test_a_name_holding_a_zero_width_or_bidi_control_is_a_form_error(
+    dashboard_client: AsyncClient, db: AsyncSession, name: str
+) -> None:
+    """A hidden character makes a name render unlike what is stored: a lookalike of another app."""
+    response = await dashboard_client.post(
+        "/apps/", data={"app_id": "hidden_char", "name": name}
+    )
+
+    assert response.status_code == 400
+    assert (
+        await db.execute(select(App).where(App.app_id == "hidden_char"))
+    ).first() is None
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("name", ["Café", "Café", "日本アプリ", "Rocket 🚀"])
+async def test_a_name_with_accents_scripts_or_emoji_is_kept(
+    dashboard_client: AsyncClient, db: AsyncSession, name: str
 ) -> None:
     response = await dashboard_client.post(
-        "/apps/", data={"app_id": "zwj_name", "name": "A​B"}
+        "/apps/", data={"app_id": "visible_name", "name": name}
     )
 
     assert response.status_code == 200
     stored = (
-        await db.execute(select(App).where(App.app_id == "zwj_name"))
+        await db.execute(select(App).where(App.app_id == "visible_name"))
     ).scalar_one()
-    assert stored.name == "A​B"
+    assert stored.name == name
 
 
 @pytest.mark.db

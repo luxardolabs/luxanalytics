@@ -32,3 +32,10 @@ def visible(text: str) -> str:
 def blank(text: str) -> bool:
     """Nothing but whitespace and invisible characters."""
     return not visible(text).strip()
+
+
+def hides_characters(text: str) -> bool:
+    """Holds a format character (zero-width space and joiners, word joiner, BOM, soft hyphen, the
+    bidi marks, overrides and isolates) or a blank filler: what makes a text render unlike what it
+    stores. Combining marks are not counted; they draw on the letter before them."""
+    return any(unicodedata.category(c) == "Cf" or c in _FILLERS for c in text)
