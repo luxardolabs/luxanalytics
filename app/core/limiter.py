@@ -22,10 +22,12 @@ from app.core.redis_client import with_default_timeouts
 
 # slowapi's storage is redis-py's synchronous client, called in the request path: each call blocks
 # the event loop, every request with it, until Redis answers. Its connect and reply bounds are
-# this, far below the async pool's, unless REDIS_URL sets its own. A timeout sends slowapi to its
-# in-process count; the request that finds Redis failing also makes one health check, so it can
-# block the loop for twice this.
-REQUEST_LIMITER_TIMEOUT_SECONDS = 0.2
+# this, unless REDIS_URL sets its own. A timeout marks the storage dead and sends slowapi to its
+# in-process count, which starts every client at zero: the fail-open posture above. So the bound
+# sits above ordinary latency spikes, which must not reopen an exhausted login budget, and below
+# the async pool's 2 s. The request that finds Redis failing also makes one health check, so a
+# stalled Redis can block the loop for up to twice this, once per backoff interval.
+REQUEST_LIMITER_TIMEOUT_SECONDS = 1.0
 
 
 def client_key(request: Request) -> str:

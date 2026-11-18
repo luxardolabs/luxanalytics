@@ -3,23 +3,25 @@ and the failure's traceback is logged once per interval, not once per request.""
 
 import asyncio
 import logging
+import threading
 import time
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator, Awaitable, Iterator
 from urllib.parse import urlsplit
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from limits.storage import RedisStorage, storage_from_string
+from limits.storage import RedisStorage
 from redis.asyncio import BlockingConnectionPool
+from slowapi import Limiter
 
 import app.core.hmac_replay as hmac_replay
 import app.core.redis_client as redis_client
 import app.services.core.health_core_service as health_core_service
 from app.core.config import settings
-from app.core.limiter import limiter
+from app.core.limiter import client_key, limiter
 from app.core.redis_client import OUTAGE_LOG_INTERVAL
-from tests.redis_proxy import stalling_proxy
+from tests.redis_proxy import StallingProxy, stalling_proxy
 
 INIT_FAILED = "Failed to initialize Redis client"
 
@@ -245,14 +247,14 @@ def test_a_blank_timeout_in_the_url_is_treated_as_unset() -> None:
     )
 
 
-def test_the_request_limiter_bounds_its_blocking_calls_tightly() -> None:
+def test_the_request_limiter_bounds_its_blocking_calls_below_the_async_pool() -> None:
     """slowapi's client is synchronous: each call it makes blocks the event loop, so its bounds are
-    far below the async pool's."""
+    below the async pool's 2 s, and above an ordinary latency spike."""
     storage = limiter._storage
     assert isinstance(storage, RedisStorage)
     options = storage.storage.connection_pool.connection_kwargs
-    assert float(options["socket_timeout"]) <= 0.25
-    assert float(options["socket_connect_timeout"]) <= 0.25
+    assert 0.5 <= float(options["socket_timeout"]) <= 1.0
+    assert 0.5 <= float(options["socket_connect_timeout"]) <= 1.0
 
 
 async def _largest_loop_gap(work: Awaitable[object]) -> float:
@@ -276,31 +278,73 @@ async def _largest_loop_gap(work: Awaitable[object]) -> float:
     return max(gaps)
 
 
-async def _login(client: AsyncClient) -> int:
+async def _login(client: AsyncClient, address: str = "198.51.100.77") -> int:
     response = await client.post(
         "/login",
         data={"username": "nobody", "password": "wrong", "next": "/"},
-        headers={"X-Forwarded-For": "198.51.100.77"},
+        headers={"X-Forwarded-For": address},
         follow_redirects=False,
     )
     return response.status_code
 
 
-async def test_a_login_against_a_stalled_redis_keeps_the_event_loop_turning(
-    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.fixture
+def login_limiter_through_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[StallingProxy]:
+    """The app's login limiter, rebuilt from its own storage URI and options, through a proxy the
+    test stalls: a fresh storage, fallback and backend-check state, restored after the test."""
     configured = limiter._storage_uri
     assert configured is not None
     with stalling_proxy(settings.REDIS_URL or "") as proxy:
-        # The limiter's own storage URI and options, pointed through the proxy.
-        uri = configured.replace(urlsplit(configured).netloc, proxy.netloc, 1)
-        storage = storage_from_string(uri)
-        monkeypatch.setattr(limiter, "_storage", storage)
-        monkeypatch.setattr(limiter, "_limiter", type(limiter._limiter)(storage))
-        monkeypatch.setattr(limiter, "_storage_dead", False)
-        assert await _login(client) == 303
-        proxy.stall()
-        gap = await _largest_loop_gap(_login(client))
-        proxy.resume()
+        fresh = Limiter(
+            key_func=client_key,
+            storage_uri=configured.replace(
+                urlsplit(configured).netloc, proxy.netloc, 1
+            ),
+            in_memory_fallback_enabled=True,
+            swallow_errors=True,
+            headers_enabled=True,
+        )
+        for name in (
+            "_storage",
+            "_limiter",
+            "_storage_dead",
+            "_fallback_limiter",
+            "_fallback_storage",
+            "_Limiter__check_backend_count",
+            "_Limiter__last_check_backend",
+        ):
+            monkeypatch.setattr(limiter, name, getattr(fresh, name))
+        yield proxy
 
-    assert gap < 0.5
+
+async def test_a_login_against_a_stalled_redis_keeps_the_event_loop_turning(
+    client: AsyncClient, login_limiter_through_proxy: StallingProxy
+) -> None:
+    proxy = login_limiter_through_proxy
+    assert await _login(client) == 303
+    proxy.stall()
+    gap = await _largest_loop_gap(_login(client))
+    proxy.resume()
+
+    # The failing call and slowapi's one health check, each bounded at 1 s.
+    assert gap < 2.5
+
+
+async def test_a_short_redis_hiccup_does_not_reopen_an_exhausted_login_budget(
+    client: AsyncClient, login_limiter_through_proxy: StallingProxy
+) -> None:
+    """A client past its login limit stays refused through one 0.3 s reply delay: an ordinary
+    latency spike must not hand it a fresh in-process count."""
+    proxy = login_limiter_through_proxy
+    attempts = int(settings.LOGIN_RATE_LIMIT.split("/")[0])
+    codes = [await _login(client, "203.0.113.71") for _ in range(attempts + 1)]
+    assert codes == [303] * attempts + [429]
+
+    proxy.stall()
+    threading.Timer(0.3, proxy.resume).start()
+    during = await _login(client, "203.0.113.71")
+    after = [await _login(client, "203.0.113.71") for _ in range(attempts)]
+
+    assert [during, *after] == [429] * (attempts + 1)
