@@ -426,7 +426,7 @@ status: guard-registry ## Regenerate committed guard-status files (.lux*-status.
 
 # db-verify settings (the emitted block below reads these; set ABOVE it, as it says).
 DBV_PG_IMAGE  := postgres:16-alpine
-DBV_EXTRA_ENV := -e ENVIRONMENT=test -e SECRET_KEY=db-verify-only-db-verify-only-db-verify -e DASHBOARD_PASSWORD=db-verify-only \
+DBV_EXTRA_ENV := -e ENVIRONMENT=test -e DASHBOARD_PASSWORD=db-verify-only \
                  -e ALLOWED_HOSTS=db-verify.invalid
 
 # luxarch:db-verify asset v11 - DO NOT edit this marker line; it is how repo.emitted_assets_current knows your copy is current. Re-emit with `luxarch --emit db-verify`.
@@ -3588,7 +3588,7 @@ TEST_SERVICES := db-test redis-test
 TEST_DB_URL   := postgresql+asyncpg://test:test@db-test:5432/test
 TEST_ENV := -e TEST_DATABASE_URL=$(TEST_DB_URL) -e DATABASE_URL=$(TEST_DB_URL) \
             -e REDIS_URL=redis://redis-test:6379/0 \
-            -e SECRET_KEY=test-only-test-only-test-only-test-only -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost \
+            -e ENVIRONMENT=test -e ALLOWED_HOSTS=test,localhost \
             -e DASHBOARD_SESSION_SECRET=test-only-test-only-test-only-test-only -e DASHBOARD_PASSWORD=test-only-dashboard-password \
             --env-file test-suite.env
 

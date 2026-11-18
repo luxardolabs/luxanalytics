@@ -16,7 +16,6 @@ from app.core.config import Settings
 
 REQUIRED = {
     "DATABASE_URL": "postgresql+asyncpg://u:p@h/d",
-    "SECRET_KEY": "s" * 32,
     "ALLOWED_HOSTS": "analytics.example.com",
 }
 SAFE = {
@@ -39,15 +38,16 @@ def test_a_safe_production_configuration_starts() -> None:
     assert _settings().ENVIRONMENT == "production"
 
 
-@pytest.mark.parametrize("secret_key", ["", "short-secret-value", "s" * 31])
-def test_an_empty_or_short_secret_key_is_refused(secret_key: str) -> None:
-    with pytest.raises(ValidationError, match="SECRET_KEY"):
-        _settings(SECRET_KEY=secret_key)
+def test_production_starts_without_a_secret_key_and_ignores_one_left_in_its_env() -> None:
+    """Sessions are signed with DASHBOARD_SESSION_SECRET; no setting named SECRET_KEY is read."""
+    values = {**REQUIRED, **SAFE}
+    assert Settings.model_validate(values).ENVIRONMENT == "production"
+    assert not hasattr(Settings.model_validate({**values, "SECRET_KEY": "x"}), "SECRET_KEY")
 
 
 def test_a_refused_setting_does_not_print_its_value() -> None:
     with pytest.raises(ValidationError) as refused:
-        _settings(SECRET_KEY="short-secret-value")
+        _settings(DASHBOARD_SESSION_SECRET="short-secret-value")
 
     assert "short-secret-value" not in str(refused.value)
 
@@ -776,7 +776,6 @@ TEMPLATE = Path(__file__).resolve().parents[1] / ".env.example"
     "key",
     [
         "DATABASE_URL",
-        "SECRET_KEY",
         "ALLOWED_HOSTS",
         "EXTERNAL_URL",
         "DASHBOARD_PASSWORD",

@@ -256,7 +256,6 @@ class Settings(BaseSettings):
     DB_POOL_RESET_ON_RETURN: str = "rollback"
 
     # Security
-    SECRET_KEY: str = Field(min_length=32)
     HMAC_KEYS: str = "{}"
 
     # CORS + Hosts
