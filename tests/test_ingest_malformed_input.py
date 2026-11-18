@@ -5,6 +5,7 @@ project path reached the app lookup, and Postgres text cannot hold a NUL; a deep
 raised RecursionError in json.loads, and an integer over 4300 digits a plain ValueError, neither of
 which the body decode caught."""
 
+import base64
 import logging
 from collections.abc import AsyncIterator
 
@@ -108,3 +109,25 @@ async def test_an_hmac_mismatch_logs_no_part_of_the_correct_signature(
     # No 8-hex-character window of the correct signature reaches the record.
     windows = {correct[i : i + 8] for i in range(len(correct) - 7)}
     assert not [w for w in windows if w in logged]
+
+
+async def test_a_project_dsn_key_mismatch_logs_no_part_of_the_real_public_id(
+    server: AsyncClient, sample_app: App, caplog: pytest.LogCaptureFixture
+) -> None:
+    wrong = base64.b64encode(b"wrong_key_entirely_000000:").decode()
+    with caplog.at_level(logging.WARNING):
+        response = await server.post(
+            f"/api/v1/events/{PROJECT}",
+            content=_event(),
+            headers={"Authorization": f"Basic {wrong}", "Content-Type": "application/json"},
+        )
+
+    assert response.status_code == 401
+    [record] = [r for r in caplog.records if r.getMessage() == "Invalid public_id for project"]
+    assert record.__dict__["project_id"] == PROJECT
+    # Neither key reaches the record: not the one that would have been accepted, not the one sent.
+    assert "expected_public_id" not in record.__dict__
+    assert "provided_public_id" not in record.__dict__
+    logged = repr(record.__dict__)
+    assert PUBLIC_ID[:8] not in logged
+    assert "wrong_ke" not in logged
