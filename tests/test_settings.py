@@ -661,7 +661,6 @@ def test_a_base_endpoint_naming_the_traces_path_is_refused_in_any_spelling(
         "api-key:tail-secret",
         "authorization",
         "=tail-secret",
-        "x-api-key=",
         "a b=tail-secret",
         "x-api-key=tail-secret,broken",
         "x-api-key=tail\nsecret",
@@ -791,3 +790,81 @@ def test_the_env_template_lists_each_setting_production_needs_as_required(
         if line and not line.startswith("#") and line.endswith("=")
     }
     assert key in required
+
+
+# Values the OTel SDK's header parser drops, logging the whole pair (the credential) at WARNING,
+# and decoded values the HTTP client refuses on every export, printing them at ERROR.
+UNREADABLE_OTLP_HEADERS = [
+    "x-api-key=tail-secret;v=1",
+    'x-api-key="tail-secret"',
+    "x-api-key=tail\\secret",
+    "x:api-key=tail-secret",
+    "x-api-key=tail-secret,=x",
+    "x-api-key=tail-secret%0Aabc",
+    "x-api-key=tail-secret%0Dabc",
+    "x-api-key=tail-secret%00",
+    "x-api-key=tail-secret%E2%82%AC",
+    "x%3Aapi=tail-secret",
+    "%20=tail-secret",
+]
+HEADERS_SETTINGS = ["OTEL_EXPORTER_OTLP_HEADERS", "OTEL_EXPORTER_OTLP_TRACES_HEADERS"]
+
+
+@pytest.mark.parametrize("name", HEADERS_SETTINGS)
+@pytest.mark.parametrize("value", UNREADABLE_OTLP_HEADERS)
+def test_otlp_headers_the_sdk_or_http_client_cannot_send_are_refused_unprinted(
+    name: str, value: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with pytest.raises(ValidationError, match=name) as refused:
+        _settings(**{name: value})
+
+    assert "tail-secret" not in str(refused.value)
+    assert "tail-secret" not in caplog.text
+
+
+@pytest.mark.parametrize("name", HEADERS_SETTINGS)
+@pytest.mark.parametrize(
+    "value",
+    [
+        "k=v,",
+        ",k=v",
+        "a=b,,c=d",
+        "a=b, ,c=d",
+        "x-tenant=",
+        "x-api-key=",
+        "x-api-key=k3y , x-team=analytics",
+        "authorization=Bearer abc.def-123",
+        "x-api-key=caf%C3%A9",
+    ],
+)
+def test_otlp_headers_the_sdk_reads_start(name: str, value: str) -> None:
+    assert getattr(_settings(**{name: value}), name) == value
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        " http://collector:4318",
+        "http://collector:4318/@x",
+        "http://collector:4318/ingest/@team",
+        f"http://{'a' * 63}.example.com:4318",
+    ],
+)
+def test_a_collector_url_the_exporter_reads_starts(url: str) -> None:
+    assert url == _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url).OTEL_EXPORTER_OTLP_ENDPOINT
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        f"http://{'a' * 64}.example.com:4318",
+        f"http://{'.'.join(['a' * 50] * 6)}:4318",
+        "http\u017f://collector:4318",
+        "http://\u212aollector:4318",
+        "http://coll\u00e9ctor:4318",
+        "http://collector@x:4318",
+    ],
+)
+def test_a_collector_url_no_resolver_can_use_is_refused(url: str) -> None:
+    with pytest.raises(ValidationError, match="OTEL_EXPORTER_OTLP_ENDPOINT"):
+        _settings(OTEL_EXPORTER_OTLP_ENDPOINT=url)

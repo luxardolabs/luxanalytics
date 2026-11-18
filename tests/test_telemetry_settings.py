@@ -82,3 +82,16 @@ def test_the_headers_in_settings_reach_the_otel_environment(
     export_otel_settings()
 
     assert os.environ["OTEL_EXPORTER_OTLP_HEADERS"] == "x-api-key=k3y"
+
+
+def test_the_traces_headers_in_settings_reach_the_otel_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The exporter reads OTEL_EXPORTER_OTLP_TRACES_HEADERS before OTEL_EXPORTER_OTLP_HEADERS."""
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "placeholder=1")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS")
+    monkeypatch.setattr(settings, "OTEL_EXPORTER_OTLP_TRACES_HEADERS", "x-api-key=k3y")
+
+    export_otel_settings()
+
+    assert os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] == "x-api-key=k3y"

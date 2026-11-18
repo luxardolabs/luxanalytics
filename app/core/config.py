@@ -1,4 +1,5 @@
 import ipaddress
+import logging
 import math
 import posixpath
 import re
@@ -10,6 +11,7 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from urllib.parse import parse_qsl, unquote, urlparse, urlsplit
 
+from opentelemetry.util.re import parse_env_headers
 from pydantic import (
     ConfigDict,
     Field,
@@ -52,24 +54,73 @@ def _visible(text: str) -> str:
 
 # A collector URL: scheme, a hostname (dot-separated labels of letters, digits, `_` and `-`, as a
 # container or service name is, with an optional root dot) or a bracketed IPv6 address, an optional
-# port, a path of plain characters. No `@`, `?`, `#`, backslash, space or control character can
-# appear anywhere in it.
+# port, a path of plain characters. No `@` before the path, and no `?`, `#`, backslash, space or
+# control character anywhere. ASCII only: under IGNORECASE alone `ſ` matches `s` and the Kelvin
+# sign matches `k`.
 _HOST_LABEL = r"[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?"
 _COLLECTOR_URL = re.compile(
     rf"https?://(?P<host>{_HOST_LABEL}(?:\.{_HOST_LABEL})*\.?|\[[0-9A-Fa-f:.]+\])"
     r"(?::(?P<port>[0-9]{1,5}))?"
-    r"(?P<path>(?:/[A-Za-z0-9._~%!$&'()*+,;=:-]*)*)",
-    re.IGNORECASE,
+    r"(?P<path>(?:/[A-Za-z0-9._~%!$&'()*+,;=:@-]*)*)",
+    re.IGNORECASE | re.ASCII,
 )
-# One `name=value` pair of OTEL_EXPORTER_OTLP_HEADERS: an HTTP token name, a printable value.
-_HEADER_NAME = re.compile(r"[A-Za-z0-9!#$%&'*+.^_`|~-]+")
-_HEADER_VALUE = re.compile(r"[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?")
+# The DNS limits (RFC 1035 2.3.4): a resolver refuses a longer label or name.
+_MAX_HOST_LABEL = 63
+_MAX_HOST_NAME = 253
 _MAX_PORT = 65535
+# An HTTP token: what the HTTP client sends as a header name.
+_HEADER_NAME = re.compile(r"[A-Za-z0-9!#$%&'*+.^_`|~-]+", re.ASCII)
+# The OTel SDK's header parser logs a pair it cannot read (the credential) at WARNING.
+_OTEL_HEADERS_LOGGER = logging.getLogger("opentelemetry.util.re")
+
+
+def _hostname_resolvable(host: str) -> bool:
+    """Within the DNS limits: every label at most 63 characters, the name at most 253."""
+    name = host.removesuffix(".")
+    return len(name) <= _MAX_HOST_NAME and all(
+        len(label) <= _MAX_HOST_LABEL for label in name.split(".")
+    )
+
+
+def _sendable_header(name: str, value: str) -> bool:
+    """Whether the HTTP client sends this decoded pair: a token name, and a value with no control
+    character (a line break is refused, and printed, on every export) that latin-1 encodes."""
+    if not _HEADER_NAME.fullmatch(name) or any(
+        unicodedata.category(c) == "Cc" for c in value
+    ):
+        return False
+    try:
+        _ = value.encode("latin-1")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _otlp_headers_readable(value: str) -> bool:
+    """Whether the exporter sends every pair of `value`: the OTel SDK's own parser (liberal, as the
+    exporter calls it) reads each comma-separated pair, an empty one skipped, and the HTTP client
+    takes what it decodes. The parser's warning, which would print the pair, is held back."""
+    disabled = _OTEL_HEADERS_LOGGER.disabled
+    _OTEL_HEADERS_LOGGER.disabled = True
+    try:
+        for pair in value.split(","):
+            if not pair.strip(" \t"):
+                continue
+            parsed = parse_env_headers(pair, liberal=True)
+            if len(parsed) != 1 or not all(
+                _sendable_header(name, decoded) for name, decoded in parsed.items()
+            ):
+                return False
+    finally:
+        _OTEL_HEADERS_LOGGER.disabled = disabled
+    return True
 
 
 def _readable_collector_url(url: str, *, base: bool) -> bool:
-    """Whether an OTLP exporter can use `url`. A base endpoint is not the traces path (the exporter
-    appends it, in any spelling); the traces endpoint is the full URL and names a path."""
+    """Whether an OTLP exporter can use `url`. Its HTTP client drops leading whitespace, so the URL
+    is judged without it. A base endpoint is not the traces path (the exporter appends it, in any
+    spelling); the traces endpoint is the full URL and names a path."""
+    url = url.lstrip()
     match = _COLLECTOR_URL.fullmatch(url)
     if match is None or int(match["port"] or 0) > _MAX_PORT:
         return False
@@ -79,6 +130,8 @@ def _readable_collector_url(url: str, *, base: bool) -> bool:
             ipaddress.IPv6Address(host[1:-1])
         except ValueError:
             return False
+    elif not _hostname_resolvable(host):
+        return False
     try:
         _ = urlsplit(url).port
     except ValueError:
@@ -271,6 +324,8 @@ class Settings(BaseSettings):
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: str | None = None
     OTEL_EXPORTER_OTLP_HEADERS: str | None = None
+    # The exporter reads this one instead of OTEL_EXPORTER_OTLP_HEADERS when it is set.
+    OTEL_EXPORTER_OTLP_TRACES_HEADERS: str | None = None
     OTEL_SERVICE_NAME: str = "luxanalytics"
 
     @property
@@ -375,23 +430,22 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("OTEL_EXPORTER_OTLP_HEADERS")
+    @field_validator("OTEL_EXPORTER_OTLP_HEADERS", "OTEL_EXPORTER_OTLP_TRACES_HEADERS")
     @classmethod
-    def otlp_headers_are_name_value_pairs(cls, v: str | None) -> str | None:
-        """`name=value` pairs, comma-separated. The SDK logs a malformed value raw at WARNING, and
-        the value is a credential; refused here, the log names only the setting."""
+    def otlp_headers_are_readable(
+        cls, v: str | None, info: ValidationInfo
+    ) -> str | None:
+        """`name=value` pairs, comma-separated, as the OTel SDK reads them. The SDK logs a pair it
+        cannot read raw at WARNING, and the HTTP client prints a value it refuses at ERROR on every
+        export. The value is a credential: refused here, the log names only the setting."""
         if not v:
             return v
-        for pair in v.split(","):
-            name, equals, value = pair.partition("=")
-            if not (
-                equals
-                and _HEADER_NAME.fullmatch(name.strip())
-                and _HEADER_VALUE.fullmatch(value.strip())
-            ):
-                raise ValueError(
-                    "OTEL_EXPORTER_OTLP_HEADERS must be comma-separated name=value pairs"
-                )
+        if not _otlp_headers_readable(v):
+            raise ValueError(
+                f"{info.field_name} must be comma-separated name=value pairs the OTel SDK "
+                'reads: no ; " or \\ in a value, and no line break or non-latin-1 character '
+                "once percent-decoded"
+            )
         return v
 
     @field_validator("DATABASE_URL")

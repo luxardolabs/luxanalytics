@@ -112,12 +112,14 @@ def configure_app_tracing(
 
 
 def export_otel_settings() -> None:
-    """Hand the endpoints Settings holds (a `.env` file included) to the OTEL environment, which
-    the tracing module and the exporter read. An endpoint already in the environment wins."""
+    """Hand the endpoints and headers Settings holds (a `.env` file included) to the OTEL
+    environment, which the tracing module and the exporter read. A value already in the
+    environment wins."""
     for name in (
         "OTEL_EXPORTER_OTLP_ENDPOINT",
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
         "OTEL_EXPORTER_OTLP_HEADERS",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
     ):
         value: str | None = getattr(settings, name)
         if value:
