@@ -45,7 +45,7 @@ endif
 # =============================================================================
 LUXARCH_VERSION  := 0.371.0
 LUXLINT_VERSION  := 0.79.1
-LUXAUDIT_VERSION := 0.18.0
+LUXAUDIT_VERSION := 0.19.0
 LUXARCH  := $(REGISTRY)/luxardolabs/luxarch:$(LUXARCH_VERSION)
 LUXLINT  := $(REGISTRY)/luxardolabs/luxlint:$(LUXLINT_VERSION)
 LUXAUDIT := $(REGISTRY)/luxardolabs/luxaudit:$(LUXAUDIT_VERSION)
