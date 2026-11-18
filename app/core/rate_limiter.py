@@ -15,11 +15,15 @@ from typing import Any
 
 import redis.asyncio as redis
 from redis.exceptions import RedisError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from app.core.config import settings
-from app.core.redis_client import get_redis_client
+from app.core.redis_client import OUTAGE_LOG_INTERVAL, get_redis_client
 
 logger = logging.getLogger(__name__)
+
+# A failing Redis check logs its traceback at most once per OUTAGE_LOG_INTERVAL, whatever the cause
+# (the interval every Redis failure log keeps).
 
 
 # The sliding window for one or more budgets as one Redis script: for every key, drop what left
@@ -70,10 +74,6 @@ for i, key in ipairs(KEYS) do
 end
 return {1, 0, first, ''}
 """
-
-
-# At most one traceback of a failing Redis check per this many seconds, whatever the cause.
-OUTAGE_LOG_INTERVAL = 60.0
 
 
 class RedisOutage:
@@ -250,23 +250,23 @@ async def admit(
 ) -> tuple[int | None, dict[str, Any], Spent]:
     """Spend every budget, or none: (None, the first budget's metadata, what was spent) when each
     has room, else (the index of the budget without room that is last to have it again, its
-    metadata, a Spent of nothing) and nothing is spent. Redis being unreachable falls back to each
-    limiter's in-memory window; a failing check logs its traceback at most once per
-    OUTAGE_LOG_INTERVAL, and the first working check after a logged failure logs the recovery."""
+    metadata, a Spent of nothing) and nothing is spent. Redis being unreachable (no connection, so
+    the script was never sent) falls back to each limiter's in-memory window. A script that was sent
+    but whose reply timed out is admitted: it may have spent the budgets in Redis, and checking the
+    memory window as well would spend them twice. A failing check logs its traceback at most once
+    per OUTAGE_LOG_INTERVAL, and the first working check after a logged failure logs the recovery."""
     redis_client = await get_redis_client()
     if redis_client:
         try:
             result = await _admit_redis(redis_client, budgets)
-        except RedisError, OSError:
+        except _ReplyTimedOut as lost:
+            # swallowed-exceptions: handled, not dropped: admitted, as the script may have spent.
+            _check_failed(lost)
+            return lost.admission
+        except (RedisError, OSError) as unreachable:
             # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
             # the in-memory windows, so requests stay limited. Anything else is a bug and raises.
-            redis_outage.failed_checks += 1
-            now = redis_outage.clock()
-            last = redis_outage.last_logged
-            if last is None or now - last >= OUTAGE_LOG_INTERVAL:
-                logger.exception("Redis rate limit check failed")
-                redis_outage.last_logged = now
-                redis_outage.logged = True
+            _check_failed(unreachable)
         else:
             if redis_outage.logged:
                 logger.info(
@@ -277,6 +277,25 @@ async def admit(
             redis_outage.failed_checks = 0
             return result
     return _admit_memory(budgets)
+
+
+def _check_failed(error: Exception) -> None:
+    """Count a failed Redis check, logging its traceback at most once per OUTAGE_LOG_INTERVAL."""
+    redis_outage.failed_checks += 1
+    now = redis_outage.clock()
+    last = redis_outage.last_logged
+    if last is None or now - last >= OUTAGE_LOG_INTERVAL:
+        logger.error("Redis rate limit check failed", exc_info=error)
+        redis_outage.last_logged = now
+        redis_outage.logged = True
+
+
+class _ReplyTimedOut(Exception):
+    """The script was sent and its reply timed out: `admission` is what admit answers."""
+
+    def __init__(self, admission: tuple[int | None, dict[str, Any], Spent]) -> None:
+        super().__init__("Redis rate limit reply timed out")
+        self.admission = admission
 
 
 async def refund(spent: Spent) -> None:
@@ -316,12 +335,22 @@ async def _admit_redis(
             budget.limiter.requests_per_window,
             budget.cost,
         ]
-    allowed, refused_key, count, ready = await redis_client.eval(
-        _SLIDING_WINDOW,
-        len(budgets),
-        *(f"{b.limiter.key_prefix}:{b.identifier}" for b in budgets),
-        *args,
-    )
+    # The session holds one connection, checked out and connected on entry: a failure there is
+    # before anything was sent, and raises as it is. From the eval on, the script may have run.
+    async with redis_client.client() as session:
+        try:
+            allowed, refused_key, count, ready = await session.eval(
+                _SLIDING_WINDOW,
+                len(budgets),
+                *(f"{b.limiter.key_prefix}:{b.identifier}" for b in budgets),
+                *args,
+            )
+        except (RedisTimeoutError, TimeoutError) as timed_out:
+            # The count is unknown: the metadata reports the first budget's cost as its only use.
+            spent = Spent(budgets, redis_member=member)
+            raise _ReplyTimedOut(
+                (None, _allowed(budgets[0].cost, budgets[0], now), spent)
+            ) from timed_out
     if int(allowed):
         spent = Spent(budgets, redis_member=member)
         return None, _allowed(int(count), budgets[0], now), spent

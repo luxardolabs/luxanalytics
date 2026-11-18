@@ -1,6 +1,8 @@
 """A failed request limit check falls back to memory, serves the request and logs at ERROR."""
 
 import logging
+from types import TracebackType
+from typing import Self
 
 import pytest
 import redis.asyncio as redis
@@ -12,7 +14,7 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 import app.core.rate_limiter as rate_limiter
 from app.core.config import settings
 from app.core.rate_limiter import RateLimiter
-from app.core.redis_client import get_redis_client
+from app.core.redis_client import OUTAGE_LOG_INTERVAL, get_redis_client
 
 RATE_LIMIT_CHECK_FAILED = "Redis rate limit check failed"
 RATE_LIMIT_RECOVERED = "Redis rate limit check recovered"
@@ -130,7 +132,7 @@ async def test_a_second_redis_outage_logs_its_own_traceback(
         await client.get("/login")
         current = reachable
         await client.get("/login")
-        fresh_outage[0] += rate_limiter.OUTAGE_LOG_INTERVAL
+        fresh_outage[0] += OUTAGE_LOG_INTERVAL
         current = unreachable
         await client.get("/login")
     await unreachable.aclose()
@@ -146,6 +148,21 @@ class _Client:
     def __init__(self, faults: list[Exception | None]) -> None:
         self.faults = faults
         self.calls = 0
+
+    def client(self) -> Self:
+        """The one-connection session a check runs in: this client itself."""
+        return self
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        return None
 
     async def eval(self, *args: object) -> list[object]:
         fault = self.faults[self.calls % len(self.faults)]
@@ -186,7 +203,7 @@ async def test_a_solid_outage_logs_one_traceback_per_interval(
     with caplog.at_level(logging.INFO, logger="app.core.rate_limiter"):
         await _check_with(monkeypatch, [fault], 500)
         assert len(_tracebacks(caplog)) == 1
-        fresh_outage[0] += rate_limiter.OUTAGE_LOG_INTERVAL
+        fresh_outage[0] += OUTAGE_LOG_INTERVAL
         await _check_with(monkeypatch, [fault], 500)
 
     assert len(_tracebacks(caplog)) == 2
@@ -232,7 +249,7 @@ async def test_a_different_fault_after_an_outage_is_logged_when_the_interval_has
     )
     with caplog.at_level(logging.INFO, logger="app.core.rate_limiter"):
         await _check_with(monkeypatch, [refused], 3)
-        fresh_outage[0] += rate_limiter.OUTAGE_LOG_INTERVAL
+        fresh_outage[0] += OUTAGE_LOG_INTERVAL
         await _check_with(monkeypatch, [readonly], 3)
 
     logged = _tracebacks(caplog)
