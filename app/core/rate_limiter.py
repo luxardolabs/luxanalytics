@@ -252,17 +252,22 @@ async def admit(
     has room, else (the index of the budget without room that is last to have it again, its
     metadata, a Spent of nothing) and nothing is spent. Redis being unreachable (no connection, so
     the script was never sent) falls back to each limiter's in-memory window. A script that was sent
-    but whose reply timed out is admitted: it may have spent the budgets in Redis, and checking the
-    memory window as well would spend them twice. A failing check logs its traceback at most once
-    per OUTAGE_LOG_INTERVAL, and the first working check after a logged failure logs the recovery."""
+    to a working Redis but whose reply timed out is admitted: it may have spent the budgets in
+    Redis, and checking the memory window as well would spend them twice. From then until a check
+    succeeds, a reply timeout falls back to the memory window too, so a Redis that keeps timing out
+    still limits. A failing check logs its traceback at most once per OUTAGE_LOG_INTERVAL, and the
+    first working check after a logged failure logs the recovery."""
     redis_client = await get_redis_client()
     if redis_client:
         try:
             result = await _admit_redis(redis_client, budgets)
         except _ReplyTimedOut as lost:
-            # swallowed-exceptions: handled, not dropped: admitted, as the script may have spent.
+            # swallowed-exceptions: handled, not dropped: the first timeout after a working check
+            # is admitted, as the script may have spent; later ones use the memory window.
+            was_working = redis_outage.failed_checks == 0
             _check_failed(lost)
-            return lost.admission
+            if was_working:
+                return lost.admission
         except (RedisError, OSError) as unreachable:
             # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
             # the in-memory windows, so requests stay limited. Anything else is a bug and raises.
