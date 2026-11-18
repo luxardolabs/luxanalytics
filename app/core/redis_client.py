@@ -42,7 +42,9 @@ def with_default_timeouts(
     kept = [
         part
         for part in given
-        if not (part.partition("=")[0] in defaults and not part.partition("=")[2].strip())
+        if not (
+            part.partition("=")[0] in defaults and not part.partition("=")[2].strip()
+        )
     ]
     named = {part.partition("=")[0] for part in kept}
     options = [

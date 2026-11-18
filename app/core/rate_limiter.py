@@ -267,7 +267,9 @@ async def admit(
             refused, metadata, spent = _admit_memory(budgets)
             if refused is None:
                 # The script may have spent in Redis as well: a refund gives back both.
-                spent = Spent(budgets, redis_member=lost.member, memory_at=spent.memory_at)
+                spent = Spent(
+                    budgets, redis_member=lost.member, memory_at=spent.memory_at
+                )
             return refused, metadata, spent
         except (RedisError, OSError) as failed:
             # swallowed-exceptions: handled, not dropped: Redis being unreachable falls back to
