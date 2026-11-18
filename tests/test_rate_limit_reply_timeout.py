@@ -211,7 +211,9 @@ async def test_a_redis_that_keeps_timing_out_still_refuses_past_the_request_limi
     monkeypatch.setattr(settings, "RATE_LIMIT_REQUESTS", 2)
     headers = {"X-Forwarded-For": "203.0.113.200"}
 
-    codes = [(await client.get("/login", headers=headers)).status_code for _ in range(5)]
+    codes = [
+        (await client.get("/login", headers=headers)).status_code for _ in range(5)
+    ]
 
     assert codes == [200, 200, 200, 429, 429]
 

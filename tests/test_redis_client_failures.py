@@ -190,7 +190,9 @@ async def test_a_hung_command_ends_and_its_connection_returns_to_the_pool(
     """The replay check gives up waiting at a quarter second; the read timeout then ends the command
     itself, so a hung Redis does not keep pool connections forever."""
     monkeypatch.setattr(redis_client, "REDIS_SOCKET_TIMEOUT_SECONDS", 0.5)
-    monkeypatch.setattr(settings, "REDIS_URL", f"redis://127.0.0.1:{answers_then_hangs}/0")
+    monkeypatch.setattr(
+        settings, "REDIS_URL", f"redis://127.0.0.1:{answers_then_hangs}/0"
+    )
     await redis_client.close_redis_client()
     client = await redis_client.get_redis_client()
     assert client is not None

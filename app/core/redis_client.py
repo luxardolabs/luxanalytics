@@ -33,7 +33,9 @@ def with_default_timeouts(url: str) -> str:
         "socket_connect_timeout": REDIS_CONNECT_TIMEOUT_SECONDS,
         "socket_timeout": REDIS_SOCKET_TIMEOUT_SECONDS,
     }
-    options = [f"{name}={value:g}" for name, value in defaults.items() if name not in names]
+    options = [
+        f"{name}={value:g}" for name, value in defaults.items() if name not in names
+    ]
     if not options:
         return url
     query = "&".join([parts.query, *options] if parts.query else options)
