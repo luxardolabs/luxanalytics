@@ -4,7 +4,6 @@ import math
 import posixpath
 import re
 import string
-import unicodedata
 from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
@@ -58,6 +57,10 @@ _MAX_HOST_NAME = 253
 _MAX_PORT = 65535
 # An HTTP token: what the HTTP client sends as a header name.
 _HEADER_NAME = re.compile(r"[A-Za-z0-9!#$%&'*+.^_`|~-]+", re.ASCII)
+# A header value the exporter sends as written: printable ASCII, not starting or ending in a space.
+_HEADER_VALUE = re.compile(r"[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?", re.ASCII)
+# urllib3.util.SKIP_HEADER: a header holding it is left out of the request.
+_URLLIB3_SKIP_HEADER = "@@@SKIP_HEADER@@@"
 # The OTel SDK's header parser logs a pair it cannot read (the credential) at WARNING.
 _OTEL_HEADERS_LOGGER = logging.getLogger("opentelemetry.util.re")
 
@@ -71,37 +74,44 @@ def _hostname_resolvable(host: str) -> bool:
 
 
 def _sendable_header(name: str, value: str) -> bool:
-    """Whether the HTTP client sends this decoded pair: a token name, and a value with no control
-    character (a line break is refused, and printed, on every export) that latin-1 encodes."""
-    if not _HEADER_NAME.fullmatch(name) or any(
-        unicodedata.category(c) == "Cc" for c in value
-    ):
+    """Whether the HTTP client sends this decoded pair as it was meant: a token name, and a value
+    of printable ASCII (a line break is refused, and printed, on every export; anything above
+    ASCII goes out as latin-1, not the UTF-8 that was percent-encoded) that is not blank (a blank
+    credential, refused as every blank secret is) and is not urllib3's SKIP_HEADER sentinel,
+    which it never sends."""
+    return (
+        _HEADER_NAME.fullmatch(name) is not None
+        and _HEADER_VALUE.fullmatch(value) is not None
+        and value != _URLLIB3_SKIP_HEADER
+    )
+
+
+class _HoldBack(logging.Filter):
+    """Drops every record: the parser's warning would print the pair it refused."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
         return False
-    try:
-        _ = value.encode("latin-1")
-    except UnicodeEncodeError:
-        return False
-    return True
 
 
 def _otlp_headers_readable(value: str) -> bool:
-    """Whether the exporter sends every pair of `value`: the OTel SDK's own parser (liberal, as the
-    exporter calls it) reads each comma-separated pair, an empty one skipped, and the HTTP client
-    takes what it decodes. The parser's warning, which would print the pair, is held back."""
-    disabled = _OTEL_HEADERS_LOGGER.disabled
-    _OTEL_HEADERS_LOGGER.disabled = True
+    """Whether the exporter sends every pair of `value`, and there is at least one: the OTel SDK's
+    own parser (liberal, as the exporter calls it) reads each comma-separated pair, an empty one
+    skipped, and the HTTP client takes what it decodes. A value with no pair would still be
+    exported, and a traces one would stand in for OTEL_EXPORTER_OTLP_HEADERS. The parser's
+    warning is held back by a filter of this call's own, so overlapping checks share no state."""
+    hold_back = _HoldBack()
+    _OTEL_HEADERS_LOGGER.addFilter(hold_back)
     try:
-        for pair in value.split(","):
-            if not pair.strip(" \t"):
-                continue
+        pairs = [pair for pair in value.split(",") if pair.strip(" \t")]
+        for pair in pairs:
             parsed = parse_env_headers(pair, liberal=True)
             if len(parsed) != 1 or not all(
                 _sendable_header(name, decoded) for name, decoded in parsed.items()
             ):
                 return False
     finally:
-        _OTEL_HEADERS_LOGGER.disabled = disabled
-    return True
+        _OTEL_HEADERS_LOGGER.removeFilter(hold_back)
+    return bool(pairs)
 
 
 def _readable_collector_url(url: str, *, base: bool) -> bool:
@@ -425,9 +435,9 @@ class Settings(BaseSettings):
             return v
         if not _otlp_headers_readable(v):
             raise ValueError(
-                f"{info.field_name} must be comma-separated name=value pairs the OTel SDK "
-                'reads: no ; " or \\ in a value, and no line break or non-latin-1 character '
-                "once percent-decoded"
+                f"{info.field_name} must be at least one comma-separated name=value pair "
+                'the OTel SDK reads: no ; " or \\ in a value, and no blank value or '
+                "anything but printable ASCII once percent-decoded"
             )
         return v
 

@@ -1,12 +1,17 @@
 """Production refuses development-only settings at startup (LUXANALYTI-22)."""
 
+import logging
+import threading
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 import redis.asyncio as redis
 from limits.storage import storage_from_string
+from opentelemetry.util.re import parse_env_headers
 from pydantic import ValidationError
 
+import app.core.config as config_module
 from app.core.config import Settings
 
 REQUIRED = {
@@ -806,8 +811,75 @@ UNREADABLE_OTLP_HEADERS = [
     "x-api-key=tail-secret%E2%82%AC",
     "x%3Aapi=tail-secret",
     "%20=tail-secret",
+    # Sent as latin-1, not the UTF-8 bytes that were percent-encoded.
+    "x-api-key=tail-secret%C3%A9",
+    "x-api-key=tail-secreté",
+    # urllib3's sentinel for "do not send this header".
+    "x-api-key=@@@SKIP_HEADER@@@,x-tail-secret=1",
 ]
 HEADERS_SETTINGS = ["OTEL_EXPORTER_OTLP_HEADERS", "OTEL_EXPORTER_OTLP_TRACES_HEADERS"]
+
+
+@pytest.mark.parametrize("name", HEADERS_SETTINGS)
+@pytest.mark.parametrize(
+    "value", [",", " ", " , ", "x-api-key=", "x-tenant=", "x-api-key=%20", "a=b,x-key="]
+)
+def test_otlp_headers_with_no_pair_or_a_blank_value_are_refused(
+    name: str, value: str
+) -> None:
+    """A blank credential is refused, as every blank secret is. A traces headers value with no
+    pair would still be exported, and the exporter takes it instead of
+    OTEL_EXPORTER_OTLP_HEADERS: the collector's credential would never be sent."""
+    with pytest.raises(ValidationError, match=name):
+        _settings(**{name: value})
+
+
+def test_concurrent_header_checks_leave_the_sdk_logger_as_they_found_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The check holds back the SDK parser's warning with a filter of its own, not a flag the
+    other checks share: two that overlap leave the logger enabled and filter-free."""
+    sdk_logger = logging.getLogger("opentelemetry.util.re")
+    real = parse_env_headers
+    second_started = threading.Event()
+    first_may_end = threading.Event()
+
+    def overlapping(pair: str, liberal: bool = False) -> Mapping[str, str]:
+        if pair.startswith("a="):
+            assert second_started.wait(5)
+        else:
+            second_started.set()
+            first_may_end.wait(0.2)
+        return real(pair, liberal=liberal)
+
+    monkeypatch.setattr(config_module, "parse_env_headers", overlapping)
+    first = threading.Thread(target=config_module._otlp_headers_readable, args=("a=1",))
+    second = threading.Thread(
+        target=config_module._otlp_headers_readable, args=("b=1",)
+    )
+    first.start()
+    second.start()
+    first.join(10)
+    second.join(10)
+
+    assert sdk_logger.disabled is False
+    assert sdk_logger.filters == []
+
+
+def test_a_failing_header_check_leaves_the_sdk_logger_as_it_found_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sdk_logger = logging.getLogger("opentelemetry.util.re")
+
+    def broken(pair: str, liberal: bool = False) -> Mapping[str, str]:
+        raise RuntimeError("parser failed")
+
+    monkeypatch.setattr(config_module, "parse_env_headers", broken)
+    with pytest.raises(RuntimeError):
+        config_module._otlp_headers_readable("a=1")
+
+    assert sdk_logger.disabled is False
+    assert sdk_logger.filters == []
 
 
 @pytest.mark.parametrize("name", HEADERS_SETTINGS)
@@ -830,11 +902,9 @@ def test_otlp_headers_the_sdk_or_http_client_cannot_send_are_refused_unprinted(
         ",k=v",
         "a=b,,c=d",
         "a=b, ,c=d",
-        "x-tenant=",
-        "x-api-key=",
         "x-api-key=k3y , x-team=analytics",
         "authorization=Bearer abc.def-123",
-        "x-api-key=caf%C3%A9",
+        "authorization=Bearer%20abc",
     ],
 )
 def test_otlp_headers_the_sdk_reads_start(name: str, value: str) -> None:
