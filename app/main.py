@@ -38,6 +38,7 @@ from app.core.middleware import (
 from app.core.rate_limiter import AppRateLimitExceeded
 from app.core.redis_client import close_redis_client
 from app.core.same_origin import SameOriginMiddleware
+from app.core.slash_redirect import SlashRedirect
 from app.core.telemetry import current_trace_ids, shutdown_tracing
 from app.core.trusted_host import AllowedHostsMiddleware
 from app.crud.dashboard_session_crud import ensure_session_generation
@@ -181,7 +182,10 @@ def create_application() -> FastAPI:
         # FastAPI would add unredacted OTLP exporters from the OTEL environment at startup, for
         # metrics and logs too; configure_app_tracing is the one place tracing is configured.
         telemetry={"auto_configure": False},
+        # SlashRedirect answers a path off by a trailing slash: safe methods only, relative.
+        redirect_slashes=False,
     )
+    app.router.default = SlashRedirect(app.router)
 
     # Tracing: the provider from the OTEL environment, then the instrumentors. With no endpoint
     # configure_tracing installs nothing and the instrumentors stay off.
