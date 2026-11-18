@@ -490,8 +490,9 @@ class Settings(BaseSettings):
         if "TRUSTED_PROXIES" not in self.model_fields_set:
             # Behind a proxy that loopback is not, every client would share the proxy's budget.
             raise ValueError(
-                "TRUSTED_PROXIES is required in production: loopback and the address of each "
-                "proxy in front of the app"
+                "TRUSTED_PROXIES is required in production: set "
+                "TRUSTED_PROXIES=127.0.0.1,::1,<each reverse proxy's own fixed IP address>, "
+                "comma-separated, never a range"
             )
         # DSNs are built as https://PUBLIC_ID@<netloc>/….
         url = urlparse(self.EXTERNAL_URL or "")

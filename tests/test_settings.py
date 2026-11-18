@@ -696,8 +696,11 @@ def test_production_refuses_to_start_without_its_proxy_named() -> None:
     the proxy's one budget, so production names the proxies in front of it."""
     values = {**REQUIRED, **SAFE}
     del values["TRUSTED_PROXIES"]
-    with pytest.raises(ValidationError, match="TRUSTED_PROXIES"):
+    with pytest.raises(ValidationError, match="TRUSTED_PROXIES") as refused:
         Settings.model_validate(values)
+
+    # The refusal names the line to add.
+    assert "TRUSTED_PROXIES=127.0.0.1,::1,<" in str(refused.value)
 
 
 def test_development_starts_with_the_loopback_default() -> None:
