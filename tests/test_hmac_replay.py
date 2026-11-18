@@ -659,3 +659,20 @@ async def test_marks_of_a_burst_are_all_written_on_a_slow_but_healthy_redis(
         for i in range(burst)
     ]
     assert marked == [True] * burst
+
+
+@pytest.mark.parametrize("path", ["/api/v1/events/", "/api/v1/events/stats"])
+async def test_missing_signature_headers_are_each_listed_once(
+    server: AsyncClient, path: str
+) -> None:
+    if path.endswith("stats"):
+        reply = await server.get(path)
+    else:
+        reply = await server.post(path, content=_event())
+    assert reply.status_code == 422
+    missing = sorted(tuple(error["loc"]) for error in reply.json()["detail"])
+    assert missing == [
+        ("header", "X-HMAC-Signature"),
+        ("header", "X-Key-ID"),
+        ("header", "X-Timestamp"),
+    ]

@@ -10,7 +10,7 @@ import logging
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.core.security import hmac_replay_mark, verify_hmac_ingest
+from app.core.security import ReplayCheck, verify_hmac_ingest
 from app.main import app as served_app
 from app.main import create_application
 from app.services.core.event_core_service import EventCoreService
@@ -127,9 +127,8 @@ async def test_a_failed_api_request_is_logged_by_its_route_not_its_query_string(
 
     monkeypatch.setattr(EventCoreService, "ingest", fails)
     app = create_application()
-    app.dependency_overrides[verify_hmac_ingest] = lambda: "app-1"
-    # The replay check depends on the verified signature: a request that is not a replay.
-    app.dependency_overrides[hmac_replay_mark] = lambda: False
+    # A verified request of app-1 that is not a replay.
+    app.dependency_overrides[verify_hmac_ingest] = lambda: ReplayCheck("app-1", False)
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="https://localhost"
