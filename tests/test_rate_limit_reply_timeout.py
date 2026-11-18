@@ -118,6 +118,7 @@ async def test_a_reply_timeout_is_decided_and_spent_in_the_memory_window(
     assert lossy.scripts_run == 1
     assert await lossy.real.zcard("reply_timeout:client-a") == 2
     assert _memory_spent(limiter, "client-a") == 2
+    assert spent.redis_member is not None
     assert spent.memory_at is not None
 
 
@@ -208,3 +209,24 @@ async def test_a_redis_that_keeps_timing_out_still_refuses_past_the_request_limi
     ]
 
     assert codes == [200, 200, 429, 429, 429]
+
+
+async def test_a_refund_after_a_reply_timeout_gives_back_redis_and_memory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lossy = await _lossy(monkeypatch, RedisTimeoutError("Timeout reading from redis"))
+    # Redis already failing: the check that times out now is the one that falls back.
+    rate_limiter.redis_outage.failed_checks = 1
+    limiter = rate_limiter.RateLimiter(100, 60, key_prefix="reply_timeout_refund")
+
+    refused, _metadata, spent = await rate_limiter.admit(
+        [rate_limiter.Budget(limiter, "client-r", 2)]
+    )
+    assert refused is None
+    assert await lossy.real.zcard("reply_timeout_refund:client-r") == 2
+    assert _memory_spent(limiter, "client-r") == 2
+
+    await rate_limiter.refund(spent)
+
+    assert await lossy.real.zcard("reply_timeout_refund:client-r") == 0
+    assert _memory_spent(limiter, "client-r") == 0
