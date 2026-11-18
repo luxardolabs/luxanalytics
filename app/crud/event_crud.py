@@ -43,7 +43,9 @@ def _has_device() -> ColumnElement[bool]:
     return and_(Event.device_id.isnot(None), Event.device_id != "")
 
 
-def _latest_sent(column: InstrumentedAttribute[str | None]) -> ColumnElement[str | None]:
+def _latest_sent(
+    column: InstrumentedAttribute[str | None],
+) -> ColumnElement[str | None]:
     """In a GROUP BY, the latest value the group's events sent for `column`, in the order the
     devices upsert applies them (event time, then arrival, then id): a later event that did not
     send it keeps the earlier value."""
