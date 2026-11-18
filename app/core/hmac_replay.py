@@ -12,13 +12,16 @@ the write: every request is processed, as the rate limiter does.
 
 A command that outlives the wait is not cancelled: cancelling one closes its connection, and the
 next command pays the reconnect. It finishes on its own (the client's read timeout bounds it) and
-its connection goes back to the pool. At most MAX_COMMANDS_IN_FLIGHT run at once; past that a
-check or mark fails open without sending anything.
+its connection goes back to the pool. At most MAX_COMMANDS_IN_FLIGHT run at once: a check or mark
+past that waits, within the same REDIS_WAIT_SECONDS, for one to finish, and fails open without
+sending anything if none does. On a healthy Redis commands finish in milliseconds and none is
+skipped; on a stalled one the replay check holds no more than that many pool connections.
 A slow reply logs one warning, without a traceback, per OUTAGE_LOG_INTERVAL; any other Redis
 failure logs one traceback per OUTAGE_LOG_INTERVAL."""
 
 import asyncio
 import logging
+import weakref
 from collections.abc import Awaitable, Callable
 
 from redis.exceptions import RedisError
@@ -42,10 +45,16 @@ failures = LogThrottle()
 # collected task would never return its connection).
 _unanswered: set[asyncio.Task[object]] = set()
 
-# At most this many replay commands in flight at once: past it, a check or mark fails open at once
-# and sends nothing. A slow Redis then holds no more than these of the 50 pool connections the
-# rate limits share, however many signed requests arrive while it is slow.
+# At most this many replay commands in flight at once, so a stalled Redis holds no more than these
+# of the 50 pool connections the rate limits share. A check or mark past it waits for a slot within
+# its REDIS_WAIT_SECONDS, then fails open without sending anything.
 MAX_COMMANDS_IN_FLIGHT = 8
+
+# The slots, one set per event loop (an asyncio primitive belongs to the loop that first waits on
+# it). A slot is held from send until the command finishes, past the wait included.
+_slots: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def _key(key_id: str, signature: str) -> str:
@@ -70,15 +79,27 @@ def _finished(task: asyncio.Task[object]) -> None:
 
 async def _within_wait(command: Callable[[], Awaitable[object]]) -> tuple[bool, object]:
     """(True, the command's result) when it answers within REDIS_WAIT_SECONDS; (False, None) when
-    it does not, and it is left to finish, or when MAX_COMMANDS_IN_FLIGHT are already in flight,
-    and it is not sent. Its RedisError or OSError raises here."""
+    it does not, and it is left to finish, or when no slot frees within that time, and it is not
+    sent. Its RedisError or OSError raises here."""
     loop = asyncio.get_running_loop()
-    if sum(task.get_loop() is loop for task in _unanswered) >= MAX_COMMANDS_IN_FLIGHT:
+    slots = _slots.get(loop)
+    if slots is None:
+        slots = _slots[loop] = asyncio.Semaphore(MAX_COMMANDS_IN_FLIGHT)
+    deadline = loop.time() + REDIS_WAIT_SECONDS
+    try:
+        # Only the wait for a slot is cancelled here: nothing has been sent.
+        async with asyncio.timeout_at(deadline):
+            await slots.acquire()
+    except TimeoutError:
+        # swallowed-exceptions: handled, not dropped: no slot in time fails open, as a slow reply
+        # does (the caller logs it).
         return False, None
     task: asyncio.Task[object] = asyncio.ensure_future(command())
     _unanswered.add(task)
     task.add_done_callback(_finished)
-    done, _pending = await asyncio.wait({task}, timeout=REDIS_WAIT_SECONDS)
+    task.add_done_callback(lambda _task: slots.release())
+    remaining = max(0.0, deadline - loop.time())
+    done, _pending = await asyncio.wait({task}, timeout=remaining)
     if task not in done:
         return False, None
     return True, task.result()

@@ -532,3 +532,25 @@ async def test_a_redis_client_that_hangs_on_connect_costs_a_fraction_of_a_second
     await hmac_replay.mark_signature("key", "sig")
 
     assert loop.time() - started < 1
+
+
+async def test_concurrent_checks_of_a_marked_signature_on_a_healthy_redis_all_find_it() -> (
+    None
+):
+    """30 copies at once of a request already stored: every copy is recognised as a replay."""
+    await hmac_replay.mark_signature("key", "burst")
+    results = await asyncio.gather(
+        *(hmac_replay.signature_is_marked("key", "burst") for _ in range(30))
+    )
+    assert results == [True] * 30
+
+
+async def test_concurrent_marks_on_a_healthy_redis_are_all_written() -> None:
+    """30 stored requests finishing together: each is marked, so none stays replayable."""
+    await asyncio.gather(
+        *(hmac_replay.mark_signature("key", f"stored-{i}") for i in range(30))
+    )
+    marked = [
+        await hmac_replay.signature_is_marked("key", f"stored-{i}") for i in range(30)
+    ]
+    assert marked == [True] * 30
