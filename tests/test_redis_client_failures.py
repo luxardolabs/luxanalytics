@@ -9,7 +9,9 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from limits.storage import RedisStorage
+from redis.asyncio import BlockingConnectionPool
 
+import app.core.hmac_replay as hmac_replay
 import app.core.redis_client as redis_client
 import app.services.core.health_core_service as health_core_service
 from app.core.config import settings
@@ -77,17 +79,21 @@ async def test_a_url_without_a_connect_timeout_gets_one(
     assert loop.time() - started < 3
 
 
-def test_a_url_keeps_its_own_connect_timeout_and_gets_one_otherwise() -> None:
+def test_a_url_keeps_its_own_timeouts_and_gets_the_defaults_otherwise() -> None:
     assert (
-        redis_client.with_connect_timeout("redis://:pw%40x@h:6379/0?db=1")
-        == "redis://:pw%40x@h:6379/0?db=1&socket_connect_timeout=1"
+        redis_client.with_default_timeouts("redis://:pw%40x@h:6379/0?db=1")
+        == "redis://:pw%40x@h:6379/0?db=1&socket_connect_timeout=1&socket_timeout=2"
     )
     assert (
-        redis_client.with_connect_timeout("rediss://h:6379/0")
-        == "rediss://h:6379/0?socket_connect_timeout=1"
+        redis_client.with_default_timeouts("rediss://h:6379/0")
+        == "rediss://h:6379/0?socket_connect_timeout=1&socket_timeout=2"
     )
-    own = "redis://h:6379/0?socket_connect_timeout=7"
-    assert redis_client.with_connect_timeout(own) == own
+    own = "redis://h:6379/0?socket_connect_timeout=7&socket_timeout=9"
+    assert redis_client.with_default_timeouts(own) == own
+    assert (
+        redis_client.with_default_timeouts("redis://h:6379/0?socket_timeout=9")
+        == "redis://h:6379/0?socket_timeout=9&socket_connect_timeout=1"
+    )
 
 
 async def test_a_url_that_sets_its_connect_timeout_keeps_it(
@@ -106,12 +112,13 @@ async def test_a_url_that_sets_its_connect_timeout_keeps_it(
     assert loop.time() - started < 0.2 + 0.5
 
 
-def test_the_request_limiter_has_the_same_connect_timeout() -> None:
+def test_the_request_limiter_has_the_same_timeouts() -> None:
     """slowapi's Redis client is the other one the app opens: it is bounded the same way."""
     storage = limiter._storage
     assert isinstance(storage, RedisStorage)
     options = storage.storage.connection_pool.connection_kwargs
     assert options.get("socket_connect_timeout") is not None
+    assert options.get("socket_timeout") is not None
 
 
 def _init_failures(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
@@ -152,3 +159,51 @@ async def test_a_redis_still_down_after_the_interval_logs_its_traceback_again(
     logged = _init_failures(caplog)
     assert len(logged) == 2
     assert all(r.exc_info is not None for r in logged)
+
+
+@pytest_asyncio.fixture
+async def answers_then_hangs() -> AsyncIterator[int]:
+    """A Redis that answers the connection's setup and PING, then never answers EXISTS."""
+    held: list[asyncio.StreamWriter] = []
+
+    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        held.append(writer)
+        while data := await reader.read(65536):
+            if b"EXISTS" in data.upper():
+                continue
+            replies = data.count(b"*") or 1
+            reply = b"+PONG\r\n" if b"PING" in data.upper() else b"+OK\r\n"
+            writer.write(reply * replies)
+            await writer.drain()
+
+    server = await asyncio.start_server(serve, "127.0.0.1", 0)
+    yield server.sockets[0].getsockname()[1]
+    for writer in held:
+        writer.close()
+    server.close()
+    await server.wait_closed()
+
+
+async def test_a_hung_command_ends_and_its_connection_returns_to_the_pool(
+    answers_then_hangs: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The replay check gives up waiting at a quarter second; the read timeout then ends the command
+    itself, so a hung Redis does not keep pool connections forever."""
+    monkeypatch.setattr(redis_client, "REDIS_SOCKET_TIMEOUT_SECONDS", 0.5)
+    monkeypatch.setattr(settings, "REDIS_URL", f"redis://127.0.0.1:{answers_then_hangs}/0")
+    await redis_client.close_redis_client()
+    client = await redis_client.get_redis_client()
+    assert client is not None
+
+    try:
+        assert await hmac_replay.signature_is_marked("k", "hung") is False
+        pool = client.connection_pool
+        assert isinstance(pool, BlockingConnectionPool)
+        async with asyncio.timeout(3):
+            while pool._in_use_connections:
+                await asyncio.sleep(0.05)
+        assert not pool._in_use_connections
+    finally:
+        # The suite's teardown opens its own client on the test Redis.
+        await redis_client.close_redis_client()
+

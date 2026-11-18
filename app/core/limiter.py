@@ -17,12 +17,12 @@ from starlette.responses import Response
 
 from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
-from app.core.redis_client import with_connect_timeout
+from app.core.redis_client import with_default_timeouts
 
 limiter = Limiter(
     key_func=client_ip_from_request,
-    # The app client's connect bound, unless the URL sets its own.
-    storage_uri=with_connect_timeout(settings.REDIS_URL)
+    # The app client's connect and reply bounds, unless the URL sets its own.
+    storage_uri=with_default_timeouts(settings.REDIS_URL)
     if settings.REDIS_URL
     else "memory://",
     in_memory_fallback_enabled=True,

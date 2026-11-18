@@ -17,16 +17,26 @@ logger = logging.getLogger(__name__)
 # waits on every request that tries to connect.
 REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
 
+# How long a command may wait on its reply when REDIS_URL sets no socket_timeout (a value in the
+# URL wins). Unbounded, a hung Redis holds every command and its pool connection until it answers.
+# Above the replay check's quarter-second wait (which leaves a slow command to finish), and a few
+# seconds at most for a rate-limit check that then falls back to its in-memory window.
+REDIS_SOCKET_TIMEOUT_SECONDS = 2.0
 
-def with_connect_timeout(url: str) -> str:
-    """The URL both Redis clients open: its own socket_connect_timeout, else
-    REDIS_CONNECT_TIMEOUT_SECONDS added to its query."""
+
+def with_default_timeouts(url: str) -> str:
+    """The URL both Redis clients open: each of socket_connect_timeout and socket_timeout as the URL
+    sets it, else its default added to the query."""
     parts = urlsplit(url)
     names = {name for name, _ in parse_qsl(parts.query, keep_blank_values=True)}
-    if "socket_connect_timeout" in names:
+    defaults = {
+        "socket_connect_timeout": REDIS_CONNECT_TIMEOUT_SECONDS,
+        "socket_timeout": REDIS_SOCKET_TIMEOUT_SECONDS,
+    }
+    options = [f"{name}={value:g}" for name, value in defaults.items() if name not in names]
+    if not options:
         return url
-    option = f"socket_connect_timeout={REDIS_CONNECT_TIMEOUT_SECONDS:g}"
-    query = f"{parts.query}&{option}" if parts.query else option
+    query = "&".join([parts.query, *options] if parts.query else options)
     return urlunsplit(parts._replace(query=query))
 
 
@@ -74,7 +84,7 @@ async def get_redis_client() -> redis.Redis | None:
             # connection. A failed checkout would send each rate-limit check to the in-memory window
             # (a second budget).
             pool = redis.BlockingConnectionPool.from_url(
-                with_connect_timeout(settings.REDIS_URL),
+                with_default_timeouts(settings.REDIS_URL),
                 encoding="utf-8",
                 decode_responses=True,
                 max_connections=50,
