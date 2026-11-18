@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import MAX_BATCH_EVENTS
 from app.core.constants import DEVICE_CONTEXT_KEYS
 from app.core.rate_limiter import enforce_ingest_limits, refund
-from app.core.tracing import create_service_span, record_exception_in_span
+from app.core.telemetry import create_service_span, record_exception_in_span
 from app.crud.device_crud import device_crud
 from app.crud.event_crud import EventWriteCRUD, event_crud
 from app.models.event_model import Event

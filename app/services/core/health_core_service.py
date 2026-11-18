@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
-from app.core.tracing import create_service_span, record_exception_in_span
+from app.core.telemetry import create_service_span, record_exception_in_span
 from app.crud.health_crud import ping_database, pool_counters
 from app.schemas.health_schema import (
     DatabaseHealth,

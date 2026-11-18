@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.pagination import build_pagination, fetch_page
 from app.core.query_params import MAX_ENCODED_APP_ID, TextFilter
 from app.core.safe_redirect import safe_redirect_target
-from app.core.tracing import create_service_span
+from app.core.telemetry import create_service_span
 from app.core.visible_text import blank
 from app.schemas.event_schema import EventInDB
 from app.services.core.analytics_core_service import AnalyticsCoreService

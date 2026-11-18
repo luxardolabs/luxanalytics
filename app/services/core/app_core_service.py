@@ -6,7 +6,7 @@ import string
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.tracing import create_service_span, record_exception_in_span
+from app.core.telemetry import create_service_span, record_exception_in_span
 from app.crud.app_crud import app_crud
 from app.models.app_model import App
 from app.schemas.app_schema import AppCreate, AppRow, AppStats, AppUpdate

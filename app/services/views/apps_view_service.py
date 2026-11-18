@@ -17,7 +17,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.tracing import create_service_span
+from app.core.telemetry import create_service_span
 from app.schemas.app_schema import (
     AppCreate,
     AppEditForm,

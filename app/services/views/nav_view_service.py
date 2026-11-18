@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import Request
 
-from app.core.tracing import create_service_span
+from app.core.telemetry import create_service_span
 
 # (route name, label), in nav order
 _PAGES = (

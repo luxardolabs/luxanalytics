@@ -9,7 +9,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.tracing import create_service_span
+from app.core.telemetry import create_service_span
 from app.crud.device_crud import device_crud
 from app.crud.event_crud import Conditions, event_crud
 from app.models.device_model import Device

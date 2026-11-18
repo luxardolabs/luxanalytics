@@ -11,7 +11,7 @@ from fastapi import Request
 
 from app.core.config import settings
 from app.core.safe_redirect import safe_redirect_target
-from app.core.tracing import create_service_span
+from app.core.telemetry import create_service_span
 
 # The login page's banners. The query string carries a code; the text is fixed here, so no text a
 # URL supplies is ever rendered on the page.
