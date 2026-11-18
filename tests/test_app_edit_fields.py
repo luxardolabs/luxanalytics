@@ -9,7 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.app_model import App
 
-INVISIBLE_NAMES = ["​", "⁠", "﻿", "ㅤ", "­", " ​⁠ "]
+# Zero-width and format characters, the Hangul and braille blanks, a soft hyphen, the musical
+# null notehead (which draws nothing), and an ideographic space.
+INVISIBLE_NAMES = [
+    "\u200b",
+    "\u2060",
+    "\ufeff",
+    "\u3164",
+    "\u00ad",
+    " \u200b\u2060 ",
+    "\U0001d159",
+    "\u2800",
+    "\u3000",
+]
 
 
 @pytest.mark.db
