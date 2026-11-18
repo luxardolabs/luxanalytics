@@ -45,15 +45,14 @@ async def extract_app_from_dsn(
     if not public_id or "\x00" in public_id:
         raise HTTPException(status_code=401, detail="Invalid authorization format")
 
+    # The public_id is this route's whole credential, so no log line carries it, whether it was
+    # accepted or refused.
     app = await AppCoreService(db).get_app_by_public_id(public_id)
     if not app:
-        logger.warning("Invalid public_id", extra={"public_id": public_id})
+        logger.warning("Invalid public_id")
         raise HTTPException(status_code=401, detail="Invalid app credentials")
 
-    logger.info(
-        "DSN authentication successful",
-        extra={"app_id": app.app_id, "public_id": public_id},
-    )
+    logger.info("DSN authentication successful", extra={"app_id": app.app_id})
     return app.app_id
 
 
