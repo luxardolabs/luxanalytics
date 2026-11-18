@@ -20,6 +20,13 @@ from app.core.config import settings
 from app.core.rate_limiter import address_identifier
 from app.core.redis_client import with_default_timeouts
 
+# slowapi's storage is redis-py's synchronous client, called in the request path: each call blocks
+# the event loop, every request with it, until Redis answers. Its connect and reply bounds are
+# this, far below the async pool's, unless REDIS_URL sets its own. A timeout sends slowapi to its
+# in-process count; the request that finds Redis failing also makes one health check, so it can
+# block the loop for twice this.
+REQUEST_LIMITER_TIMEOUT_SECONDS = 0.2
+
 
 def client_key(request: Request) -> str:
     """One budget per client, as the ingest and request limits key it: an IPv4 address, or a
@@ -29,8 +36,11 @@ def client_key(request: Request) -> str:
 
 limiter = Limiter(
     key_func=client_key,
-    # The app client's connect and reply bounds, unless the URL sets its own.
-    storage_uri=with_default_timeouts(settings.REDIS_URL)
+    storage_uri=with_default_timeouts(
+        settings.REDIS_URL,
+        connect=REQUEST_LIMITER_TIMEOUT_SECONDS,
+        read=REQUEST_LIMITER_TIMEOUT_SECONDS,
+    )
     if settings.REDIS_URL
     else "memory://",
     in_memory_fallback_enabled=True,

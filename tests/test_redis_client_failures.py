@@ -3,12 +3,14 @@ and the failure's traceback is logged once per interval, not once per request.""
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Awaitable
+from urllib.parse import urlsplit
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from limits.storage import RedisStorage
+from limits.storage import RedisStorage, storage_from_string
 from redis.asyncio import BlockingConnectionPool
 
 import app.core.hmac_replay as hmac_replay
@@ -17,6 +19,7 @@ import app.services.core.health_core_service as health_core_service
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.redis_client import OUTAGE_LOG_INTERVAL
+from tests.redis_proxy import stalling_proxy
 
 INIT_FAILED = "Failed to initialize Redis client"
 
@@ -240,3 +243,64 @@ def test_a_blank_timeout_in_the_url_is_treated_as_unset() -> None:
         redis_client.with_default_timeouts("redis://h:6379/0?socket_connect_timeout=")
         == "redis://h:6379/0?socket_connect_timeout=1&socket_timeout=2"
     )
+
+
+def test_the_request_limiter_bounds_its_blocking_calls_tightly() -> None:
+    """slowapi's client is synchronous: each call it makes blocks the event loop, so its bounds are
+    far below the async pool's."""
+    storage = limiter._storage
+    assert isinstance(storage, RedisStorage)
+    options = storage.storage.connection_pool.connection_kwargs
+    assert float(options["socket_timeout"]) <= 0.25
+    assert float(options["socket_connect_timeout"]) <= 0.25
+
+
+async def _largest_loop_gap(work: Awaitable[object]) -> float:
+    """The longest the event loop went without running a 20 ms ticker while `work` ran."""
+    gaps: list[float] = []
+    done = asyncio.Event()
+
+    async def tick() -> None:
+        last = time.monotonic()
+        while not done.is_set():
+            await asyncio.sleep(0.02)
+            now = time.monotonic()
+            gaps.append(now - last)
+            last = now
+
+    ticker = asyncio.ensure_future(tick())
+    await asyncio.sleep(0.05)
+    await work
+    done.set()
+    await ticker
+    return max(gaps)
+
+
+async def _login(client: AsyncClient) -> int:
+    response = await client.post(
+        "/login",
+        data={"username": "nobody", "password": "wrong", "next": "/"},
+        headers={"X-Forwarded-For": "198.51.100.77"},
+        follow_redirects=False,
+    )
+    return response.status_code
+
+
+async def test_a_login_against_a_stalled_redis_keeps_the_event_loop_turning(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configured = limiter._storage_uri
+    assert configured is not None
+    with stalling_proxy(settings.REDIS_URL or "") as proxy:
+        # The limiter's own storage URI and options, pointed through the proxy.
+        uri = configured.replace(urlsplit(configured).netloc, proxy.netloc, 1)
+        storage = storage_from_string(uri)
+        monkeypatch.setattr(limiter, "_storage", storage)
+        monkeypatch.setattr(limiter, "_limiter", type(limiter._limiter)(storage))
+        monkeypatch.setattr(limiter, "_storage_dead", False)
+        assert await _login(client) == 303
+        proxy.stall()
+        gap = await _largest_loop_gap(_login(client))
+        proxy.resume()
+
+    assert gap < 0.5

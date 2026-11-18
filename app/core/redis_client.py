@@ -24,15 +24,16 @@ REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
 REDIS_SOCKET_TIMEOUT_SECONDS = 2.0
 
 
-def with_default_timeouts(url: str) -> str:
-    """The URL both Redis clients open: each of socket_connect_timeout and socket_timeout as the URL
-    sets it, else its default added to the query. A blank value counts as unset: redis-py ignores
-    it, which would leave the client unbounded."""
+def with_default_timeouts(
+    url: str,
+    connect: float = REDIS_CONNECT_TIMEOUT_SECONDS,
+    read: float = REDIS_SOCKET_TIMEOUT_SECONDS,
+) -> str:
+    """The URL a Redis client opens: each of socket_connect_timeout and socket_timeout as the URL
+    sets it, else `connect` and `read` added to the query. A blank value counts as unset: redis-py
+    ignores it, which would leave the client unbounded."""
     parts = urlsplit(url)
-    defaults = {
-        "socket_connect_timeout": REDIS_CONNECT_TIMEOUT_SECONDS,
-        "socket_timeout": REDIS_SOCKET_TIMEOUT_SECONDS,
-    }
+    defaults = {"socket_connect_timeout": connect, "socket_timeout": read}
     given = parts.query.split("&") if parts.query else []
     kept = [
         part
