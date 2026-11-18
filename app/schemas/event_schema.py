@@ -24,7 +24,7 @@ DEVICE_ID_MAX = 255
 # value would bloat its page for good, and `operation` on performance_measured is a btree key
 # (ix_events_perf_operation), whose limit is in bytes. A longer value is cut to this many bytes, on
 # a character boundary, and the event is stored: refusing it would drop the SDK's whole batch.
-CUT_METADATA_KEYS = ("screen", "operation")
+CUT_METADATA_KEYS = ("screen", "operation", "button")
 TEXT_VALUE_MAX_BYTES = 2000
 # Before this, a timestamp is a device clock reset (often to 1970), not when the event happened.
 EARLIEST_TIMESTAMP = datetime(2000, 1, 1, tzinfo=UTC)

@@ -65,11 +65,9 @@ def _performance_event(operation: str) -> EventCreate:
     )
 
 
-@pytest.mark.parametrize("key", ["screen", "operation"])
+@pytest.mark.parametrize("key", ["screen", "operation", "button"])
 @pytest.mark.parametrize("unit", ["x", "é", "\U0001f600"])
-def test_a_long_screen_or_operation_on_any_event_is_cut_to_fit(
-    key: str, unit: str
-) -> None:
+def test_a_long_displayed_value_on_any_event_is_cut_to_fit(key: str, unit: str) -> None:
     """The pages group and show these values, and events are never deleted: one oversized value
     would bloat its page for good. It is cut on a character boundary; the event is kept."""
     long_value = unit * 5000
