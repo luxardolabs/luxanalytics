@@ -117,10 +117,11 @@ async def hmac_replay_mark(
     get_db committed: this dependency must be resolved before get_db so that it exits after it. A
     request that fails, is cancelled or dies before the commit leaves no mark, so its retry is
     stored."""
-    replayed = await signature_is_marked(signed.key_id, signed.signature)
-    yield ReplayCheck(key_id=signed.key_id, replayed=replayed)
+    key_id, signature = signed.key_id, signed.signature
+    replayed = await signature_is_marked(key_id, signature)
+    yield ReplayCheck(key_id=key_id, replayed=replayed)
     if not replayed:
-        await mark_signature(signed.key_id, signed.signature)
+        await mark_signature(key_id, signature)
 
 
 async def verify_hmac_ingest(
