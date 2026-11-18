@@ -190,6 +190,23 @@ async def test_a_slow_device_clock_after_a_correct_one_agrees_with_the_devices_t
     assert stored["d1"] == rows["d1"] == (None, "18", None)
 
 
+async def test_equal_event_times_in_one_batch_agree_with_the_devices_table(
+    db: AsyncSession,
+) -> None:
+    """Within one batch both sides break a tie of event time the same way, by event id."""
+    at = datetime.now(UTC)
+    batch = []
+    for i in range(24):
+        batch.append(_sdk_event(f"x{i}-1", at, device_id=f"d{i:02}", app_version="A"))
+        batch.append(_sdk_event(f"x{i}-2", at, device_id=f"d{i:02}", app_version="B"))
+    await EventCoreService(db).create_events("test_app", batch)
+    await db.flush()
+
+    stored, rows = await _installs(db)
+
+    assert {k: (stored[k], rows[k]) for k in stored if stored[k] != rows[k]} == {}
+
+
 async def test_a_whitespace_device_id_is_a_device_in_ingest_rows_and_card(
     db: AsyncSession,
 ) -> None:

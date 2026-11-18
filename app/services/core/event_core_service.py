@@ -70,14 +70,16 @@ def _events_per_device(events: list[EventCreate]) -> Counter[str | None]:
 
 
 def _latest_device_row(
-    rows: list[tuple[datetime, dict[str, Any]]],
+    rows: list[tuple[datetime, str, dict[str, Any]]],
 ) -> dict[str, Any]:
-    """One device's upsert from a batch: its events in time order, each later event's keys over
-    the earlier ones. An offline queue flushes oldest first, so the first event is the stalest; a
-    key no event sent stays None (the upsert then keeps the stored value)."""
-    ordered = sorted(rows, key=lambda row: row[0])
-    merged = dict(ordered[0][1])
-    for _, row in ordered[1:]:
+    """One device's upsert from a batch: its events (event time, event id, row) in time order,
+    each later event's keys over the earlier ones. An offline queue flushes oldest first, so the
+    first event is the stalest; a key no event sent stays None (the upsert then keeps the stored
+    value). Equal event times are ordered by event id, as the profile's device rows order them
+    (event_crud `_latest_sent`), so both pick the same event."""
+    ordered = sorted(rows, key=lambda row: (row[0], row[1]))
+    merged = dict(ordered[0][2])
+    for _, _, row in ordered[1:]:
         merged.update({key: value for key, value in row.items() if value is not None})
     return merged
 
@@ -150,7 +152,7 @@ class EventCoreService:
             received_at = datetime.now(UTC)
             insert_data = []
             # Each device's rows from this batch, with their event times (merged below).
-            device_rows: dict[str, list[tuple[datetime, dict[str, Any]]]] = {}
+            device_rows: dict[str, list[tuple[datetime, str, dict[str, Any]]]] = {}
 
             seen_client_ids: set[str] = set()
             for event_data in events:
@@ -204,6 +206,7 @@ class EventCoreService:
                     device_rows.setdefault(device_id, []).append(
                         (
                             event_data.timestamp,
+                            event_id,
                             {
                                 "device_id": device_id,
                                 "app_id": app_id,
