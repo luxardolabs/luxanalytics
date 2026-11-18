@@ -8,21 +8,35 @@ the events are committed, so a request that failed before that leaves none and i
 The worst case is a duplicate row (a crash between the commit and the mark, or two identical
 requests in flight together), never a lost event. Redis being unreachable, not configured, or not
 answering within REDIS_WAIT_SECONDS (a slow Redis or a busy worker) fails open on both the read and
-the write: every request is processed, as the rate limiter does."""
+the write: every request is processed, as the rate limiter does.
+
+A command that outlives the wait is not cancelled: cancelling one closes its connection, and the
+next command pays the reconnect. It finishes on its own and its connection goes back to the pool.
+A slow reply logs one warning, without a traceback, per OUTAGE_LOG_INTERVAL; any other Redis
+failure logs its traceback."""
 
 import asyncio
 import logging
+from collections.abc import Awaitable
 
 from redis.exceptions import RedisError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from app.core.config import settings
-from app.core.redis_client import get_redis_client
+from app.core.redis_client import LogThrottle, get_redis_client
 
 logger = logging.getLogger(__name__)
 
-# How long the check and the mark each wait on Redis. A hung Redis then fails open at this cost per
-# signed request, rather than the client's 5 s, and asyncio.timeout's TimeoutError is an OSError.
+# How long the check and the mark each wait on Redis before failing open. A hung Redis then costs
+# a signed request this much here, rather than holding it until the command answers.
 REDIS_WAIT_SECONDS = 0.25
+
+# When a slow reply was last logged: once per interval, not per signed request.
+slow_replies = LogThrottle()
+
+# Commands that outlived their wait, held until they finish (the loop keeps only weak references to
+# tasks, and a collected task would never return its connection).
+_unanswered: set[asyncio.Task[object]] = set()
 
 
 def _key(key_id: str, signature: str) -> str:
@@ -37,28 +51,70 @@ def _ttl_seconds() -> int:
     return 2 * settings.EVENT_TIMESTAMP_FUTURE_TOLERANCE + 1
 
 
+def _finished(task: asyncio.Task[object]) -> None:
+    _unanswered.discard(task)
+    if not task.cancelled():
+        # Retrieved, so a late failure is not reported again as never retrieved: the request it
+        # served already failed open, and the slow reply was logged.
+        task.exception()
+
+
+async def _within_wait(command: Awaitable[object]) -> tuple[bool, object]:
+    """(True, the command's result) when it answers within REDIS_WAIT_SECONDS; (False, None) when
+    it does not, and it is left to finish. Its RedisError or OSError raises here."""
+    task: asyncio.Task[object] = asyncio.ensure_future(command)
+    _unanswered.add(task)
+    task.add_done_callback(_finished)
+    done, _pending = await asyncio.wait({task}, timeout=REDIS_WAIT_SECONDS)
+    if task not in done:
+        return False, None
+    return True, task.result()
+
+
+def _slow(message: str) -> None:
+    if slow_replies.due():
+        logger.warning(message)
+
+
+async def _exists(key: str) -> bool:
+    redis_client = await get_redis_client()
+    if redis_client is None:
+        return False
+    return bool(await redis_client.exists(key))
+
+
+async def _set(key: str) -> None:
+    redis_client = await get_redis_client()
+    if redis_client is None:
+        return
+    await redis_client.set(key, "1", ex=_ttl_seconds())
+
+
 async def signature_is_marked(key_id: str, signature: str) -> bool:
     """True when a request with this signature was already stored inside its window."""
     try:
-        async with asyncio.timeout(REDIS_WAIT_SECONDS):
-            redis_client = await get_redis_client()
-            if redis_client is None:
-                return False
-            return bool(await redis_client.exists(_key(key_id, signature)))
+        answered, marked = await _within_wait(_exists(_key(key_id, signature)))
+    except RedisTimeoutError, TimeoutError:
+        answered, marked = False, False
     except RedisError, OSError:
         # swallowed-exceptions: handled, not dropped: an unreachable Redis fails open (logged).
         logger.exception("HMAC replay check failed")
         return False
+    if not answered:
+        _slow("HMAC replay check: Redis did not answer in time, failing open")
+        return False
+    return marked is True
 
 
 async def mark_signature(key_id: str, signature: str) -> None:
     """Remember that the request with this signature was stored."""
     try:
-        async with asyncio.timeout(REDIS_WAIT_SECONDS):
-            redis_client = await get_redis_client()
-            if redis_client is None:
-                return
-            await redis_client.set(_key(key_id, signature), "1", ex=_ttl_seconds())
+        answered, _ = await _within_wait(_set(_key(key_id, signature)))
+    except RedisTimeoutError, TimeoutError:
+        answered = False
     except RedisError, OSError:
         # swallowed-exceptions: handled, not dropped: the request was stored; its replay will be too.
         logger.exception("HMAC replay mark failed")
+        return
+    if not answered:
+        _slow("HMAC replay mark: Redis did not answer in time, failing open")

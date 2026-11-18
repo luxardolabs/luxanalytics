@@ -498,16 +498,21 @@ async def test_a_hung_redis_costs_the_check_and_the_mark_a_fraction_of_a_second(
         return _HungRedis()
 
     monkeypatch.setattr(hmac_replay, "get_redis_client", hung_client)
+    monkeypatch.setattr(hmac_replay.slow_replies, "last_logged", None)
     loop = asyncio.get_running_loop()
     started = loop.time()
 
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING, logger="app.core.hmac_replay"):
         assert await hmac_replay.signature_is_marked("key", "sig") is False
         await hmac_replay.mark_signature("key", "sig")
 
     assert loop.time() - started < 1
-    assert "HMAC replay check failed" in caplog.text
-    assert "HMAC replay mark failed" in caplog.text
+    # One warning for the slow Redis, not one traceback per command.
+    logged = [r for r in caplog.records if r.name == "app.core.hmac_replay"]
+    assert [r.getMessage() for r in logged] == [
+        "HMAC replay check: Redis did not answer in time, failing open"
+    ]
+    assert logged[0].exc_info is None
 
 
 async def test_a_redis_client_that_hangs_on_connect_costs_a_fraction_of_a_second(
