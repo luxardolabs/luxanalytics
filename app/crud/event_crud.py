@@ -159,7 +159,6 @@ class EventCRUD:
         self,
         db: AsyncSession,
         query_str: str,
-        search_type: str = "event_name",
         limit: int = 50,
         app_id: str | None = None,
         hours: int = 0,
@@ -168,12 +167,7 @@ class EventCRUD:
         """Events matching the text, newest first, within the app and time window of
         `time_conditions` (no app: every app; hours=0: all time) and the event-name filter the
         list beside it applies."""
-        if search_type == "user_id":
-            match = Event.user_id.icontains(query_str, autoescape=True)
-        elif search_type == "metadata":
-            match = Event.properties.astext.icontains(query_str, autoescape=True)
-        else:
-            match = Event.name.icontains(query_str, autoescape=True)
+        match = Event.name.icontains(query_str, autoescape=True)
         conditions = self.time_conditions(hours, app_id)
         if event_name:
             conditions.append(Event.name.icontains(event_name, autoescape=True))

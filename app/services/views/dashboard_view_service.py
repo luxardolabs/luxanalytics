@@ -167,20 +167,6 @@ class DashboardViewService:
             for i in ids
         }
 
-    def _user_urls(self, user_ids: Iterable[str | None]) -> dict[str, str]:
-        return {
-            u: self._path("dashboard.users.profile_panel", user_id=u)
-            for u in user_ids
-            if u
-        }
-
-    def _session_urls(self, session_ids: Iterable[str | None]) -> dict[str, str]:
-        return {
-            s: self._path("dashboard.sessions.detail_panel", session_id=s)
-            for s in session_ids
-            if s
-        }
-
     @staticmethod
     def _pill_filters(**filters: str | None) -> dict[str, str]:
         """The filters a time pill carries to the page it reloads: the ones that are set."""
@@ -311,7 +297,6 @@ class DashboardViewService:
             if search_q:
                 events = await self._core.search_events(
                     query=search_q,
-                    search_type="event_name",
                     limit=SEARCH_LIMIT,
                     app_id=app_id,
                     hours=hours,

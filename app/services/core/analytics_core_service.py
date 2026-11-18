@@ -84,7 +84,6 @@ class AnalyticsCoreService:
     async def search_events(
         self,
         query: str,
-        search_type: str = "event_name",
         limit: int = 50,
         app_id: str | None = None,
         hours: int = 0,
@@ -98,7 +97,6 @@ class AnalyticsCoreService:
             events = await event_crud.search(
                 self.db,
                 query,
-                search_type,
                 limit,
                 app_id=app_id,
                 hours=hours,

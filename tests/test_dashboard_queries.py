@@ -119,7 +119,7 @@ async def test_search_events(
     db: AsyncSession, sample_events: list[dict[str, object]]
 ) -> None:
     svc = AnalyticsCoreService(db)
-    results = await svc.search_events(query="screen", search_type="event_name")
+    results = await svc.search_events(query="screen")
 
     assert len(results) >= 1
     assert all("screen" in e.name.lower() for e in results)
