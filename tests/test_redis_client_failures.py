@@ -207,3 +207,22 @@ async def test_a_hung_command_ends_and_its_connection_returns_to_the_pool(
         # The suite's teardown opens its own client on the test Redis.
         await redis_client.close_redis_client()
 
+
+async def test_a_failed_init_closes_the_pool_it_opened(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "REDIS_URL", "redis://127.0.0.1:1/0")
+    await redis_client.close_redis_client()
+    closed: list[BlockingConnectionPool] = []
+    real_aclose = BlockingConnectionPool.aclose
+
+    async def aclose(self: BlockingConnectionPool) -> None:
+        closed.append(self)
+        await real_aclose(self)
+
+    monkeypatch.setattr(BlockingConnectionPool, "aclose", aclose)
+    for _ in range(3):
+        assert await redis_client.get_redis_client() is None
+
+    assert len(closed) == 3
+    assert len(set(map(id, closed))) == 3

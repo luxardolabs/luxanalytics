@@ -92,10 +92,17 @@ async def get_redis_client() -> redis.Redis | None:
                 health_check_interval=30,
                 socket_keepalive=True,
             )
-            # from_pool: the client owns the pool, so close_redis_client() closes its connections
-            _redis_client = redis.Redis.from_pool(pool)
-            # Test connection
-            await _redis_client.ping()
+            # from_pool: the client owns the pool, so closing the client closes its connections.
+            # Set before the ping, so a request arriving meanwhile shares it rather than opening
+            # another pool.
+            client = _redis_client = redis.Redis.from_pool(pool)
+            try:
+                await client.ping()
+            except BaseException:
+                # The next request opens a new pool: this one is closed, not left behind.
+                _redis_client = None
+                await client.aclose()
+                raise
             logger.info("Redis client initialized successfully")
         except RedisError, OSError:
             # Handled: without Redis the rate limiter uses its in-memory window. The traceback is
@@ -103,7 +110,6 @@ async def get_redis_client() -> redis.Redis | None:
             # interval: every request tries again while Redis stays down.
             if init_failures.due():
                 logger.exception("Failed to initialize Redis client")
-            _redis_client = None
 
     return _redis_client
 
