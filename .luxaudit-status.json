@@ -1,11 +1,11 @@
 {
   "guard": "luxaudit",
-  "guard_version": "0.18.0",
+  "guard_version": "0.19.0",
   "repo": "/repo",
-  "packages": 80,
+  "packages": 146,
   "source": "poetry.lock, package-lock.json",
   "summary": {
-    "PASS": 0,
+    "PASS": 146,
     "FAIL": 11,
     "XFAIL": 0
   },
@@ -15,14 +15,6 @@
   "not_audited": [],
   "by_public_version": [],
   "warnings": [],
-  "error": "poetry.lock: osv: WARNING:pip_audit._cli:--no-deps is supported, but users are encouraged to fully hash their pinned dependencies\nWARNING:pip_audit._cli:Consider using a tool like `pip-compile`: https://pip-tools.readthedocs.io/en/latest/#using-hashes\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.14/site-packages/urllib3/connectionpool.py\", line 793, in urlopen\n    response = self._make_request(",
-  "errors": [
-    "poetry.lock: osv: WARNING:pip_audit._cli:--no-deps is supported, but users are encouraged to fully hash their pinned dependencies",
-    "WARNING:pip_audit._cli:Consider using a tool like `pip-compile`: https://pip-tools.readthedocs.io/en/latest/#using-hashes",
-    "Traceback (most recent call last):",
-    "  File \"/usr/local/lib/python3.14/site-packages/urllib3/connectionpool.py\", line 793, in urlopen",
-    "    response = self._make_request("
-  ],
   "image": {
     "ref": "luxardolabs/luxanalytics:2026.10.2",
     "inert": false,
@@ -148,6 +140,6 @@
     "expired": [],
     "unjudged": []
   },
-  "commit": "a509ff6d3c60fe719d4a8ec90d16f4f884d3367f",
-  "generated_at": "2026-11-18T04:20:09Z"
+  "commit": "0d80a34e11824843869b2022d1b10ca37f92105e",
+  "generated_at": "2026-11-18T11:46:51Z"
 }
