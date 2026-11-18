@@ -105,7 +105,9 @@ async def test_no_span_carries_the_key(
     assert r.status_code in (200, 401), r.text
     spans = _span_text(span_exporter)
     assert spans, "no spans recorded: the measurement saw nothing"
-    assert any("SELECT" in x for x in spans), "no db.statement span: " + repr(spans)[:600]
+    assert any("SELECT" in x for x in spans), (
+        "no db.statement span: " + repr(spans)[:600]
+    )
     leaks = [x for x in spans if key in x]
     assert not leaks, leaks[0][:400]
 
@@ -120,7 +122,9 @@ async def test_key_in_path_reaches_no_span(
     )
     assert r.status_code == 404
     spans = _span_text(span_exporter)
-    assert any(x.startswith("POST") for x in spans), "no server span: " + repr(spans)[:900]
+    assert any(x.startswith("POST") for x in spans), (
+        "no server span: " + repr(spans)[:900]
+    )
     assert any("/api/v1/events/{project_id}" in x for x in spans), repr(spans)[:1500]
     leaks = [x for x in spans if sample_app.public_id in x]
     assert not leaks, leaks[0][:400]

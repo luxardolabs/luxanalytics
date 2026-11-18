@@ -46,7 +46,9 @@ async def test_public_route_success_logs_no_key(
 ) -> None:
     with caplog.at_level(logging.DEBUG):
         r = await server.post(
-            "/api/v1/events/public", content=_event(), headers=_dsn(sample_app.public_id)
+            "/api/v1/events/public",
+            content=_event(),
+            headers=_dsn(sample_app.public_id),
         )
     assert r.status_code == 200, r.text
     leaks = [x for x in _logged(caplog) if sample_app.public_id in x]

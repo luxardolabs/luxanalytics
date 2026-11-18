@@ -109,7 +109,9 @@ async def verify_project_dsn(
     auth_public_id = decoded.split(":")[0]
     if not secrets.compare_digest(auth_public_id.encode(), app.public_id.encode()):
         # Neither key is logged: a prefix of the accepted one is credential material.
-        logger.warning("Invalid public_id for project", extra={"project_id": project_id})
+        logger.warning(
+            "Invalid public_id for project", extra={"project_id": project_id}
+        )
         raise HTTPException(status_code=401, detail="Invalid DSN key")
 
     logger.info(

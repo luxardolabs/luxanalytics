@@ -119,11 +119,16 @@ async def test_a_project_dsn_key_mismatch_logs_no_part_of_the_real_public_id(
         response = await server.post(
             f"/api/v1/events/{PROJECT}",
             content=_event(),
-            headers={"Authorization": f"Basic {wrong}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Basic {wrong}",
+                "Content-Type": "application/json",
+            },
         )
 
     assert response.status_code == 401
-    [record] = [r for r in caplog.records if r.getMessage() == "Invalid public_id for project"]
+    [record] = [
+        r for r in caplog.records if r.getMessage() == "Invalid public_id for project"
+    ]
     assert record.__dict__["project_id"] == PROJECT
     # Neither key reaches the record: not the one that would have been accepted, not the one sent.
     assert "expected_public_id" not in record.__dict__
