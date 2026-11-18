@@ -9,6 +9,7 @@ from collections.abc import Iterator
 
 import pytest
 import redis.asyncio as redis
+from redis.asyncio import BlockingConnectionPool
 
 import app.core.hmac_replay as hmac_replay
 import app.core.rate_limiter as rate_limiter
@@ -50,7 +51,7 @@ def slow(monkeypatch: pytest.MonkeyPatch) -> _SlowRedis:
     async def get_slow() -> _SlowRedis:
         return client
 
-    monkeypatch.setattr(hmac_replay, "get_redis_client", get_slow)
+    monkeypatch.setattr(hmac_replay, "get_replay_redis", get_slow)
     return client
 
 
@@ -110,48 +111,6 @@ async def test_slow_replies_log_again_once_the_interval_has_passed(
     assert all(r.exc_info is None for r in logged)
 
 
-class _Counting:
-    """Answers after SLOW seconds, counting the commands it was sent and the most at once."""
-
-    def __init__(self) -> None:
-        self.sent = 0
-        self.running = 0
-        self.most_at_once = 0
-
-    async def exists(self, key: str) -> int:
-        self.sent += 1
-        self.running += 1
-        self.most_at_once = max(self.most_at_once, self.running)
-        try:
-            await asyncio.sleep(SLOW)
-        finally:
-            self.running -= 1
-        return 0
-
-
-async def test_replay_commands_in_flight_are_capped(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Past the cap a check fails open at once and sends nothing, so a slow Redis cannot fill the
-    pool the rate limits share."""
-    counting = _Counting()
-
-    async def get_counting() -> _Counting:
-        return counting
-
-    monkeypatch.setattr(hmac_replay, "get_redis_client", get_counting)
-
-    results = await asyncio.gather(
-        *(hmac_replay.signature_is_marked("k", f"burst-{i}") for i in range(100))
-    )
-    await asyncio.sleep(SLOW + 0.1)
-
-    assert results == [False] * 100
-    # A handful, a small share of the 50-connection pool, never one per request.
-    assert counting.sent <= 16
-    assert counting.most_at_once <= hmac_replay.MAX_COMMANDS_IN_FLIGHT
-
-
 @pytest.fixture
 def stalled_app_redis(monkeypatch: pytest.MonkeyPatch) -> Iterator[StallingProxy]:
     """The app's own Redis client, through a proxy the test stalls, with a 1 s reply timeout."""
@@ -195,7 +154,7 @@ async def test_a_redis_refusing_connections_logs_at_most_one_replay_traceback(
     async def get_refusing() -> redis.Redis:
         return refusing
 
-    monkeypatch.setattr(hmac_replay, "get_redis_client", get_refusing)
+    monkeypatch.setattr(hmac_replay, "get_replay_redis", get_refusing)
     with caplog.at_level(logging.WARNING, logger="app.core.hmac_replay"):
         for i in range(50):
             await hmac_replay.signature_is_marked("k", f"refused-{i}")
@@ -204,3 +163,34 @@ async def test_a_redis_refusing_connections_logs_at_most_one_replay_traceback(
 
     tracebacks = [r for r in _replay_logs(caplog) if r.exc_info is not None]
     assert len(tracebacks) <= 1
+
+
+@pytest.mark.db
+async def test_replay_commands_on_a_stalled_redis_hold_only_their_own_small_pool(
+    stalled_app_redis: StallingProxy,
+) -> None:
+    """A burst of checks on a stalled Redis holds at most the replay check's own connections, and
+    none of the pool the rate limits use."""
+    await redis_client.close_redis_client()
+    try:
+        limits_client = await redis_client.get_redis_client()
+        replay_redis = await redis_client.get_replay_redis()
+        assert limits_client is not None and replay_redis is not None
+        stalled_app_redis.stall()
+        results = await asyncio.gather(
+            *(hmac_replay.signature_is_marked("k", f"own-pool-{i}") for i in range(100))
+        )
+        check_pool = replay_redis.check.connection_pool
+        limits_pool = limits_client.connection_pool
+        assert isinstance(check_pool, BlockingConnectionPool)
+        assert isinstance(limits_pool, BlockingConnectionPool)
+        held = len(check_pool._in_use_connections)
+        held_from_limits = len(limits_pool._in_use_connections)
+        stalled_app_redis.resume()
+    finally:
+        await asyncio.sleep(1.2)
+        await redis_client.close_redis_client()
+
+    assert results == [False] * 100
+    assert held <= redis_client.REPLAY_CHECK_CONNECTIONS
+    assert held_from_limits == 0

@@ -133,7 +133,75 @@ async def close_redis_client() -> None:
     """Close Redis client connection."""
     global _redis_client
 
+    global _replay_redis
+
     if _redis_client:
         await _redis_client.aclose()
         _redis_client = None
         logger.info("Redis client closed")
+    if _replay_redis is not None:
+        await _replay_redis.aclose()
+        _replay_redis = None
+
+
+# How long the HMAC replay check waits on Redis, a free connection included, before failing open.
+REPLAY_WAIT_SECONDS = 0.25
+
+# The replay check's and the replay mark's own connections, apart from the 50 the rate limits use:
+# a stalled Redis then holds at most these, and a limit check never waits behind a replay command.
+REPLAY_CHECK_CONNECTIONS = 5
+REPLAY_MARK_CONNECTIONS = 5
+
+
+class ReplayRedis:
+    """The two clients the HMAC replay marks use, each over its own small pool. A check waits for
+    a free connection no longer than REPLAY_WAIT_SECONDS; a mark waits as long as the pool's own
+    timeout (5 s), so a burst of marks is queued, not dropped."""
+
+    def __init__(self, check: redis.Redis, mark: redis.Redis) -> None:
+        self.check = check
+        self.mark = mark
+
+    async def exists(self, key: str) -> int:
+        return int(await self.check.exists(key))
+
+    async def set(self, key: str, value: str, ex: int) -> object:
+        reply: object = await self.mark.set(key, value, ex=ex)
+        return reply
+
+    async def aclose(self) -> None:
+        await self.check.aclose()
+        await self.mark.aclose()
+
+
+_replay_redis: ReplayRedis | None = None
+
+
+def _replay_client(url: str, connections: int, checkout_seconds: float) -> redis.Redis:
+    pool = redis.BlockingConnectionPool.from_url(
+        with_default_timeouts(url),
+        encoding="utf-8",
+        decode_responses=True,
+        max_connections=connections,
+        timeout=checkout_seconds,
+        health_check_interval=30,
+        socket_keepalive=True,
+    )
+    return redis.Redis.from_pool(pool)
+
+
+async def get_replay_redis() -> ReplayRedis | None:
+    """The replay marks' clients (created on first use, connecting on first command), or None when
+    REDIS_URL is unset."""
+    global _replay_redis
+
+    if not settings.REDIS_URL:
+        return None
+    if _replay_redis is None:
+        _replay_redis = ReplayRedis(
+            check=_replay_client(
+                settings.REDIS_URL, REPLAY_CHECK_CONNECTIONS, REPLAY_WAIT_SECONDS
+            ),
+            mark=_replay_client(settings.REDIS_URL, REPLAY_MARK_CONNECTIONS, 5),
+        )
+    return _replay_redis

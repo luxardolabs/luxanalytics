@@ -337,7 +337,7 @@ async def test_an_unreachable_redis_lets_ingest_through_and_logs_it(
     async def get_unreachable_client() -> redis.Redis:
         return unreachable
 
-    monkeypatch.setattr(hmac_replay, "get_redis_client", get_unreachable_client)
+    monkeypatch.setattr(hmac_replay, "get_replay_redis", get_unreachable_client)
     monkeypatch.setattr(hmac_replay.failures, "last_logged", None)
     body = _event()
     headers = _signed(body, sample_app.app_id)
@@ -368,7 +368,7 @@ async def test_ingest_works_when_redis_is_not_configured(
     async def no_redis() -> None:
         return None
 
-    monkeypatch.setattr(hmac_replay, "get_redis_client", no_redis)
+    monkeypatch.setattr(hmac_replay, "get_replay_redis", no_redis)
     body = _event()
     headers = _signed(body, sample_app.app_id)
 
@@ -501,7 +501,7 @@ async def test_a_hung_redis_costs_the_check_and_the_mark_a_fraction_of_a_second(
     async def hung_client() -> _HungRedis:
         return _HungRedis()
 
-    monkeypatch.setattr(hmac_replay, "get_redis_client", hung_client)
+    monkeypatch.setattr(hmac_replay, "get_replay_redis", hung_client)
     monkeypatch.setattr(hmac_replay.slow_replies, "last_logged", None)
     loop = asyncio.get_running_loop()
     started = loop.time()
@@ -525,7 +525,7 @@ async def test_a_redis_client_that_hangs_on_connect_costs_a_fraction_of_a_second
     async def connecting() -> None:
         await asyncio.sleep(30)
 
-    monkeypatch.setattr(hmac_replay, "get_redis_client", connecting)
+    monkeypatch.setattr(hmac_replay, "get_replay_redis", connecting)
     loop = asyncio.get_running_loop()
     started = loop.time()
 
@@ -584,7 +584,7 @@ async def delayed(monkeypatch: pytest.MonkeyPatch) -> _Delayed:
     async def get_delayed() -> _Delayed:
         return wrapper
 
-    monkeypatch.setattr(hmac_replay, "get_redis_client", get_delayed)
+    monkeypatch.setattr(hmac_replay, "get_replay_redis", get_delayed)
     return wrapper
 
 
@@ -642,3 +642,20 @@ async def test_a_flood_of_unauthenticated_requests_does_not_let_a_replay_through
     assert set(codes) == {401}
     assert replayed == DUPLICATE
     assert await _stored(db, sample_app.app_id) == 1
+
+
+@pytest.mark.parametrize(("latency", "burst"), [(0.15, 30), (0.1, 20)])
+async def test_marks_of_a_burst_are_all_written_on_a_slow_but_healthy_redis(
+    delayed: _Delayed, latency: float, burst: int
+) -> None:
+    """Signed requests completing together are each marked: none stays replayable."""
+    delayed.latency = latency
+    await asyncio.gather(
+        *(hmac_replay.mark_signature("key", f"slow-burst-{i}") for i in range(burst))
+    )
+    await asyncio.sleep(1.0)
+    marked = [
+        await hmac_replay.signature_is_marked("key", f"slow-burst-{i}")
+        for i in range(burst)
+    ]
+    assert marked == [True] * burst
