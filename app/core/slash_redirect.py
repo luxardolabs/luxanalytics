@@ -46,7 +46,9 @@ class SlashRedirect:
             # A slash that is an encoded %2F in the request is part of an id, not the path's end.
             if not raw.endswith("/"):
                 return None
-            path, raw = path.rstrip("/"), raw.rstrip("/")
+            # One slash off each form, so the path checked is the path redirected to: stripping
+            # every trailing slash would drop an encoded one from the decoded path only.
+            path, raw = path[:-1], raw[:-1]
         else:
             path, raw = f"{path}/", f"{raw}/"
         # `//host` and `/\host` are another site to a browser.
