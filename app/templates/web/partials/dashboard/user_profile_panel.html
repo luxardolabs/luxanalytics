@@ -47,7 +47,7 @@
                 <div class="flex items-center justify-between text-sm py-2 {% if not loop.last %}border-b border-surface-20{% endif %}">
                     <div>
                         <span class="text-fg font-medium">{{ d.device_model }}</span>
-                        {% if all_apps %}<span class="text-xs text-brand-500 ml-2">{{ d.app_id }}</span>{% endif %}
+                        {% if all_apps %}<span class="text-xs text-brand-500 ml-2">{{ d.app_id | truncate(24) }}</span>{% endif %}
                         <span class="text-slate-500 text-xs ml-2">iOS {{ d.os_version }} · v{{ d.app_version }}</span>
                     </div>
                     <div class="text-xs text-slate-500 tabular-nums">{{ d.event_count }} events</div>
@@ -74,7 +74,7 @@
                         </div>
                     </div>
                     <div class="text-xs text-slate-500 mt-0.5">
-                        {{ s.app_id }} · {{ s.first_event | datetime('friendly') }}
+                        {{ s.app_id | truncate(24) }} · {{ s.first_event | datetime('friendly') }}
                     </div>
                     {% if s.types_shown %}
                     <div class="flex flex-wrap gap-1 mt-1">
@@ -96,7 +96,7 @@
             {% call detail_section("Errors (" ~ errors | length ~ " of " ~ total_errors ~ ")") %}
                 {% for e in errors %}
                 <div class="flex items-center justify-between text-sm py-1.5">
-                    <span class="text-red-400">{{ e.name | friendly_name }}{% if all_apps %} <span class="text-xs text-brand-500">{{ e.app_id }}</span>{% endif %}</span>
+                    <span class="text-red-400">{{ e.name | friendly_name }}{% if all_apps %} <span class="text-xs text-brand-500">{{ e.app_id | truncate(24) }}</span>{% endif %}</span>
                     <span class="text-xs text-slate-500">{{ e.received_at | timeago }}</span>
                 </div>
                 {% endfor %}

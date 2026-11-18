@@ -7,6 +7,7 @@ from fastapi import HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
+from app.core.request_path import requested_path, with_requested_query
 from app.core.request_route import route_template
 from app.core.safe_redirect import safe_redirect_target
 from app.crud.dashboard_session_crud import (
@@ -130,10 +131,9 @@ async def require_auth(request: Request) -> str:
     user = await get_current_user(request)
 
     if not user:
-        # Store the requested URL to redirect after login
-        next_url = str(request.url.path)
-        if request.url.query:
-            next_url += f"?{request.url.query}"
+        # Store the requested URL to redirect after login, its path as requested: decoded, an id
+        # holding "?", "#" or "/" would land on another row, and a newline would fail the redirect.
+        next_url = with_requested_query(requested_path(request.scope), request.scope)
 
         # Redirect to login page
         logger.info(

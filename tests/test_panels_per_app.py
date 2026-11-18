@@ -266,7 +266,10 @@ async def test_a_no_app_profile_is_labelled_and_tells_apps_apart_per_device_and_
     assert "3 events" in flat
     assert "4 events" in flat
     assert "Errors (1 of 1)" in flat
-    assert "other_app" in flat
+    # The app is named inside each device and error row, not just somewhere on the panel.
+    assert "iPhone16 test_app iOS 18 · v1.0 3 events" in flat
+    assert "iPhone16 other_app iOS 18 · v1.0 4 events" in flat
+    assert re.search(r"Error Occurred other_app \S", flat)
     scoped = " ".join(
         re.sub(
             r"<[^>]+>",

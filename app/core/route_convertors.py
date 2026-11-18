@@ -30,9 +30,10 @@ APP_ID_PARAM = "{app_id:appid}"
 
 
 class SdkIdConvertor(Convertor[str]):
-    """An SDK-chosen id (user, session) is any text. Starlette's `path` convertor stops at a
-    newline, and `$` then accepts a trailing one, so `victim%0A` reached its route as `victim` and
-    opened another row's panel: this one matches every character, slashes and newlines included."""
+    """An SDK-chosen id (user, session, property key) is any text. Starlette's `path` convertor
+    stops at a newline, and `$` then accepts a trailing one, so `victim%0A` reached its route as
+    `victim` and opened another row's panel: this one matches every character, slashes and newlines
+    included."""
 
     regex = r"[\s\S]*"
 
@@ -45,6 +46,7 @@ class SdkIdConvertor(Convertor[str]):
 
 register_url_convertor("sdkid", SdkIdConvertor())
 
-# The path parameters of the user and session panel routes.
+# The path parameters of the user, session and explorer key panel routes.
 USER_ID_PARAM = "{user_id:sdkid}"
 SESSION_ID_PARAM = "{session_id:sdkid}"
+KEY_NAME_PARAM = "{key_name:sdkid}"

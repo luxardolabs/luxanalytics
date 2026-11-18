@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_auth
 from app.core.query_params import Hours, Page, PathText, TextFilter
-from app.core.route_convertors import SESSION_ID_PARAM, USER_ID_PARAM
+from app.core.route_convertors import KEY_NAME_PARAM, SESSION_ID_PARAM, USER_ID_PARAM
 from app.db.database import get_db
 from app.services.views.dashboard_view_service import (
     DashboardViewService,
@@ -354,7 +354,7 @@ async def event_detail_panel(
 
 
 @router.get(
-    "/explorer/key/{key_name:path}",
+    f"/explorer/key/{KEY_NAME_PARAM}",
     response_class=HTMLResponse,
     name="dashboard.explorer.key_panel",
 )
