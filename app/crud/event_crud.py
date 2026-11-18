@@ -21,10 +21,10 @@ from sqlalchemy import (
     true,
     tuple_,
 )
-from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.selectable import ScalarSelect, Subquery
 
 from app.models.event_model import Event
 
@@ -44,19 +44,25 @@ def _has_device() -> ColumnElement[bool]:
 
 
 def _latest_sent(
-    column: InstrumentedAttribute[str | None],
-) -> ColumnElement[str | None]:
-    """In a GROUP BY, the latest value the group's events sent for `column`, in the order the
-    devices upsert applies them: by arrival (received_at, one value per batch, so the batch that
-    arrived last wins, whatever its events' times), then within a batch by event time, then by
-    event id. A later event that did not send the value keeps the earlier one."""
-    ordered = func.array_agg(
-        aggregate_order_by(
-            column, Event.received_at.desc(), Event.timestamp.desc(), Event.id.desc()
+    column: InstrumentedAttribute[str | None], user_id: str, installs: Subquery
+) -> ScalarSelect[str | None]:
+    """For each install row of `installs` (app_id, device_id), the latest value the user's events
+    sent for `column`, in the order the devices upsert applies them: by arrival (received_at, one
+    value per batch, so the batch that arrived last wins, whatever its events' times), then within
+    a batch by event time, then by event id. A later event that did not send the value keeps the
+    earlier one. One indexed LIMIT 1 per install, on (app_id, device_id, received_at)."""
+    return (
+        select(column)
+        .where(
+            Event.app_id == installs.c.app_id,
+            Event.device_id == installs.c.device_id,
+            Event.user_id == user_id,
+            column.isnot(None),
         )
+        .order_by(Event.received_at.desc(), Event.timestamp.desc(), Event.id.desc())
+        .limit(1)
+        .scalar_subquery()
     )
-    latest: ColumnElement[str | None] = ordered.filter(column.isnot(None))[1]
-    return latest
 
 
 class EventWriteCRUD:
@@ -501,14 +507,10 @@ class EventCRUD:
         owns the row agrees with the devices table, the install's current state. A value a later
         event did not send is kept, and another user of a shared install never shows through, as
         the per-install devices row would. An empty device id is no device, as ingest treats it."""
-        query = (
+        installs = (
             select(
                 Event.app_id,
                 Event.device_id,
-                _latest_sent(Event.device_model).label("device_model"),
-                _latest_sent(Event.os_version).label("os_version"),
-                _latest_sent(Event.app_version).label("app_version"),
-                _latest_sent(Event.platform).label("platform"),
                 func.count(Event.id).label("event_count"),
                 func.max(Event.received_at).label("last_seen"),
             )
@@ -518,8 +520,23 @@ class EventCRUD:
                 *self.app_conditions(app_id),
             )
             .group_by(Event.app_id, Event.device_id)
-            .order_by(desc(func.max(Event.received_at)))
+            .subquery()
         )
+        query = select(
+            installs.c.app_id,
+            installs.c.device_id,
+            *(
+                _latest_sent(column, user_id, installs).label(column.key)
+                for column in (
+                    Event.device_model,
+                    Event.os_version,
+                    Event.app_version,
+                    Event.platform,
+                )
+            ),
+            installs.c.event_count,
+            installs.c.last_seen,
+        ).order_by(desc(installs.c.last_seen))
         result = await db.execute(query)
         return list(result.all())
 
