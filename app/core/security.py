@@ -52,11 +52,9 @@ def verify_hmac_signature(
     if not hmac.compare_digest(computed_signature.encode(), x_signature.encode()):
         logger.warning(
             "HMAC signature verification failed",
-            extra={
-                "key_id": x_key_id,
-                "computed": computed_signature[:8] + "...",
-                "provided": x_signature[:8] + "...",
-            },
+            # The key id only: the computed signature is key-derived (the correct one for a request
+            # the caller chose), and the provided one's prefix tells an operator nothing.
+            extra={"key_id": x_key_id},
         )
         raise HTTPException(status_code=403, detail="Invalid signature")
 

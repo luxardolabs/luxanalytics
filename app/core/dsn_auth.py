@@ -39,9 +39,10 @@ async def extract_app_from_dsn(
         logger.warning("Malformed authorization header", extra={"error": str(e)})
         raise HTTPException(status_code=401, detail="Invalid authorization") from e
 
-    # The format is "public_id:" with an empty password.
+    # The format is "public_id:" with an empty password. Postgres text cannot hold a NUL, so a
+    # username with one names no app (it was a driver error at the lookup).
     public_id = decoded.split(":")[0]
-    if not public_id:
+    if not public_id or "\x00" in public_id:
         raise HTTPException(status_code=401, detail="Invalid authorization format")
 
     app = await AppCoreService(db).get_app_by_public_id(public_id)
@@ -83,7 +84,13 @@ async def verify_project_dsn(
 
     DSN format: https://PUBLIC_ID@analytics.domain.com/api/v1/events/PROJECT_ID
     """
-    app = await AppCoreService(db).get_app_by_project_id(project_id)
+    # Postgres text cannot hold a NUL: a project id with one names no project (it was a driver
+    # error at the lookup).
+    app = (
+        None
+        if "\x00" in project_id
+        else await AppCoreService(db).get_app_by_project_id(project_id)
+    )
     if not app:
         logger.warning("Invalid project_id in URL", extra={"project_id": project_id})
         raise HTTPException(status_code=404, detail="Invalid project")
