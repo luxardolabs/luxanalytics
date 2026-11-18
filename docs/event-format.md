@@ -52,7 +52,7 @@ These metadata keys are **device context**. The server stores them in their own 
 
 `device_id`, `device_model`, `device_type`, `system_version` (stored as the OS version), `app_version`, `build_number`, `screen_resolution`, `locale`, `timezone`, `is_testflight` (`"true"` or anything else).
 
-`platform` is also read from metadata (default `"ios"`). Every other key is an event **property**, stored as sent and shown in the dashboard's explorer.
+`platform` is also read from metadata (default `"ios"`). Every other key is an event **property**, stored as sent and shown in the dashboard's explorer, except `screen` and `operation`: the pages group by these, so a value longer than 2000 bytes (UTF-8) is cut to 2000 bytes on a character boundary, and the event is stored.
 
 ## Compression
 

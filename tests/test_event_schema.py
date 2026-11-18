@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.event_schema import PERFORMANCE_OPERATION_MAX_BYTES, EventCreate
+from app.schemas.event_schema import TEXT_VALUE_MAX_BYTES, EventCreate
 
 
 def _event(timestamp: object) -> EventCreate:
@@ -65,19 +65,31 @@ def _performance_event(operation: str) -> EventCreate:
     )
 
 
-def test_a_long_operation_on_another_event_is_stored_as_sent() -> None:
-    """ix_events_perf_operation is partial on performance_measured: no other event's operation
-    reaches an index."""
-    long_operation = "x" * 5000
+@pytest.mark.parametrize("key", ["screen", "operation"])
+@pytest.mark.parametrize("unit", ["x", "é", "\U0001f600"])
+def test_a_long_screen_or_operation_on_any_event_is_cut_to_fit(
+    key: str, unit: str
+) -> None:
+    """The pages group and show these values, and events are never deleted: one oversized value
+    would bloat its page for good. It is cut on a character boundary; the event is kept."""
+    long_value = unit * 5000
     other = EventCreate.model_validate(
         {
             "name": "sync_failed",
             "timestamp": "2026-10-06T12:00:00Z",
-            "metadata": {"operation": long_operation},
+            "metadata": {key: long_value},
         }
     )
 
-    assert other.metadata["operation"] == long_operation
+    kept = other.metadata[key]
+    assert 0 < len(kept.encode()) <= TEXT_VALUE_MAX_BYTES
+    assert long_value.startswith(kept)
+    assert len(kept.encode()) > TEXT_VALUE_MAX_BYTES - 4
+
+
+def test_a_screen_within_the_limit_is_stored_as_sent() -> None:
+    screen = "Settings/" + "z" * 1500
+    assert _with_metadata(screen=screen).metadata["screen"] == screen
 
 
 def test_an_operation_the_performance_index_holds_is_stored_as_sent() -> None:
@@ -94,11 +106,11 @@ def test_an_operation_past_the_index_row_is_cut_to_fit_in_bytes(unit: str) -> No
 
     kept = _performance_event(operation).metadata["operation"]
 
-    assert 0 < len(kept.encode()) <= PERFORMANCE_OPERATION_MAX_BYTES
+    assert 0 < len(kept.encode()) <= TEXT_VALUE_MAX_BYTES
     assert operation.startswith(kept)
-    assert len(kept.encode()) > PERFORMANCE_OPERATION_MAX_BYTES - 4
+    assert len(kept.encode()) > TEXT_VALUE_MAX_BYTES - 4
 
 
-def test_other_metadata_is_not_held_to_an_index_limit() -> None:
-    long_screen = "s" * 8000
-    assert _with_metadata(screen=long_screen).metadata["screen"] == long_screen
+def test_other_metadata_is_stored_as_sent() -> None:
+    long_note = "n" * 8000
+    assert _with_metadata(note=long_note).metadata["note"] == long_note

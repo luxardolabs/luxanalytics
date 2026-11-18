@@ -20,11 +20,12 @@ CLIENT_EVENT_ID_MAX = 64  # the events.client_event_id column width
 # (two devices would merge). 255 characters (1 KB as UTF-8) is the width name, user_id and
 # session_id already have; the SDK's is 64.
 DEVICE_ID_MAX = 255
-# `operation` reaches a btree key only on performance_measured (ix_events_perf_operation is
-# partial). The index limit is in bytes, so a longer value there is cut to this many bytes, on a
-# character boundary, and the event is stored: refusing it would drop the SDK's whole batch.
-PERFORMANCE_EVENT = "performance_measured"
-PERFORMANCE_OPERATION_MAX_BYTES = 2000
+# The metadata values the dashboard groups and shows. Events are never deleted, so one oversized
+# value would bloat its page for good, and `operation` on performance_measured is a btree key
+# (ix_events_perf_operation), whose limit is in bytes. A longer value is cut to this many bytes, on
+# a character boundary, and the event is stored: refusing it would drop the SDK's whole batch.
+CUT_METADATA_KEYS = ("screen", "operation")
+TEXT_VALUE_MAX_BYTES = 2000
 # Before this, a timestamp is a device clock reset (often to 1970), not when the event happened.
 EARLIEST_TIMESTAMP = datetime(2000, 1, 1, tzinfo=UTC)
 
@@ -105,17 +106,14 @@ class EventBase(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def fit_performance_operation(self) -> Self:
-        """A performance event's `operation` is indexed: keep it under the btree row limit."""
-        operation = self.metadata.get("operation")
-        if (
-            self.name == PERFORMANCE_EVENT
-            and operation is not None
-            and len(operation.encode()) > PERFORMANCE_OPERATION_MAX_BYTES
-        ):
-            self.metadata["operation"] = operation.encode()[
-                :PERFORMANCE_OPERATION_MAX_BYTES
-            ].decode(errors="ignore")
+    def fit_displayed_values(self) -> Self:
+        """Cut each value the dashboard groups and shows to TEXT_VALUE_MAX_BYTES."""
+        for key in CUT_METADATA_KEYS:
+            value = self.metadata.get(key)
+            if value is not None and len(value.encode()) > TEXT_VALUE_MAX_BYTES:
+                self.metadata[key] = value.encode()[:TEXT_VALUE_MAX_BYTES].decode(
+                    errors="ignore"
+                )
         return self
 
     @field_validator("name")
