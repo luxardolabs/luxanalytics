@@ -1,8 +1,8 @@
 """Per-route request limits: slowapi, the fleet's sanctioned limiter.
 
 luxarch --doc FLEET-RATE-LIMIT-STANDARD. Keyed on the real client behind the proxy
-(app.core.client_ip). State lives in Redis when REDIS_URL is set, so every worker shares one
-count; without it (dev, tests) it is in-process.
+(app.core.client_ip), one budget per IPv4 address or IPv6 /64. State lives in Redis when REDIS_URL
+is set, so every worker shares one count; without it (dev, tests) it is in-process.
 
 Store-unavailable posture (§1.5): this is a REQUEST limiter, so it FAILS OPEN. If Redis is
 unreachable, slowapi falls back to an in-process count (in_memory_fallback_enabled), and a storage
@@ -17,10 +17,18 @@ from starlette.responses import Response
 
 from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
+from app.core.rate_limiter import address_identifier
 from app.core.redis_client import with_default_timeouts
 
+
+def client_key(request: Request) -> str:
+    """One budget per client, as the ingest and request limits key it: an IPv4 address, or a
+    native IPv6 address's /64, which one host or subscriber holds whole."""
+    return address_identifier(client_ip_from_request(request))
+
+
 limiter = Limiter(
-    key_func=client_ip_from_request,
+    key_func=client_key,
     # The app client's connect and reply bounds, unless the URL sets its own.
     storage_uri=with_default_timeouts(settings.REDIS_URL)
     if settings.REDIS_URL

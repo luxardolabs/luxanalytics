@@ -92,3 +92,31 @@ def test_a_spoofed_leftmost_entry_is_skipped() -> None:
 @pytest.mark.usefixtures("nginx")
 def test_a_trusted_peer_without_forwarded_for_is_the_client() -> None:
     assert client_ip_from_request(_request("172.18.0.5")) == "172.18.0.5"
+
+
+@pytest.mark.db
+async def test_native_ipv6_addresses_in_one_64_share_the_login_budget(
+    client: AsyncClient,
+) -> None:
+    """One host or subscriber holds a whole /64: each address in it is the same client."""
+    bad = {"username": "nobody", "password": "wrong", "next": "/"}
+    codes = [
+        (
+            await client.post(
+                "/login",
+                data=bad,
+                headers={"X-Forwarded-For": f"2001:db8:0:7::{i + 1:x}"},
+                follow_redirects=False,
+            )
+        ).status_code
+        for i in range(_LIMIT + 1)
+    ]
+    assert codes == [303] * _LIMIT + [429]
+
+    other_64 = await client.post(
+        "/login",
+        data=bad,
+        headers={"X-Forwarded-For": "2001:db8:0:8::1"},
+        follow_redirects=False,
+    )
+    assert other_64.status_code == 303
