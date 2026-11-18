@@ -38,11 +38,15 @@ def test_a_safe_production_configuration_starts() -> None:
     assert _settings().ENVIRONMENT == "production"
 
 
-def test_production_starts_without_a_secret_key_and_ignores_one_left_in_its_env() -> None:
+def test_production_starts_without_a_secret_key_and_ignores_one_left_in_its_env() -> (
+    None
+):
     """Sessions are signed with DASHBOARD_SESSION_SECRET; no setting named SECRET_KEY is read."""
     values = {**REQUIRED, **SAFE}
     assert Settings.model_validate(values).ENVIRONMENT == "production"
-    assert not hasattr(Settings.model_validate({**values, "SECRET_KEY": "x"}), "SECRET_KEY")
+    assert not hasattr(
+        Settings.model_validate({**values, "SECRET_KEY": "x"}), "SECRET_KEY"
+    )
 
 
 def test_a_refused_setting_does_not_print_its_value() -> None:
