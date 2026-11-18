@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.core.hmac_replay as hmac_replay
 from app.core.config import settings
-from app.core.redis_client import get_redis_client
+from app.core.redis_client import ReplayRedis, get_redis_client
 from app.crud.event_crud import EventWriteCRUD
 from app.main import create_application
 from app.models.app_model import App
@@ -333,9 +333,10 @@ async def test_an_unreachable_redis_lets_ingest_through_and_logs_it(
     """Without Redis a stored request cannot be recognised: ingest keeps working, as the rate
     limiter does, and a replay is stored (an event id still dedupes events that carry one)."""
     unreachable = redis.from_url("redis://127.0.0.1:1/0")
+    replay_redis = ReplayRedis(check=unreachable, mark=unreachable)
 
-    async def get_unreachable_client() -> redis.Redis:
-        return unreachable
+    async def get_unreachable_client() -> ReplayRedis:
+        return replay_redis
 
     monkeypatch.setattr(hmac_replay, "get_replay_redis", get_unreachable_client)
     monkeypatch.setattr(hmac_replay.failures, "last_logged", None)
@@ -490,9 +491,8 @@ class _HungRedis:
         await asyncio.sleep(30)
         return 0
 
-    async def set(self, *_: object, **__: object) -> bool:
+    async def mark(self, *_: object) -> None:
         await asyncio.sleep(30)
-        return True
 
 
 async def test_a_hung_redis_costs_the_check_and_the_mark_a_fraction_of_a_second(
@@ -570,9 +570,9 @@ class _Delayed:
         await asyncio.sleep(self.latency)
         return int(await self.real.exists(key))
 
-    async def set(self, key: str, value: str, ex: int) -> object:
+    async def mark(self, key: str, ex: int) -> None:
         await asyncio.sleep(self.latency)
-        return await self.real.set(key, value, ex=ex)
+        await self.real.set(key, "1", ex=ex)
 
 
 @pytest_asyncio.fixture

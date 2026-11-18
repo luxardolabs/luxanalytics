@@ -1,5 +1,6 @@
 """Redis client configuration and connection management."""
 
+import asyncio
 import logging
 import time
 from collections.abc import Callable
@@ -132,7 +133,6 @@ async def get_redis_client() -> redis.Redis | None:
 async def close_redis_client() -> None:
     """Close Redis client connection."""
     global _redis_client
-
     global _replay_redis
 
     if _redis_client:
@@ -147,31 +147,57 @@ async def close_redis_client() -> None:
 # How long the HMAC replay check waits on Redis, a free connection included, before failing open.
 REPLAY_WAIT_SECONDS = 0.25
 
-# The replay check's and the replay mark's own connections, apart from the 50 the rate limits use:
-# a stalled Redis then holds at most these, and a limit check never waits behind a replay command.
+# The replay check's own connections, apart from the 50 the rate limits use: a stalled Redis then
+# holds at most these, and a limit check never waits behind a replay command. Marks are written by
+# one drainer on one connection of its own.
 REPLAY_CHECK_CONNECTIONS = 5
-REPLAY_MARK_CONNECTIONS = 5
+REPLAY_MARK_CONNECTIONS = 1
 
 
 class ReplayRedis:
-    """The two clients the HMAC replay marks use, each over its own small pool. A check waits for
-    a free connection no longer than REPLAY_WAIT_SECONDS; a mark waits as long as the pool's own
-    timeout (5 s), so a burst of marks is queued, not dropped."""
+    """The clients the HMAC replay marks use, apart from the rate limits'. A check waits for one
+    of its connections no longer than REPLAY_WAIT_SECONDS. Marks are queued and written by one
+    drainer, all pending ones in one pipelined round trip (SET NX EX each), so how fast they are
+    written does not depend on how many connections there are: a mark fails only when Redis does."""
 
     def __init__(self, check: redis.Redis, mark: redis.Redis) -> None:
         self.check = check
-        self.mark = mark
+        self.mark_client = mark
+        self._pending: list[tuple[str, int, asyncio.Future[None]]] = []
+        self._drainer: asyncio.Task[None] | None = None
 
     async def exists(self, key: str) -> int:
         return int(await self.check.exists(key))
 
-    async def set(self, key: str, value: str, ex: int) -> object:
-        reply: object = await self.mark.set(key, value, ex=ex)
-        return reply
+    async def mark(self, key: str, ex: int) -> None:
+        """Returns once `key` is written (expiring in `ex` seconds); raises what Redis raised."""
+        written: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._pending.append((key, ex, written))
+        if self._drainer is None or self._drainer.done():
+            self._drainer = asyncio.ensure_future(self._drain())
+        await written
+
+    async def _drain(self) -> None:
+        while self._pending:
+            batch, self._pending = self._pending, []
+            try:
+                async with self.mark_client.pipeline(transaction=False) as pipe:
+                    for key, ex, _written in batch:
+                        pipe.set(key, "1", ex=ex, nx=True)
+                    await pipe.execute()
+            except (RedisError, OSError) as error:
+                # swallowed-exceptions: handled, not dropped: each waiting mark raises it.
+                for _key, _ex, written in batch:
+                    if not written.done():
+                        written.set_exception(error)
+            else:
+                for _key, _ex, written in batch:
+                    if not written.done():
+                        written.set_result(None)
 
     async def aclose(self) -> None:
         await self.check.aclose()
-        await self.mark.aclose()
+        await self.mark_client.aclose()
 
 
 _replay_redis: ReplayRedis | None = None

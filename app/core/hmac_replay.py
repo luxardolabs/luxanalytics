@@ -113,7 +113,7 @@ async def _set(key: str) -> None:
     replay_redis = await get_replay_redis()
     if replay_redis is None:
         return
-    await replay_redis.set(key, "1", ex=_ttl_seconds())
+    await replay_redis.mark(key, _ttl_seconds())
 
 
 async def signature_is_marked(key_id: str, signature: str) -> bool:

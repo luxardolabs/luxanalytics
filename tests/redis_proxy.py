@@ -13,7 +13,10 @@ from urllib.parse import urlsplit
 
 class StallingProxy:
     """Forwards every connection to Redis. While stalled, replies are held (not dropped) until
-    `resume()`; commands still reach Redis and run."""
+    `resume()`; commands still reach Redis and run. With `delay` set, every reply is `delay`
+    seconds late: a Redis that is slow but answers."""
+
+    delay = 0.0
 
     def __init__(self, host: str, port: int) -> None:
         self.host = host
@@ -81,6 +84,8 @@ class StallingProxy:
                 while data := await reader.read(65536):
                     while held and not self._flowing.is_set():
                         await asyncio.sleep(0.01)
+                    if held and self.delay:
+                        await asyncio.sleep(self.delay)
                     writer.write(data)
                     await writer.drain()
             except OSError:
