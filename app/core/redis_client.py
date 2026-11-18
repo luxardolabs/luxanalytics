@@ -131,17 +131,19 @@ async def get_redis_client() -> redis.Redis | None:
 
 
 async def close_redis_client() -> None:
-    """Close Redis client connection."""
-    global _redis_client
-    global _replay_redis
+    """Close both Redis clients, the replay one first so its pending marks get their short drain.
+    Both are dropped and closed even when one close raises."""
+    global _redis_client, _replay_redis
 
-    if _redis_client:
-        await _redis_client.aclose()
-        _redis_client = None
-        logger.info("Redis client closed")
-    if _replay_redis is not None:
-        await _replay_redis.aclose()
-        _replay_redis = None
+    client, replay_redis = _redis_client, _replay_redis
+    _redis_client, _replay_redis = None, None
+    try:
+        if replay_redis is not None:
+            await replay_redis.aclose()
+    finally:
+        if client:
+            await client.aclose()
+            logger.info("Redis client closed")
 
 
 # How long the HMAC replay check waits on Redis, a free connection included, before failing open.
@@ -152,6 +154,9 @@ REPLAY_WAIT_SECONDS = 0.25
 # one drainer on one connection of its own.
 REPLAY_CHECK_CONNECTIONS = 5
 REPLAY_MARK_CONNECTIONS = 1
+
+# On close, pending marks get this long to be written; the rest are cancelled.
+REPLAY_CLOSE_DRAIN_SECONDS = 2.0
 
 
 class ReplayRedis:
@@ -195,9 +200,23 @@ class ReplayRedis:
                     if not written.done():
                         written.set_result(None)
 
-    async def aclose(self) -> None:
-        await self.check.aclose()
-        await self.mark_client.aclose()
+    async def aclose(self, drain_seconds: float = REPLAY_CLOSE_DRAIN_SECONDS) -> None:
+        """Give pending marks `drain_seconds` to be written, cancel the rest, close both clients
+        (the second even when the first close raises)."""
+        try:
+            drainer = self._drainer
+            if drainer is not None and not drainer.done():
+                await asyncio.wait({drainer}, timeout=drain_seconds)
+                drainer.cancel()
+                await asyncio.gather(drainer, return_exceptions=True)
+            for _key, _ex, written in self._pending:
+                written.cancel()
+            self._pending = []
+        finally:
+            try:
+                await self.check.aclose()
+            finally:
+                await self.mark_client.aclose()
 
 
 _replay_redis: ReplayRedis | None = None

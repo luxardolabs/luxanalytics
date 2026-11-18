@@ -348,3 +348,39 @@ async def test_a_short_redis_hiccup_does_not_reopen_an_exhausted_login_budget(
     after = [await _login(client, "203.0.113.71") for _ in range(attempts)]
 
     assert [during, *after] == [429] * (attempts + 1)
+
+
+async def test_a_failing_close_still_drops_and_closes_every_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await redis_client.close_redis_client()
+    limits_client = await redis_client.get_redis_client()
+    replay_redis = await redis_client.get_replay_redis()
+    assert limits_client is not None and replay_redis is not None
+    closed: list[str] = []
+
+    async def check_close_fails() -> None:
+        closed.append("check")
+        raise ConnectionError("the close failed")
+
+    real_mark_close = replay_redis.mark_client.aclose
+    real_limits_close = limits_client.aclose
+
+    async def mark_close() -> None:
+        closed.append("mark")
+        await real_mark_close()
+
+    async def limits_close() -> None:
+        closed.append("limits")
+        await real_limits_close()
+
+    monkeypatch.setattr(replay_redis.check, "aclose", check_close_fails)
+    monkeypatch.setattr(replay_redis.mark_client, "aclose", mark_close)
+    monkeypatch.setattr(limits_client, "aclose", limits_close)
+
+    with pytest.raises(ConnectionError):
+        await redis_client.close_redis_client()
+
+    assert sorted(closed) == ["check", "limits", "mark"]
+    assert await redis_client.get_replay_redis() is not replay_redis
+    assert await redis_client.get_redis_client() is not limits_client

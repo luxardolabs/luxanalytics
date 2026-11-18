@@ -280,7 +280,7 @@ async def test_a_request_stored_during_a_burst_of_marks_is_not_replayable_after_
     again, its replay inside the window is recognised."""
     body = _event("burst-recovery")
     headers = _signed(body, sample_app.app_id)
-    real_mark = security.mark_signature
+    real_mark = hmac_replay.mark_signature
     others: list[asyncio.Future[None]] = []
 
     async def mark_behind_others(key_id: str, signature: str) -> None:
@@ -316,3 +316,37 @@ async def test_a_request_stored_during_a_burst_of_marks_is_not_replayable_after_
         select(func.count()).select_from(Event).where(Event.app_id == sample_app.app_id)
     )
     assert stored.scalar_one() == 1
+
+
+@pytest.mark.db
+async def test_closing_the_clients_lands_pending_marks_and_leaves_no_connection_open(
+    slow_redis: StallingProxy,
+) -> None:
+    await _warm()
+    replay_redis = await redis_client.get_replay_redis()
+    assert replay_redis is not None
+    slow_redis.delay = 1.2
+    await asyncio.gather(
+        *(hmac_replay.mark_signature("k", f"close-{i}") for i in range(20))
+    )
+
+    started = time.monotonic()
+    await redis_client.close_redis_client()
+    took = time.monotonic() - started
+    await asyncio.sleep(1.5)
+    slow_redis.delay = 0.0
+
+    pools = [
+        replay_redis.check.connection_pool,
+        replay_redis.mark_client.connection_pool,
+    ]
+    still_open = [
+        connection
+        for pool in pools
+        if isinstance(pool, BlockingConnectionPool)
+        for connection in [*pool._available_connections, *pool._in_use_connections]
+        if connection.is_connected
+    ]
+    assert await _keys("hmac:sig:k:close-*") == 20
+    assert took < 2.5
+    assert still_open == []
