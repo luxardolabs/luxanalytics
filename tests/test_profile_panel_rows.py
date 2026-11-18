@@ -110,6 +110,114 @@ async def _profile_versions(
     return stored, {r.device_id: r.app_version for r in rows}
 
 
+Install = tuple[str | None, str | None, str | None]
+
+
+async def _installs(db: AsyncSession) -> tuple[dict[str, Install], dict[str, Install]]:
+    """(devices table, profile rows): each device's (model, OS, app version)."""
+    stored = {
+        d.device_id: (d.device_model, d.os_version, d.app_version)
+        for d in (
+            await db.execute(select(Device).where(Device.app_id == "test_app"))
+        ).scalars()
+    }
+    rows = await event_crud.get_user_devices(db, "adv_u", "test_app")
+    return stored, {
+        r.device_id: (r.device_model, r.os_version, r.app_version) for r in rows
+    }
+
+
+async def test_a_late_batch_of_older_events_agrees_with_the_devices_table(
+    db: AsyncSession,
+) -> None:
+    """The devices table holds an install's current state, the last batch to arrive winning: a
+    retried batch of older events that arrives last is what both show."""
+    now = datetime.now(UTC)
+    ingest = EventCoreService(db)
+    await ingest.create_events(
+        "test_app", [_sdk_event("n", now, device_id="d1", app_version="1.1")]
+    )
+    await ingest.create_events(
+        "test_app",
+        [_sdk_event("o", now - timedelta(hours=1), device_id="d1", app_version="1.0")],
+    )
+    await db.flush()
+
+    stored, rows = await _installs(db)
+
+    assert stored["d1"] == rows["d1"] == (None, None, "1.0")
+
+
+async def test_batches_in_order_agree_with_the_devices_table(db: AsyncSession) -> None:
+    now = datetime.now(UTC)
+    ingest = EventCoreService(db)
+    await ingest.create_events(
+        "test_app",
+        [_sdk_event("o", now - timedelta(hours=1), device_id="d1", app_version="1.0")],
+    )
+    await ingest.create_events(
+        "test_app", [_sdk_event("n", now, device_id="d1", app_version="1.1")]
+    )
+    await db.flush()
+
+    stored, rows = await _installs(db)
+
+    assert stored["d1"] == rows["d1"] == (None, None, "1.1")
+
+
+async def test_a_slow_device_clock_after_a_correct_one_agrees_with_the_devices_table(
+    db: AsyncSession,
+) -> None:
+    """A phone whose clock was reset a month back, now on iOS 18: its later batch is its current
+    state, whatever its event time says."""
+    now = datetime.now(UTC)
+    ingest = EventCoreService(db)
+    await ingest.create_events(
+        "test_app", [_sdk_event("a", now, device_id="d1", system_version="17")]
+    )
+    await ingest.create_events(
+        "test_app",
+        [
+            _sdk_event(
+                "b", now - timedelta(days=30), device_id="d1", system_version="18"
+            )
+        ],
+    )
+    await db.flush()
+
+    stored, rows = await _installs(db)
+
+    assert stored["d1"] == rows["d1"] == (None, "18", None)
+
+
+async def test_a_whitespace_device_id_is_a_device_in_ingest_rows_and_card(
+    db: AsyncSession,
+) -> None:
+    await EventCoreService(db).create_events(
+        "test_app",
+        [_sdk_event("w", datetime.now(UTC), device_id=" ", device_model="M")],
+    )
+    await db.flush()
+
+    stored, rows = await _installs(db)
+    summary = await event_crud.get_user_summary(db, "adv_u", "test_app")
+
+    assert set(stored) == set(rows) == {" "}
+    assert summary["total_devices"] == len(rows) == 1
+
+
+async def test_a_hostile_app_or_user_id_is_bound_not_spliced(db: AsyncSession) -> None:
+    await db.execute(
+        insert(Event),
+        [_row("test_app", "e", user_id="u'x", device_id="d", device_model="M")],
+    )
+    await db.flush()
+
+    assert await event_crud.get_user_devices(db, "u'x", "x' OR '1'='1") == []
+    rows = await event_crud.get_user_devices(db, "u'x", None)
+    assert [(r.device_id, r.device_model) for r in rows] == [("d", "M")]
+
+
 async def test_an_offline_flush_shows_the_latest_version_like_the_devices_table(
     db: AsyncSession,
 ) -> None:
