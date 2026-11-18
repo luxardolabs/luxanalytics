@@ -21,6 +21,7 @@ SAFE = {
     "DASHBOARD_USERNAME": "admin",
     "DASHBOARD_PASSWORD": "a-long-random-production-password",
     "DASHBOARD_SESSION_SECRET": "k" * 40,
+    "TRUSTED_PROXIES": "127.0.0.1,::1,172.31.0.10",
 }
 
 
@@ -688,3 +689,49 @@ def test_an_otlp_headers_value_in_the_standard_form_starts(value: str) -> None:
     assert (
         value == _settings(OTEL_EXPORTER_OTLP_HEADERS=value).OTEL_EXPORTER_OTLP_HEADERS
     )
+
+
+def test_production_refuses_to_start_without_its_proxy_named() -> None:
+    """Unset, only loopback is a proxy: behind a proxy on another address every client would share
+    the proxy's one budget, so production names the proxies in front of it."""
+    values = {**REQUIRED, **SAFE}
+    del values["TRUSTED_PROXIES"]
+    with pytest.raises(ValidationError, match="TRUSTED_PROXIES"):
+        Settings.model_validate(values)
+
+
+def test_development_starts_with_the_loopback_default() -> None:
+    values = {**REQUIRED, **SAFE, "ENVIRONMENT": "dev"}
+    del values["TRUSTED_PROXIES"]
+    assert Settings.model_validate(values).TRUSTED_PROXIES == "127.0.0.1,::1"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "10.0.0.0/8",
+        "127.0.0.1,172.16.0.0/12",
+        "192.168.0.0/16",
+        "172.31.0.0/24",
+        "0.0.0.0/0",
+        "2001:db8::/64",
+    ],
+)
+def test_a_trusted_range_is_refused(value: str) -> None:
+    """Never a subnet: every client that reaches the app from inside it would pick its own key."""
+    with pytest.raises(ValidationError, match="TRUSTED_PROXIES"):
+        _settings(TRUSTED_PROXIES=value)
+
+
+@pytest.mark.parametrize("value", ["nginx", "172.31.0.10:80", "172.31.0.300"])
+def test_a_trusted_proxy_that_is_not_an_address_is_refused(value: str) -> None:
+    with pytest.raises(ValidationError, match="TRUSTED_PROXIES"):
+        _settings(TRUSTED_PROXIES=value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["127.0.0.1,::1,172.31.0.10", "127.0.0.0/8,::1/128,172.31.0.10/32", "", "::1"],
+)
+def test_loopback_and_single_proxy_addresses_start(value: str) -> None:
+    assert value == _settings(TRUSTED_PROXIES=value).TRUSTED_PROXIES

@@ -227,9 +227,10 @@ class Settings(BaseSettings):
     # POST /login, per client address (slowapi syntax). A login cannot key on identity: the
     # credential is what is being verified (FLEET-RATE-LIMIT-STANDARD §1.3).
     LOGIN_RATE_LIMIT: str = "5/minute"
-    # Peers whose X-Forwarded-For is believed (comma-separated CIDRs): the app is reachable only
-    # through nginx on the docker network. See app/core/client_ip.py for the trust model.
-    TRUSTED_PROXIES: str = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    # Peers whose X-Forwarded-For is believed (comma-separated addresses): loopback and each
+    # proxy's own fixed address, never a range (FLEET-RATE-LIMIT-STANDARD §1.3). Production names
+    # its proxies; the default is loopback only. See app/core/client_ip.py for the trust model.
+    TRUSTED_PROXIES: str = "127.0.0.1,::1"
 
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -313,6 +314,26 @@ class Settings(BaseSettings):
             _ = ConnectionPool.from_url(v).make_connection()
         except AttributeError, ValueError, TypeError, RedisError:
             raise ValueError("REDIS_URL is not a readable URL") from None
+        return v
+
+    @field_validator("TRUSTED_PROXIES")
+    @classmethod
+    def trusted_proxies_are_addresses(cls, v: str) -> str:
+        """Each entry one address (a loopback range aside): a range would trust every client that
+        reaches the app from inside it, and each of those picks its own rate-limit key."""
+        for entry in (e.strip() for e in v.split(",")):
+            if not entry:
+                continue
+            try:
+                network = ipaddress.ip_network(entry, strict=False)
+            except ValueError:
+                raise ValueError(
+                    "TRUSTED_PROXIES must be comma-separated IP addresses"
+                ) from None
+            if network.num_addresses > 1 and not network.is_loopback:
+                raise ValueError(
+                    "TRUSTED_PROXIES must name each proxy's own address, never a range"
+                )
         return v
 
     @field_validator(
@@ -450,8 +471,9 @@ class Settings(BaseSettings):
     def production_is_safe(self) -> Settings:
         """Production refuses to start on a setting that is only safe in development: a missing
         DASHBOARD_SESSION_SECRET (a per-process key signs every restart out and splits workers),
-        a guessable dashboard password, DEBUG (it serves /docs and /openapi.json), or no usable
-        https EXTERNAL_URL (DSNs are built from it)."""
+        a guessable dashboard password, DEBUG (it serves /docs and /openapi.json), no
+        TRUSTED_PROXIES (the proxy's address the client is read behind), or no usable https
+        EXTERNAL_URL (DSNs are built from it)."""
         if not self.is_production:
             return self
         if _guessable(self.DASHBOARD_PASSWORD, self.DASHBOARD_USERNAME):
@@ -465,6 +487,12 @@ class Settings(BaseSettings):
             )
         if self.DEBUG:
             raise ValueError("DEBUG must be false in production")
+        if "TRUSTED_PROXIES" not in self.model_fields_set:
+            # Behind a proxy that loopback is not, every client would share the proxy's budget.
+            raise ValueError(
+                "TRUSTED_PROXIES is required in production: loopback and the address of each "
+                "proxy in front of the app"
+            )
         # DSNs are built as https://PUBLIC_ID@<netloc>/….
         url = urlparse(self.EXTERNAL_URL or "")
         if (

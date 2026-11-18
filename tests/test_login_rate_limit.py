@@ -59,6 +59,13 @@ async def test_one_client_exhausting_its_limit_does_not_lock_out_another(
     assert other.status_code == 303
 
 
+@pytest.fixture
+def nginx(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The proxy in front of the app, by its own address."""
+    monkeypatch.setattr(settings, "TRUSTED_PROXIES", "127.0.0.1,::1,172.18.0.5")
+
+
+@pytest.mark.usefixtures("nginx")
 def test_forwarded_for_is_honoured_from_a_trusted_proxy() -> None:
     assert (
         client_ip_from_request(_request("172.18.0.5", "198.51.100.4")) == "198.51.100.4"
@@ -73,6 +80,7 @@ def test_forwarded_for_from_an_untrusted_peer_is_ignored() -> None:
     )
 
 
+@pytest.mark.usefixtures("nginx")
 def test_a_spoofed_leftmost_entry_is_skipped() -> None:
     # nginx appends the real client on the right; whatever the client sent sits to its left.
     assert (
@@ -81,5 +89,6 @@ def test_a_spoofed_leftmost_entry_is_skipped() -> None:
     )
 
 
+@pytest.mark.usefixtures("nginx")
 def test_a_trusted_peer_without_forwarded_for_is_the_client() -> None:
-    assert client_ip_from_request(_request("10.0.0.3")) == "10.0.0.3"
+    assert client_ip_from_request(_request("172.18.0.5")) == "172.18.0.5"
