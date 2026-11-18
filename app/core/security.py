@@ -100,16 +100,15 @@ async def verify_hmac_ingest(
 
 
 async def hmac_replay_mark(
-    x_key_id: Annotated[str | None, Header(alias="X-Key-ID")] = None,
-    x_signature: Annotated[str | None, Header(alias="X-HMAC-Signature")] = None,
+    x_key_id: Annotated[str, Depends(verify_hmac_signature)],
+    x_signature: Annotated[str, Header(alias="X-HMAC-Signature")],
 ) -> AsyncIterator[bool]:
-    """Yields whether this signed request was already stored inside its window (a replay). Marks
-    the signature once the request has completed, which is after get_db committed: this dependency
-    must be resolved before get_db so that it exits after it. A request that fails, is cancelled or
-    dies before the commit leaves no mark, so its retry is stored."""
-    if x_key_id is None or x_signature is None:
-        yield False
-        return
+    """Yields whether this signed request was already stored inside its window (a replay). It
+    depends on the signature being verified, so a request that fails authentication never reaches
+    Redis for its replay check. Marks the signature once the request has completed, which is after
+    get_db committed: this dependency must be resolved before get_db so that it exits after it. A
+    request that fails, is cancelled or dies before the commit leaves no mark, so its retry is
+    stored."""
     replayed = await signature_is_marked(x_key_id, x_signature)
     yield replayed
     if not replayed:

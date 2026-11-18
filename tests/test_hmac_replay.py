@@ -10,6 +10,7 @@ through."""
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -554,3 +555,90 @@ async def test_concurrent_marks_on_a_healthy_redis_are_all_written() -> None:
         await hmac_replay.signature_is_marked("key", f"stored-{i}") for i in range(30)
     ]
     assert marked == [True] * 30
+
+
+class _Delayed:
+    """The test Redis, each reply `latency` late: slow but healthy, inside the 0.25 s wait."""
+
+    def __init__(self, real: redis.Redis, latency: float = 0.15) -> None:
+        self.real = real
+        self.latency = latency
+        self.exists_calls = 0
+
+    async def exists(self, key: str) -> int:
+        self.exists_calls += 1
+        await asyncio.sleep(self.latency)
+        return int(await self.real.exists(key))
+
+    async def set(self, key: str, value: str, ex: int) -> object:
+        await asyncio.sleep(self.latency)
+        return await self.real.set(key, value, ex=ex)
+
+
+@pytest_asyncio.fixture
+async def delayed(monkeypatch: pytest.MonkeyPatch) -> _Delayed:
+    real = await get_redis_client()
+    assert real is not None
+    wrapper = _Delayed(real)
+
+    async def get_delayed() -> _Delayed:
+        return wrapper
+
+    monkeypatch.setattr(hmac_replay, "get_redis_client", get_delayed)
+    return wrapper
+
+
+def _unsigned_headers(i: int, key_id: str = "no-such-key") -> dict[str, str]:
+    return {
+        "Content-Type": "application/json",
+        "X-Key-ID": key_id,
+        "X-Timestamp": str(int(time.time())),
+        "X-HMAC-Signature": f"{i:064x}",
+    }
+
+
+async def test_a_request_that_fails_authentication_sends_no_replay_command(
+    server: AsyncClient, sample_app: App, delayed: _Delayed
+) -> None:
+    unknown_key = await server.post(
+        "/api/v1/events/", content=b"{}", headers=_unsigned_headers(1)
+    )
+    bad_signature = await server.post(
+        "/api/v1/events/",
+        content=b"{}",
+        headers=_unsigned_headers(2, key_id=sample_app.app_id),
+    )
+
+    assert (unknown_key.status_code, bad_signature.status_code) == (401, 403)
+    assert delayed.exists_calls == 0
+
+
+async def test_a_flood_of_unauthenticated_requests_does_not_let_a_replay_through(
+    server: AsyncClient, db: AsyncSession, sample_app: App, delayed: _Delayed
+) -> None:
+    """40 requests with no valid key beside the replay of a stored request, on a slow Redis: the
+    replay is still recognised."""
+    body = _event()
+    headers = _signed(body, sample_app.app_id)
+    first = await server.post("/api/v1/events/", content=body, headers=headers)
+    assert first.json()["events_received"] == 1
+
+    async def unauthenticated(i: int) -> int:
+        response = await server.post(
+            "/api/v1/events/", content=b"{}", headers=_unsigned_headers(i)
+        )
+        return response.status_code
+
+    async def replay() -> str:
+        await asyncio.sleep(0.01)
+        response = await server.post("/api/v1/events/", content=body, headers=headers)
+        message: str = response.json()["message"]
+        return message
+
+    *codes, replayed = await asyncio.gather(
+        *(unauthenticated(i) for i in range(40)), replay()
+    )
+
+    assert set(codes) == {401}
+    assert replayed == DUPLICATE
+    assert await _stored(db, sample_app.app_id) == 1
