@@ -2,6 +2,7 @@
 
 The technical change log is one file per version in [`app/change_logs/`](app/change_logs/), named after the `VERSION` file (CalVer `YYYY.0M.MICRO`). The format is [`app/change_logs/writing-guide.md`](app/change_logs/writing-guide.md); the process is `luxarch --doc FLEET-RELEASE-PROCESS`.
 
+- [2026.11.0](app/change_logs/2026.11.0.md) — 2026-11-18
 - [2026.10.2](app/change_logs/2026.10.2.md) — 2026-10-12
 - [2026.10.1](app/change_logs/2026.10.1.md) — 2026-10-10
 - [2026.10.0](app/change_logs/2026.10.0.md) — 2026-10-09

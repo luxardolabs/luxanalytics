@@ -1,1 +1,0 @@
-- Heads-up for self-hosters: startup now refuses an `OTEL_EXPORTER_OTLP_HEADERS` or `OTEL_EXPORTER_OTLP_TRACES_HEADERS` value that holds no pair, a blank value (`x-api-key=`), or a value that is not printable ASCII once decoded. Check both settings before upgrading if tracing is on; production here sets neither.

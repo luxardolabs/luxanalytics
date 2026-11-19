@@ -1,1 +1,0 @@
-- Before deploying, check that `deploy/prod/.env.prod` sets `TRUSTED_PROXIES=127.0.0.1,::1,172.18.0.4`: production refuses to start without a non-loopback proxy address. 172.18.0.4 is the prod nginx's address on the `luxardolabs` network, pinned with `ipv4_address` in nginx-ovh's compose.yaml; it is not the network's gateway (172.18.0.1).
