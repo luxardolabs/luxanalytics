@@ -275,7 +275,7 @@ make prod-release
 
 ## Environment Variables
 
-See `deploy/prod/.env.prod` for production values. Key ones:
+See `.env.example` for every variable; production values live in the owner's gitignored prod env file (the one `make prod-sync` ships). Key ones:
 
 - `DATABASE_URL` — `postgresql+asyncpg://` (the fleet driver; the emitted test harness and `make db-verify` assume it)
 - `DASHBOARD_PASSWORD` — change from default
