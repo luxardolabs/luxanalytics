@@ -4180,10 +4180,13 @@ prod-sync: ## Sync the stack (compose.yml, scripts/init.sql + backup.sh, .env.pr
 PROD_ENV := deploy/prod/.env.prod
 PROD_TAG ?= $(VERSION)
 
+# The pin resolves the stack as the node does: the node holds .env.prod beside compose.yml, and
+# compose.yml's `env_file: .env.<DEPLOY_ENV>` resolves against the project directory, so the
+# check uses the env file's own directory as the project directory.
 prod-pin: ## Point .env.prod at a version already on GHCR (PROD_TAG, default VERSION)
 	@docker manifest inspect $(PUBLIC_REGISTRY)/$(IMAGE_NAME):$(PROD_TAG) >/dev/null 2>&1 || \
 	  { echo "$(PUBLIC_REGISTRY)/$(IMAGE_NAME):$(PROD_TAG) is not published — make release release-public first"; exit 1; }
-	@$(call pin_env_tag,$(PROD_ENV),$(PROD_TAG))
+	@$(call pin_env_tag,$(PROD_ENV),$(PROD_TAG),-f compose.yml --project-directory $(dir $(PROD_ENV)))
 
 prod-deploy: prod-pin prod-sync ## Pin TAG, sync deploy/prod, pull + restart on the prod node
 	@echo "Deploying LuxAnalytics $(PROD_TAG) to production..."
